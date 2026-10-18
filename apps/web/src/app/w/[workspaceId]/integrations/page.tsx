@@ -18,7 +18,9 @@ import {
   Td,
 } from '@/components/ui';
 import {
+  useConnectGitHub,
   useCreateIntegration,
+  useGitHubApp,
   useDeadLetters,
   useIntegrationAction,
   useIntegrations,
@@ -27,13 +29,92 @@ import {
 } from '@/lib/queries';
 import { atLeast } from '@/lib/roles';
 
-const PROVIDERS: Record<IntegrationProvider, { name: string; hint: string }> = {
+const PROVIDERS: Record<string, { name: string; hint: string }> = {
   otel_jaeger: {
     name: 'OpenTelemetry (Jaeger)',
     hint: 'Pulls error traces for your mapped services.',
   },
   deploy_webhook: { name: 'Deploy webhook', hint: 'Your CI posts a signed event on every deploy.' },
 };
+const ADDABLE: IntegrationProvider[] = ['otel_jaeger', 'deploy_webhook'];
+const PROVIDER_NAMES: Record<string, string> = {
+  ...Object.fromEntries(Object.entries(PROVIDERS).map(([k, v]) => [k, v.name])),
+  github: 'GitHub App',
+};
+
+function GitHubCard({ workspaceId }: { workspaceId: string }) {
+  const info = useGitHubApp(workspaceId, true);
+  const connect = useConnectGitHub(workspaceId);
+  if (info.isPending) return null;
+  return (
+    <Card className="mb-6 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="font-medium">GitHub</p>
+          <p className="text-sm text-subtle">
+            Lets the platform read code and history of your mapped repos with short-lived tokens. It
+            never pushes without an approved fix.
+          </p>
+        </div>
+        {info.data?.installUrl && (
+          <a href={info.data.installUrl} target="_blank" rel="noreferrer">
+            <Button variant="secondary">Install on GitHub ↗</Button>
+          </a>
+        )}
+      </div>
+      <ErrorBox error={info.error} />
+      {info.data && !info.data.configured && (
+        <p className="mt-3 text-sm text-warn">
+          The API has no GitHub App configured (GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY_PATH).
+        </p>
+      )}
+      {info.data?.configured && (
+        <div className="mt-4">
+          {info.data.installations.length === 0 ? (
+            <p className="text-sm text-subtle">
+              No unconnected installations. Install the App on your account (choose the
+              repositories), then{' '}
+              <button className="text-accent underline" onClick={() => void info.refetch()}>
+                refresh
+              </button>
+              .
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {info.data.installations.map((i) => (
+                <li
+                  key={i.id}
+                  className="flex items-center justify-between rounded-md border border-line px-3 py-2 text-sm"
+                >
+                  <span>
+                    <span className="font-medium">{i.account}</span>
+                    <span className="text-subtle">
+                      {' '}
+                      ·{' '}
+                      {i.repositorySelection === 'all'
+                        ? 'all repositories'
+                        : 'selected repositories'}
+                    </span>
+                  </span>
+                  <Button
+                    className="h-8"
+                    disabled={connect.isPending}
+                    onClick={() => connect.mutate(i.id)}
+                  >
+                    Connect
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-2">
+            <ErrorBox error={connect.error} />
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
 
 function SecretOnce({ created, onClose }: { created: IntegrationWithSecret; onClose: () => void }) {
   return (
@@ -73,7 +154,7 @@ export default function IntegrationsPage() {
   const add = async () => {
     const created = await create.mutateAsync({
       provider,
-      name: name.trim() || PROVIDERS[provider].name,
+      name: name.trim() || PROVIDERS[provider]!.name,
     });
     setName('');
     if (created.signingSecret) setSecret(created);
@@ -87,6 +168,8 @@ export default function IntegrationsPage() {
       />
       {secret && <SecretOnce created={secret} onClose={() => setSecret(null)} />}
 
+      {isAdmin && <GitHubCard workspaceId={workspaceId} />}
+
       {isAdmin && (
         <Card className="mb-6 flex flex-wrap items-end gap-3 p-4">
           <Field label="Add integration">
@@ -94,9 +177,9 @@ export default function IntegrationsPage() {
               value={provider}
               onChange={(e) => setProvider(e.target.value as IntegrationProvider)}
             >
-              {Object.entries(PROVIDERS).map(([k, v]) => (
+              {ADDABLE.map((k) => (
                 <option key={k} value={k}>
-                  {v.name}
+                  {PROVIDERS[k]!.name}
                 </option>
               ))}
             </Select>
@@ -104,7 +187,7 @@ export default function IntegrationsPage() {
           <div className="min-w-48 flex-1">
             <Field label="Name">
               <Input
-                placeholder={PROVIDERS[provider].name}
+                placeholder={PROVIDERS[provider]!.name}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
@@ -113,7 +196,7 @@ export default function IntegrationsPage() {
           <Button onClick={() => void add()} disabled={create.isPending}>
             Connect
           </Button>
-          <p className="w-full text-xs text-subtle">{PROVIDERS[provider].hint}</p>
+          <p className="w-full text-xs text-subtle">{PROVIDERS[provider]!.hint}</p>
           <ErrorBox error={create.error} />
         </Card>
       )}
@@ -133,7 +216,7 @@ export default function IntegrationsPage() {
                 <Td>
                   <p className="font-medium">{it.name}</p>
                   <p className="text-xs text-subtle">
-                    {PROVIDERS[it.provider as IntegrationProvider]?.name ?? it.provider}
+                    {PROVIDER_NAMES[it.provider] ?? it.provider}
                   </p>
                 </Td>
                 <Td>
@@ -152,7 +235,7 @@ export default function IntegrationsPage() {
                 <Td className="text-right">
                   {isAdmin && it.status !== 'disconnected' && (
                     <div className="flex justify-end gap-2">
-                      {it.provider === 'otel_jaeger' && (
+                      {(it.provider === 'otel_jaeger' || it.provider === 'github') && (
                         <Button
                           variant="secondary"
                           className="h-8"

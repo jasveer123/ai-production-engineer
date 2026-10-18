@@ -6,6 +6,7 @@ import {
   OnApplicationShutdown,
 } from '@nestjs/common';
 import { ENV, type ApiEnv } from '../config/config.module';
+import { GitHubService } from '../github/github.service';
 import { IngestionProcessor } from './ingestion.processor';
 import { JaegerPoller } from './jaeger.poller';
 
@@ -21,6 +22,7 @@ export class IngestionWorker implements OnApplicationBootstrap, OnApplicationShu
     @Inject(ENV) private readonly env: ApiEnv,
     private readonly processor: IngestionProcessor,
     private readonly poller: JaegerPoller,
+    private readonly github: GitHubService,
   ) {}
 
   onApplicationBootstrap() {
@@ -28,6 +30,11 @@ export class IngestionWorker implements OnApplicationBootstrap, OnApplicationShu
     this.timers.push(
       setInterval(() => void this.tick(), this.env.INGEST_POLL_INTERVAL_MS),
       setInterval(() => void this.poll(), this.env.JAEGER_POLL_INTERVAL_MS),
+      // Detects uninstalled (revoked) GitHub Apps and refreshes repository access.
+      setInterval(
+        () => void this.github.checkAll().catch((e: unknown) => this.logger.error(e)),
+        this.env.GITHUB_HEALTH_INTERVAL_MS,
+      ),
     );
     this.logger.log('Ingestion worker started');
   }

@@ -20,6 +20,7 @@ import {
 import {
   useCreateService,
   useDeleteService,
+  useRepositoryAccess,
   useServices,
   useUpdateService,
   useWorkspace,
@@ -93,6 +94,9 @@ export default function ServicesPage() {
   const ws = useWorkspace(workspaceId);
   const services = useServices(workspaceId);
   const remove = useDeleteService(workspaceId);
+  const access = useRepositoryAccess(workspaceId);
+  const readable = (repo: string) =>
+    access.data?.find((a) => a.repositoryFullName.toLowerCase() === repo.toLowerCase())?.accessible;
   const [editing, setEditing] = useState<Service | 'new' | null>(null);
   const canEdit = atLeast(ws.data?.role, 'admin');
 
@@ -136,6 +140,22 @@ export default function ServicesPage() {
                 <Td>{s.environment}</Td>
                 <Td className="font-mono text-xs">
                   {s.repositoryFullName ?? <span className="text-warn">Not mapped</span>}
+                  {s.repositoryFullName && readable(s.repositoryFullName) === true && (
+                    <span
+                      className="ml-2 font-sans text-ok"
+                      title="Readable through the connected GitHub App"
+                    >
+                      ✓ readable
+                    </span>
+                  )}
+                  {s.repositoryFullName && readable(s.repositoryFullName) === false && (
+                    <span
+                      className="ml-2 font-sans text-warn"
+                      title="No connected GitHub installation can read this repository"
+                    >
+                      no access
+                    </span>
+                  )}
                 </Td>
                 <Td className="font-mono text-xs">{s.defaultBranch}</Td>
                 <Td className="text-right">

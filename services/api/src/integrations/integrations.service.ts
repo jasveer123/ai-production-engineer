@@ -16,6 +16,7 @@ import type { Database } from '../db/client';
 import { inboundEvents, integrations } from '../db/schema';
 import { IngestionProcessor } from '../ingestion/ingestion.processor';
 import { JaegerPoller } from '../ingestion/jaeger.poller';
+import { GitHubService } from '../github/github.service';
 import { SecretStore } from '../secrets/secret-store.service';
 
 type Row = typeof integrations.$inferSelect;
@@ -34,9 +35,10 @@ export class IntegrationsService {
     private readonly audit: AuditService,
     private readonly poller: JaegerPoller,
     private readonly processor: IngestionProcessor,
+    private readonly github: GitHubService,
   ) {}
 
-  private toDto(r: Row): Integration {
+  toDto(r: Row): Integration {
     return {
       id: r.id,
       provider: r.provider,
@@ -50,6 +52,7 @@ export class IntegrationsService {
           ? `${this.env.PUBLIC_API_URL}/ingest/deploys/${r.id}`
           : null,
       createdAt: r.createdAt.toISOString(),
+      ...(r.provider === 'github' ? this.github.toScope(r) : {}),
     };
   }
 
@@ -90,6 +93,13 @@ export class IntegrationsService {
   }
 
   async create(actor: ActorContext, input: CreateIntegrationInput): Promise<IntegrationWithSecret> {
+    if (input.provider === 'github') {
+      throw new ApiException(
+        HttpStatus.BAD_REQUEST,
+        'use_github_connect',
+        'Connect GitHub with POST /github/connect',
+      );
+    }
     if (input.provider === 'deploy_webhook') {
       const secret = `whsec_${randomBytes(32).toString('hex')}`;
       const row = await this.db.transaction(async (tx) => {
@@ -126,6 +136,11 @@ export class IntegrationsService {
         'disconnected',
         'Reconnect by creating a new integration',
       );
+    }
+    if (row.provider === 'github') {
+      const updated = await this.github.check(row);
+      await this.record(actor, 'integration.tested', id, { status: updated.status });
+      return this.toDto(updated);
     }
     if (row.provider === 'otel_jaeger') {
       let patch: Partial<Row>;

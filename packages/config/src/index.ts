@@ -34,6 +34,11 @@ export const apiEnvSchema = z
     JAEGER_QUERY_URL: z.string().url().default('http://localhost:16686'),
     JAEGER_UI_URL: z.string().url().default('http://localhost:16686'),
     JAEGER_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(15000),
+    // GitHub App (ADR-009). The private key stays on disk; only its path is configured.
+    GITHUB_APP_ID: z.string().regex(/^\d+$/).optional(),
+    GITHUB_APP_PRIVATE_KEY_PATH: z.string().optional(),
+    GITHUB_API_URL: z.string().url().default('https://api.github.com'),
+    GITHUB_HEALTH_INTERVAL_MS: z.coerce.number().int().positive().default(60000),
   })
   .refine((env) => !(env.NODE_ENV === 'production' && env.AUTH_DEV_LOGIN), {
     message: 'AUTH_DEV_LOGIN must be false in production',

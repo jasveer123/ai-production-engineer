@@ -16,4 +16,6 @@ Object.assign(process.env, {
   SECRETS_ENCRYPTION_KEY: 'a'.repeat(64),
   INGEST_WORKER_ENABLED: 'false',
   JAEGER_QUERY_URL: 'http://jaeger.test',
+  GITHUB_APP_ID: '1',
+  GITHUB_APP_PRIVATE_KEY_PATH: '/nonexistent/test.pem', // tests inject a fake client
 });

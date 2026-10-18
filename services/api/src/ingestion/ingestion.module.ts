@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { GitHubController } from '../github/github.controller';
+import { GitHubService } from '../github/github.service';
 import { IntegrationsController } from '../integrations/integrations.controller';
 import { IntegrationsService } from '../integrations/integrations.service';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
@@ -9,8 +11,14 @@ import { JaegerPoller } from './jaeger.poller';
 
 @Module({
   imports: [WorkspacesModule],
-  controllers: [DeployWebhookController, IntegrationsController],
-  providers: [IngestionProcessor, JaegerPoller, IngestionWorker, IntegrationsService],
-  exports: [IngestionProcessor, JaegerPoller],
+  controllers: [DeployWebhookController, IntegrationsController, GitHubController],
+  providers: [
+    IngestionProcessor,
+    JaegerPoller,
+    IngestionWorker,
+    IntegrationsService,
+    GitHubService,
+  ],
+  exports: [IngestionProcessor, JaegerPoller, GitHubService],
 })
 export class IngestionModule {}

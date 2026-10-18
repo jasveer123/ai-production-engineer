@@ -5,7 +5,13 @@ import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { INCIDENT_TRANSITIONS, type IncidentStatus, type TimelineEntry } from '@ape/api-contracts';
 import { Badge, Button, Card, ErrorBox, Input, Loading } from '@/components/ui';
-import { useIncident, useTimeline, useTransitionIncident, useWorkspace } from '@/lib/queries';
+import {
+  useIncident,
+  useServiceCommits,
+  useTimeline,
+  useTransitionIncident,
+  useWorkspace,
+} from '@/lib/queries';
 import { atLeast } from '@/lib/roles';
 
 const label = (s: string) => s.replace(/_/g, ' ');
@@ -49,6 +55,37 @@ function TimelineItem({ e }: { e: TimelineEntry }) {
         </a>
       )}
     </li>
+  );
+}
+
+function RecentCommits({ workspaceId, serviceId }: { workspaceId: string; serviceId: string }) {
+  const commits = useServiceCommits(workspaceId, serviceId);
+  return (
+    <Card className="mb-6 p-4">
+      <p className="mb-2 text-sm font-semibold">Recent commits</p>
+      {commits.isPending ? (
+        <Loading />
+      ) : commits.error ? (
+        <p className="text-sm text-warn">{(commits.error as Error).message}</p>
+      ) : (
+        <ul className="divide-y divide-line text-sm">
+          {commits.data.map((c) => (
+            <li key={c.sha} className="flex items-baseline gap-3 py-1.5">
+              <a
+                href={c.url}
+                target="_blank"
+                rel="noreferrer"
+                className="font-mono text-xs text-accent hover:underline"
+              >
+                {c.sha.slice(0, 7)}
+              </a>
+              <span className="min-w-0 flex-1 truncate">{c.message}</span>
+              <span className="shrink-0 text-xs text-subtle">{c.author}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }
 
@@ -152,6 +189,10 @@ export default function IncidentPage() {
             <ErrorBox error={transition.error} />
           </div>
         </Card>
+      )}
+
+      {i.serviceId && i.repositoryFullName && (
+        <RecentCommits workspaceId={workspaceId} serviceId={i.serviceId} />
       )}
 
       <h2 className="mb-3 text-sm font-semibold">Timeline</h2>

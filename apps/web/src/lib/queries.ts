@@ -18,10 +18,13 @@ import type {
   CreateIncidentInput,
   CreateIntegrationInput,
   DeadLetter,
+  GitHubAppInfo,
   Incident,
   IncidentListQuery,
   Integration,
   IntegrationWithSecret,
+  RepoCommit,
+  RepositoryAccess,
   TimelineEntry,
   TransitionIncidentInput,
 } from '@ape/api-contracts';
@@ -273,3 +276,40 @@ export const useReplayDeadLetter = (ws: string) =>
       api<void>(`/workspaces/${ws}/ingest/dead-letters/${id}/replay`, { method: 'POST' }),
     [[...incidentKeys.deadLetters(ws)]],
   );
+
+// ----- GitHub -----
+export const useGitHubApp = (ws: string, enabled: boolean) =>
+  useQuery({
+    queryKey: ['workspace', ws, 'github-app'],
+    queryFn: () => api<GitHubAppInfo>(`/workspaces/${ws}/github/app`),
+    enabled,
+  });
+
+export const useConnectGitHub = (ws: string) =>
+  useWrite(
+    ws,
+    (installationId: number) =>
+      api<Integration>(`/workspaces/${ws}/github/connect`, {
+        method: 'POST',
+        body: JSON.stringify({ installationId }),
+      }),
+    [
+      [...incidentKeys.integrations(ws)],
+      ['workspace', ws, 'github-app'],
+      ['workspace', ws, 'repo-access'],
+    ],
+  );
+
+export const useRepositoryAccess = (ws: string) =>
+  useQuery({
+    queryKey: ['workspace', ws, 'repo-access'],
+    queryFn: () => api<RepositoryAccess[]>(`/workspaces/${ws}/github/repository-access`),
+  });
+
+export const useServiceCommits = (ws: string, serviceId: string | null) =>
+  useQuery({
+    queryKey: ['workspace', ws, 'service', serviceId, 'commits'],
+    queryFn: () => api<RepoCommit[]>(`/workspaces/${ws}/services/${serviceId}/commits?limit=5`),
+    enabled: !!serviceId,
+    retry: false,
+  });

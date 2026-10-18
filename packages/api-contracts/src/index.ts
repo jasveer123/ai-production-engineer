@@ -219,7 +219,7 @@ export type TimelineEntry =
     };
 
 // ----- Integrations -----
-export const INTEGRATION_PROVIDERS = ['deploy_webhook', 'otel_jaeger'] as const;
+export const INTEGRATION_PROVIDERS = ['deploy_webhook', 'otel_jaeger', 'github'] as const;
 export const integrationProviderSchema = z.enum(INTEGRATION_PROVIDERS);
 export type IntegrationProvider = z.infer<typeof integrationProviderSchema>;
 
@@ -267,3 +267,32 @@ export const severityRuleSchema = z.object({
 });
 export const severityRulesSchema = z.object({ rules: z.array(severityRuleSchema).max(50) });
 export type SeverityRule = z.infer<typeof severityRuleSchema>;
+
+// ----- GitHub -----
+export interface GitHubAppInfo {
+  configured: boolean;
+  slug: string | null;
+  installUrl: string | null;
+  /** Installations of the App that are not yet connected to any workspace. */
+  installations: { id: number; account: string; repositorySelection: 'all' | 'selected' }[];
+}
+
+export const connectGitHubSchema = z.object({
+  installationId: z.number().int().positive(),
+  name: z.string().trim().min(1).max(80).default('GitHub'),
+});
+export type ConnectGitHubInput = z.input<typeof connectGitHubSchema>;
+
+export interface RepositoryAccess {
+  repositoryFullName: string;
+  accessible: boolean;
+  integrationId: string | null;
+}
+
+export interface RepoCommit {
+  sha: string;
+  message: string;
+  author: string | null;
+  date: string | null;
+  url: string;
+}
