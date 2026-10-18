@@ -16,14 +16,16 @@ Format: **Context → Decision → Consequences**. Status is *Accepted* unless n
 | [ADR-010](010-evidence-first-ai-with-structured-outputs.md) | Evidence-first AI with structured outputs |
 | [ADR-011](011-provider-agnostic-model-gateway.md) | Provider-agnostic model gateway |
 | [ADR-012](012-managed-containers-before-kubernetes.md) | Managed containers before Kubernetes |
+| [ADR-013](013-drizzle-orm.md) | Drizzle ORM for PostgreSQL |
+| [ADR-014](014-auth-github-oauth-api-sessions.md) | GitHub OAuth with API-issued sessions |
 
 ## Open decisions
 (make these during the build)
 
 | # | Question | Options | Decide in |
 |---|---|---|---|
-| D-1 | ORM | Prisma vs Drizzle | Phase 1 |
-| D-2 | Auth | Auth.js (in Next.js) vs NestJS-issued JWT sessions | Phase 1 |
+| D-1 | ORM | ~~Prisma vs Drizzle~~ → Drizzle (ADR-013) | Phase 1 |
+| D-2 | Auth | ~~Auth.js vs NestJS sessions~~ → NestJS sessions (ADR-014) | Phase 1 |
 | D-3 | Temporal SDK for workflows | TypeScript vs Python | Phase 4 |
 | D-4 | Pre-Temporal buffer | Postgres table vs BullMQ | Phase 3 |
 | D-5 | Hosting | VPS + Compose vs AWS + Terraform | Phase 10 |

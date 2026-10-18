@@ -17,19 +17,24 @@ Planning docs (FRD, system design, build plan) live one level up in [`../PLAN.md
 ## Quick start
 
 ```bash
-make setup   # install deps, create .env files from .env.example
-make up      # start Postgres, Redis, Temporal, S3 (RustFS), Jaeger, OTel Collector
-make dev     # run web, api and ai-worker
+make setup    # install deps, create .env files from .env.example
+make up       # start Postgres, Redis, Temporal, S3 (RustFS), Jaeger, OTel Collector
+make migrate  # create the database tables
+make seed     # demo workspace + owner/engineer/viewer users
+make dev      # run web, api and ai-worker
 ```
 
 | What | URL |
 |---|---|
 | Web dashboard | http://localhost:3000 |
 | API health | http://localhost:4000/health |
+| API docs (OpenAPI) | http://localhost:4000/docs |
 | AI worker health | http://localhost:8000/health |
 | Temporal UI | http://localhost:8233 |
 | Jaeger UI | http://localhost:16686 |
 | S3 console (RustFS) | http://localhost:9001/rustfs/console/ (`ape-minio` / `ape-minio-secret`) |
+
+Sign in at http://localhost:3000/login with the seeded demo users (`owner@demo.local`, `engineer@demo.local`, `viewer@demo.local`) through the local-only dev login. For real GitHub sign-in, create a GitHub OAuth app with callback `http://localhost:4000/auth/github/callback` and set `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET` in `services/api/.env`.
 
 Other targets: `make test`, `make lint`, `make typecheck`, `make format`, `make down`, `make clean` (deletes local data volumes).
 
@@ -53,4 +58,4 @@ docs/                     ADRs, threat model, runbooks
 
 ## Local data ports
 
-Postgres `5432` (`ape`/`ape`, db `ape`) · Redis `6379` · Temporal `7233` · S3 API `9000` · OTLP `4317` gRPC / `4318` HTTP (collector → Jaeger).
+Postgres `5433` (`ape`/`ape`, db `ape`) · Redis `6380` · Temporal `7233` · S3 API `9000` · OTLP `4317` gRPC / `4318` HTTP (collector → Jaeger).

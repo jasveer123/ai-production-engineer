@@ -9,7 +9,8 @@ services:
       POSTGRES_USER: ape
       POSTGRES_PASSWORD: ape
       POSTGRES_DB: ape
-    ports: ['5432:5432']
+    # Host port 5433 so it does not clash with a local Postgres on 5432.
+    ports: ['5433:5432']
     volumes: [postgres-data:/var/lib/postgresql/data]
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ape -d ape']
@@ -19,7 +20,8 @@ services:
 
   redis:
     image: redis:7
-    ports: ['6379:6379']
+    # Host port 6380 so it does not clash with a local Redis on 6379.
+    ports: ['6380:6379']
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 5s

@@ -2,10 +2,20 @@
   "name": "@ape/api-contracts",
   "version": "0.0.1",
   "private": true,
-  "main": "src/index.ts",
+  "description": "Request/response schemas shared by the API and the web app",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "typecheck": "echo \"api-contracts: placeholder until Phase 1\"",
-    "lint": "echo \"api-contracts: placeholder\"",
-    "test": "echo \"api-contracts: placeholder\""
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "echo \"lint via root prettier\"",
+    "test": "echo \"no contract tests yet\""
+  },
+  "dependencies": {
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
   }
 }

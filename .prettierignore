@@ -5,3 +5,4 @@ coverage
 pnpm-lock.yaml
 services/ai-worker
 *.md
+services/api/drizzle/meta
