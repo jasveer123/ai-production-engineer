@@ -13,4 +13,7 @@ Object.assign(process.env, {
   WEB_URL: 'http://localhost:3000',
   AUTH_DEV_LOGIN: 'true',
   OTEL_ENABLED: 'false',
+  SECRETS_ENCRYPTION_KEY: 'a'.repeat(64),
+  INGEST_WORKER_ENABLED: 'false',
+  JAEGER_QUERY_URL: 'http://jaeger.test',
 });

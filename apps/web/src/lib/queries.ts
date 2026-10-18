@@ -14,6 +14,17 @@ import type {
   UpdateServiceInput,
   Workspace,
 } from '@ape/api-contracts';
+import type {
+  CreateIncidentInput,
+  CreateIntegrationInput,
+  DeadLetter,
+  Incident,
+  IncidentListQuery,
+  Integration,
+  IntegrationWithSecret,
+  TimelineEntry,
+  TransitionIncidentInput,
+} from '@ape/api-contracts';
 import { api } from './api';
 
 export const keys = {
@@ -145,3 +156,120 @@ export const useRemoveMember = (ws: string) =>
   useWrite(ws, (id: string) => api<void>(`/workspaces/${ws}/members/${id}`, { method: 'DELETE' }), [
     [...keys.members(ws)],
   ]);
+
+// ----- Incidents -----
+
+const LIVE_MS = 5000;
+
+export const incidentKeys = {
+  list: (ws: string, q: IncidentListQuery) => ['workspace', ws, 'incidents', q] as const,
+  one: (ws: string, id: string) => ['workspace', ws, 'incident', id] as const,
+  timeline: (ws: string, id: string) => ['workspace', ws, 'incident', id, 'timeline'] as const,
+  integrations: (ws: string) => ['workspace', ws, 'integrations'] as const,
+  deadLetters: (ws: string) => ['workspace', ws, 'dead-letters'] as const,
+};
+
+const qs = (q: object) =>
+  new URLSearchParams(
+    Object.entries(q).filter(([, v]) => v !== undefined && v !== '') as [string, string][],
+  ).toString();
+
+/** Polls so new incidents and events show up without a reload (SSE comes in Phase 8). */
+export const useIncidents = (ws: string, q: IncidentListQuery) =>
+  useQuery({
+    queryKey: incidentKeys.list(ws, q),
+    queryFn: () => api<Incident[]>(`/workspaces/${ws}/incidents?${qs(q)}`),
+    refetchInterval: LIVE_MS,
+  });
+
+export const useIncident = (ws: string, id: string) =>
+  useQuery({
+    queryKey: incidentKeys.one(ws, id),
+    queryFn: () => api<Incident>(`/workspaces/${ws}/incidents/${id}`),
+    refetchInterval: LIVE_MS,
+  });
+
+export const useTimeline = (ws: string, id: string) =>
+  useQuery({
+    queryKey: incidentKeys.timeline(ws, id),
+    queryFn: () => api<TimelineEntry[]>(`/workspaces/${ws}/incidents/${id}/timeline`),
+    refetchInterval: LIVE_MS,
+  });
+
+export const useCreateIncident = (ws: string) =>
+  useWrite(
+    ws,
+    (body: CreateIncidentInput) =>
+      api<Incident>(`/workspaces/${ws}/incidents`, { method: 'POST', body: JSON.stringify(body) }),
+    [['workspace', ws, 'incidents']],
+  );
+
+export const useTransitionIncident = (ws: string, id: string) =>
+  useWrite(
+    ws,
+    (body: TransitionIncidentInput) =>
+      api<Incident>(`/workspaces/${ws}/incidents/${id}/transitions`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    [
+      [...incidentKeys.one(ws, id)],
+      [...incidentKeys.timeline(ws, id)],
+      ['workspace', ws, 'incidents'],
+    ],
+  );
+
+// ----- Integrations -----
+export const useIntegrations = (ws: string) =>
+  useQuery({
+    queryKey: incidentKeys.integrations(ws),
+    queryFn: () => api<Integration[]>(`/workspaces/${ws}/integrations`),
+    refetchInterval: LIVE_MS,
+  });
+
+export const useCreateIntegration = (ws: string) =>
+  useWrite(
+    ws,
+    (body: CreateIntegrationInput) =>
+      api<IntegrationWithSecret>(`/workspaces/${ws}/integrations`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    [[...incidentKeys.integrations(ws)]],
+  );
+
+export const useIntegrationAction = (ws: string) =>
+  useWrite(
+    ws,
+    async ({
+      id,
+      action,
+    }: {
+      id: string;
+      action: 'test' | 'rotate-secret' | 'disconnect';
+    }): Promise<IntegrationWithSecret | undefined> => {
+      if (action === 'disconnect') {
+        await api<void>(`/workspaces/${ws}/integrations/${id}`, { method: 'DELETE' });
+        return undefined;
+      }
+      return api<IntegrationWithSecret>(`/workspaces/${ws}/integrations/${id}/${action}`, {
+        method: 'POST',
+      });
+    },
+    [[...incidentKeys.integrations(ws)]],
+  );
+
+export const useDeadLetters = (ws: string, enabled: boolean) =>
+  useQuery({
+    queryKey: incidentKeys.deadLetters(ws),
+    queryFn: () => api<DeadLetter[]>(`/workspaces/${ws}/ingest/dead-letters`),
+    enabled,
+  });
+
+export const useReplayDeadLetter = (ws: string) =>
+  useWrite(
+    ws,
+    (id: string) =>
+      api<void>(`/workspaces/${ws}/ingest/dead-letters/${id}/replay`, { method: 'POST' }),
+    [[...incidentKeys.deadLetters(ws)]],
+  );

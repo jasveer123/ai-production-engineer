@@ -89,6 +89,7 @@ export const workspaces = pgTable('workspaces', {
   name: text('name').notNull(),
   plan: text('plan').notNull().default('free'),
   status: workspaceStatusEnum('status').notNull().default('active'),
+  settings: jsonb('settings').$type<WorkspaceSettings>().notNull().default({}),
   ...timestamps(),
 });
 
@@ -131,8 +132,10 @@ export const integrations = pgTable(
   {
     id: id(),
     workspaceId: workspaceRef(),
-    provider: text('provider').notNull(), // github | sentry | otel | deploy_webhook
+    provider: text('provider').notNull(), // deploy_webhook | otel_jaeger | github | sentry
+    name: text('name').notNull().default(''),
     externalAccountId: text('external_account_id'),
+    config: jsonb('config').$type<Record<string, unknown>>().notNull().default({}),
     status: integrationStatusEnum('status').notNull().default('pending'),
     // Reference into a secret manager. Never the secret itself.
     secretReference: text('secret_reference'),
@@ -169,7 +172,13 @@ export const incidents = pgTable(
     workspaceId: workspaceRef(),
     serviceId: uuid('service_id').references(() => services.id, { onDelete: 'set null' }),
     title: text('title').notNull(),
+    description: text('description'),
+    // Telemetry service name as reported by the source, kept even when unmapped.
+    serviceName: text('service_name'),
+    environment: text('environment'),
+    source: text('source').notNull().default('manual'),
     fingerprint: text('fingerprint').notNull(),
+    eventCount: integer('event_count').notNull().default(0),
     status: incidentStatusEnum('status').notNull().default('detected'),
     severity: severityEnum('severity').notNull().default('medium'),
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull(),
@@ -178,7 +187,10 @@ export const incidents = pgTable(
     ...timestamps(),
   },
   (t) => [
-    uniqueIndex('incidents_fingerprint_key').on(t.workspaceId, t.fingerprint),
+    // Dedup applies to open incidents only; a recurrence after resolution opens a new one.
+    uniqueIndex('incidents_open_fingerprint_key')
+      .on(t.workspaceId, t.fingerprint)
+      .where(sql`${t.status} not in ('resolved', 'closed_without_fix')`),
     index('incidents_workspace_status_idx').on(t.workspaceId, t.status),
   ],
 );
@@ -194,15 +206,96 @@ export const incidentEvents = pgTable(
     integrationId: uuid('integration_id').references(() => integrations.id, {
       onDelete: 'set null',
     }),
+    kind: text('kind').notNull().default('error'), // error | status_change | created
     source: text('source').notNull(),
     externalEventId: text('external_event_id'),
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    summary: text('summary'),
+    traceId: text('trace_id'),
+    sourceUrl: text('source_url'),
+    actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    attributes: jsonb('attributes').$type<Record<string, unknown>>().notNull().default({}),
     artifactReference: text('artifact_reference'),
     ...timestamps(),
   },
   (t) => [
     uniqueIndex('incident_events_external_key').on(t.integrationId, t.externalEventId),
     index('incident_events_incident_idx').on(t.incidentId),
+  ],
+);
+
+// ---------- Ingestion ----------
+
+/** Encrypted secrets for local development. `integrations.secret_reference` points here. */
+export const secrets = pgTable('secrets', {
+  id: id(),
+  workspaceId: workspaceRef(),
+  ciphertext: text('ciphertext').notNull(),
+  ...timestamps(),
+});
+
+export const inboundEventStatusEnum = pgEnum('inbound_event_status', [
+  'pending',
+  'processed',
+  'dead',
+]);
+
+/**
+ * Durable buffer between receivers and the processor. Rows are written before any processing,
+ * so an acknowledged event is never lost. `dead` rows are the dead-letter queue.
+ */
+export const inboundEvents = pgTable(
+  'inbound_events',
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    integrationId: uuid('integration_id')
+      .notNull()
+      .references(() => integrations.id, { onDelete: 'cascade' }),
+    source: text('source').notNull(),
+    externalEventId: text('external_event_id').notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
+    status: inboundEventStatusEnum('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    deadReason: text('dead_reason'),
+    lastError: text('last_error'),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+    processedAt: timestamp('processed_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('inbound_events_external_key').on(t.integrationId, t.externalEventId),
+    index('inbound_events_pending_idx')
+      .on(t.nextAttemptAt)
+      .where(sql`${t.status} = 'pending'`),
+  ],
+);
+
+export const deployments = pgTable(
+  'deployments',
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    integrationId: uuid('integration_id').references(() => integrations.id, {
+      onDelete: 'set null',
+    }),
+    serviceId: uuid('service_id').references(() => services.id, { onDelete: 'set null' }),
+    serviceName: text('service_name').notNull(),
+    environment: text('environment').notNull(),
+    commitSha: text('commit_sha').notNull(),
+    version: text('version'),
+    externalEventId: text('external_event_id').notNull(),
+    deployedAt: timestamp('deployed_at', { withTimezone: true }).notNull(),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex('deployments_external_key').on(t.integrationId, t.externalEventId),
+    index('deployments_service_time_idx').on(
+      t.workspaceId,
+      t.serviceName,
+      t.environment,
+      t.deployedAt,
+    ),
   ],
 );
 
@@ -381,3 +474,16 @@ export const outbox = pgTable(
 );
 
 export type Role = (typeof roleEnum.enumValues)[number];
+export type Severity = (typeof severityEnum.enumValues)[number];
+export type IncidentStatus = (typeof incidentStatusEnum.enumValues)[number];
+
+export interface SeverityRule {
+  environment?: string;
+  serviceName?: string;
+  errorType?: string;
+  severity: Severity;
+}
+
+export interface WorkspaceSettings {
+  severityRules?: SeverityRule[];
+}

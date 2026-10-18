@@ -36,6 +36,12 @@ make dev      # run web, api and ai-worker
 
 Sign in at http://localhost:3000/login with the seeded demo users (`owner@demo.local`, `engineer@demo.local`, `viewer@demo.local`) through the local-only dev login. For real GitHub sign-in, create a GitHub OAuth app with callback `http://localhost:4000/auth/github/callback` and set `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET` in `services/api/.env`.
 
+### Detecting incidents (Phase 3)
+
+1. **Integrations → OpenTelemetry (Jaeger)**: polls Jaeger every 15 s for error traces of the services on the Services page.
+2. **Integrations → Deploy webhook**: copy the URL and signing secret (shown once) into demo-shop as `PLATFORM_DEPLOY_WEBHOOK_URL` / `PLATFORM_DEPLOY_WEBHOOK_SECRET`, then run `pnpm deploy-marker` there.
+3. Turn on a demo-shop scenario (see its `BUGS.md`) and run `pnpm load`. Repeated errors collapse into one incident, with deploys on its timeline.
+
 Other targets: `make test`, `make lint`, `make typecheck`, `make format`, `make down`, `make clean` (deletes local data volumes).
 
 ## Layout

@@ -7,6 +7,9 @@ import { CorrelationIdMiddleware } from './common/correlation-id.middleware';
 import { ConfigModule } from './config/config.module';
 import { DatabaseModule } from './db/database.module';
 import { HealthModule } from './health/health.module';
+import { IncidentsModule } from './incidents/incidents.module';
+import { IngestionModule } from './ingestion/ingestion.module';
+import { SecretsModule } from './secrets/secrets.module';
 import { ServiceMappingsModule } from './service-mappings/service-mappings.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
 
@@ -15,10 +18,13 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     ConfigModule,
     DatabaseModule,
     AuditModule,
+    SecretsModule,
     AuthModule,
     HealthModule,
     WorkspacesModule,
     ServiceMappingsModule,
+    IncidentsModule,
+    IngestionModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: ApiErrorFilter }],
 })

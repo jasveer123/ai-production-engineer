@@ -24,6 +24,16 @@ export const apiEnvSchema = z
     GITHUB_OAUTH_CLIENT_SECRET: z.string().optional(),
     // Local-only email login. Refused at startup when NODE_ENV=production.
     AUTH_DEV_LOGIN: booleanFlag.default('false'),
+    // Public base URL of this API, used to show webhook URLs to users.
+    PUBLIC_API_URL: z.string().url().default('http://localhost:4000'),
+    // AES-256-GCM key for locally stored integration secrets: 64 hex chars (`openssl rand -hex 32`).
+    SECRETS_ENCRYPTION_KEY: z.string().regex(/^[0-9a-f]{64}$/i, 'must be 64 hex characters'),
+    // Background ingestion processor and Jaeger poller. Tests turn these off and drive them directly.
+    INGEST_WORKER_ENABLED: booleanFlag.default('true'),
+    INGEST_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(1000),
+    JAEGER_QUERY_URL: z.string().url().default('http://localhost:16686'),
+    JAEGER_UI_URL: z.string().url().default('http://localhost:16686'),
+    JAEGER_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(15000),
   })
   .refine((env) => !(env.NODE_ENV === 'production' && env.AUTH_DEV_LOGIN), {
     message: 'AUTH_DEV_LOGIN must be false in production',

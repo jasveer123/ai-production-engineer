@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Card, PageHeader } from '@/components/ui';
-import { useMembers, useServices, useWorkspace } from '@/lib/queries';
+import { useIncidents, useMembers, useServices, useWorkspace } from '@/lib/queries';
 
 function Stat({ label, value, href }: { label: string; value: string | number; href?: string }) {
   const body = (
@@ -26,12 +26,17 @@ export default function OverviewPage() {
   const ws = useWorkspace(workspaceId);
   const services = useServices(workspaceId);
   const members = useMembers(workspaceId);
+  const open = useIncidents(workspaceId, { status: 'open', limit: 100 });
 
   return (
     <div className="max-w-5xl">
       <PageHeader title={ws.data?.name ?? 'Overview'} description="Workspace overview" />
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat label="Open incidents" value="—" />
+        <Stat
+          label="Open incidents"
+          value={open.data?.length ?? '…'}
+          href={`/w/${workspaceId}/incidents`}
+        />
         <Stat
           label="Services"
           value={services.data?.length ?? '…'}

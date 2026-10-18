@@ -1,0 +1,772 @@
+{
+  "traceID": "b7ae800228873da18efd3c23edb46a97",
+  "spans": [
+    {
+      "traceID": "b7ae800228873da18efd3c23edb46a97",
+      "spanID": "f9457c174f89b713",
+      "operationName": "POST /checkout",
+      "startTime": 1792353789189000,
+      "duration": 4321,
+      "tags": [
+        {
+          "key": "client.address",
+          "type": "string",
+          "value": "::1"
+        },
+        {
+          "key": "error",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "key": "http.request.method",
+          "type": "string",
+          "value": "POST"
+        },
+        {
+          "key": "http.response.status_code",
+          "type": "int64",
+          "value": 500
+        },
+        {
+          "key": "http.route",
+          "type": "string",
+          "value": "/checkout"
+        },
+        {
+          "key": "network.peer.address",
+          "type": "string",
+          "value": "::1"
+        },
+        {
+          "key": "network.peer.port",
+          "type": "int64",
+          "value": 53758
+        },
+        {
+          "key": "network.protocol.version",
+          "type": "string",
+          "value": "1.1"
+        },
+        {
+          "key": "otel.scope.name",
+          "type": "string",
+          "value": "@opentelemetry/instrumentation-http"
+        },
+        {
+          "key": "otel.scope.version",
+          "type": "string",
+          "value": "0.223.0"
+        },
+        {
+          "key": "otel.status_code",
+          "type": "string",
+          "value": "ERROR"
+        },
+        {
+          "key": "server.address",
+          "type": "string",
+          "value": "localhost"
+        },
+        {
+          "key": "server.port",
+          "type": "int64",
+          "value": 5050
+        },
+        {
+          "key": "span.kind",
+          "type": "string",
+          "value": "server"
+        },
+        {
+          "key": "url.path",
+          "type": "string",
+          "value": "/checkout"
+        },
+        {
+          "key": "url.scheme",
+          "type": "string",
+          "value": "http"
+        },
+        {
+          "key": "user_agent.original",
+          "type": "string",
+          "value": "curl/8.7.1"
+        }
+      ],
+      "logs": [
+        {
+          "timestamp": 1792353789192805,
+          "fields": [
+            {
+              "key": "event",
+              "type": "string",
+              "value": "exception"
+            },
+            {
+              "key": "exception.message",
+              "type": "string",
+              "value": "Cannot read properties of undefined (reading 'percentOff')"
+            },
+            {
+              "key": "exception.stacktrace",
+              "type": "string",
+              "value": "TypeError: Cannot read properties of undefined (reading 'percentOff')\n    at CheckoutService.discountV2 (/app/api/src/services/checkout.ts:81:46)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async CheckoutService.checkout (/app/api/src/services/checkout.ts:45:9)\n    at async <anonymous> (/app/api/src/app.ts:88:26)"
+            },
+            {
+              "key": "exception.type",
+              "type": "string",
+              "value": "TypeError"
+            }
+          ]
+        }
+      ],
+      "processID": "p1"
+    },
+    {
+      "traceID": "b7ae800228873da18efd3c23edb46a97",
+      "spanID": "3ae7a019defbe7f4",
+      "operationName": "middleware - <anonymous>",
+      "startTime": 1792353789190000,
+      "duration": 15,
+      "tags": [
+        {
+          "key": "express.name",
+          "type": "string",
+          "value": "<anonymous>"
+        },
+        {
+          "key": "express.type",
+          "type": "string",
+          "value": "middleware"
+        },
+        {
+          "key": "otel.scope.name",
+          "type": "string",
+          "value": "@opentelemetry/instrumentation-express"
+        },
+        {
+          "key": "otel.scope.version",
+          "type": "string",
+          "value": "0.71.1"
+        },
+        {
+          "key": "span.kind",
+          "type": "string",
+          "value": "internal"
+        }
+      ],
+      "logs": [],
+      "processID": "p1"
+    },
+    {
+      "traceID": "b7ae800228873da18efd3c23edb46a97",
+      "spanID": "7b61f7d6fedd95fe",
+      "operationName": "request handler - /checkout",
+      "startTime": 1792353789190000,
+      "duration": 3254,
+      "tags": [
+        {
+          "key": "error",
+          "type": "bool",
+          "value": true
+        },
+        {
+          "key": "express.name",
+          "type": "string",
+          "value": "/checkout"
+        },
+        {
+          "key": "express.type",
+          "type": "string",
+          "value": "request_handler"
+        },
+        {
+          "key": "http.route",
+          "type": "string",
+          "value": "/checkout"
+        },
+        {
+          "key": "otel.scope.name",
+          "type": "string",
+          "value": "@opentelemetry/instrumentation-express"
+        },
+        {
+          "key": "otel.scope.version",
+          "type": "string",
+          "value": "0.71.1"
+        },
+        {
+          "key": "otel.status_code",
+          "type": "string",
+          "value": "ERROR"
+        },
+        {
+          "key": "otel.status_description",
+          "type": "string",
+          "value": "Cannot read properties of undefined (reading 'percentOff')"
+        },
+        {
+          "key": "span.kind",
+          "type": "string",
+          "value": "internal"
+        }
+      ],
+      "logs": [
+        {
+          "timestamp": 1792353789193247,
+          "fields": [
+            {
+              "key": "event",
+              "type": "string",
+              "value": "exception"
+            },
+            {
+              "key": "exception.message",
+              "type": "string",
+              "value": "Cannot read properties of undefined (reading 'percentOff')"
+            },
+            {
+              "key": "exception.stacktrace",
+              "type": "string",
+              "value": "TypeError: Cannot read properties of undefined (reading 'percentOff')\n    at CheckoutService.discountV2 (/app/api/src/services/checkout.ts:81:46)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async CheckoutService.checkout (/app/api/src/services/checkout.ts:45:9)\n    at async <anonymous> (/app/api/src/app.ts:88:26)"
+            },
+            {
+              "key": "exception.type",
+              "type": "string",
+              "value": "TypeError"
+            }
+          ]
+        }
+      ],
+      "processID": "p1"
+    },
+    {
+      "traceID": "b7ae800228873da18efd3c23edb46a97",
+      "spanID": "947b7223ee37ad09",
+      "operationName": "pg-pool.connect",
+      "startTime": 1792353789190000,
+      "duration": 48,
+      "tags": [
+        {
+          "key": "db.namespace",
+          "type": "string",
+          "value": "shop"
+        },
+        {
+          "key": "db.postgresql.idle.timeout.millis",
+          "type": "int64",
+          "value": 10000
+        },
+        {
+          "key": "db.system.name",
+          "type": "string",
+          "value": "postgresql"
+        },
+        {
+          "key": "otel.scope.name",
+          "type": "string",
+          "value": "@opentelemetry/instrumentation-pg"
+        },
+        {
+          "key": "otel.scope.version",
+          "type": "string",
+          "value": "0.76.0"
+        },
+        {
+          "key": "server.address",
+          "type": "string",
+          "value": "localhost"
+        },
+        {
+          "key": "server.port",
+          "type": "int64",
+          "value": 5434
+        },
+        {
+          "key": "span.kind",
+          "type": "string",
+          "value": "client"
+        }
+      ],
+      "logs": [],
+      "processID": "p1"
+    },
+    {
+      "traceID": "b7ae800228873da18efd3c23edb46a97",
+      "spanID": "15adc692b03d5bf5",
+      "operationName": "pg.query:SELECT shop",
+      "startTime": 1792353789191000,
+      "duration": 465,
+      "tags": [
+        {
+          "key": "db.namespace",
+          "type": "string",
+          "value": "shop"
+        },
+        {
+          "key": "db.query.text",
+          "type": "string",
+          "value": "select product_id, quantity from cart_items where cart_id = $1 order by product_id"
+        },
+        {
+          "key": "db.system.name",
+          "type": "string",
+          "value": "postgresql"
+        },
+        {
+          "key": "otel.scope.name",
+          "type": "string",
+          "value": "@opentelemetry/instrumentation-pg"
+        },
+        {
+          "key": "otel.scope.version",
+          "type": "string",
+          "value": "0.76.0"
+        },
+        {
+          "key": "server.address",
+          "type": "string",
+          "value": "localhost"
+        },
+        {
+          "key": "server.port",
+          "type": "int64",
+          "value": 5434
+        },
+        {
+          "key": "span.kind",
+          "type": "string",
+          "value": "client"
+        }
+      ],
+      "logs": [],
+      "processID": "p1"
+    },
+    {
+      "traceID": "b7ae800228873da18efd3c23edb46a97",
+      "spanID": "ded957df70ec18bc",
+      "operationName": "pg.query:SELECT shop",
+      "startTime": 1792353789192000,
+      "duration": 502,
+      "tags": [
+        {
+          "key": "db.namespace",
+          "type": "string",
+          "value": "shop"
+        },
+        {
+          "key": "db.query.text",
+          "type": "string",
+          "value": "select * from products where id = any($1::int[])"
+        },
+        {
+          "key": "db.system.name",
+          "type": "string",
+          "value": "postgresql"
+        },
+        {
+          "key": "otel.scope.name",
+          "type": "string",
+          "value": "@opentelemetry/instrumentation-pg"
+        },
+        {
+          "key": "otel.scope.version",
+          "type": "string",
+          "value": "0.76.0"
+        },
+        {
+          "key": "server.address",
+          "type": "string",
+          "value": "localhost"
+        },
+        {
+          "key": "server.port",
+          "type": "int64",
+          "value": 5434
+        },
+        {
+          "key": "span.kind",
+          "type": "string",
+          "value": "client"
+        }
+      ],
+      "logs": [],
+      "processID": "p1"
+    },
+    {
+      "traceID": "b7ae800228873da18efd3c23edb46a97",
+      "spanID": "73fda3bb781bb8f6",
+      "operationName": "pg-pool.connect",
+      "startTime": 1792353789192000,
+      "duration": 23,
+      "tags": [
+        {
+          "key": "db.namespace",
+          "type": "string",
+          "value": "shop"
+        },
+        {
+          "key": "db.postgresql.idle.timeout.millis",
+          "type": "int64",
+          "value": 10000
+        },
+        {
+          "key": "db.system.name",
+          "type": "string",
+          "value": "postgresql"
+        },
+        {
+          "key": "otel.scope.name",
+          "type": "string",
+          "value": "@opentelemetry/instrumentation-pg"
+        },
+        {
+          "key": "otel.scope.version",
+          "type": "string",
+          "value": "0.76.0"
+        },
+        {
+          "key": "server.address",
+          "type": "string",
+          "value": "localhost"
+        },
+        {
+          "key": "server.port",
+          "type": "int64",
+          "value": 5434
+        },
+        {
+          "key": "span.kind",
+          "type": "string",
+          "value": "client"
+        }
+      ],
+      "logs": [],
+      "processID": "p1"
+    },
+    {
+      "traceID": "b7ae800228873da18efd3c23edb46a97",
+      "spanID": "282216961e1c65b7",
+      "operationName": "middleware - jsonParser",
+      "startTime": 1792353789189000,
+      "duration": 241,
+      "tags": [
+        {
+          "key": "express.name",
+          "type": "string",
+          "value": "jsonParser"
+        },
+        {
+          "key": "express.type",
+          "type": "string",
+          "value": "middleware"
+        },
+        {
+          "key": "otel.scope.name",
+          "type": "string",
+          "value": "@opentelemetry/instrumentation-express"
+        },
+        {
+          "key": "otel.scope.version",
+          "type": "string",
+          "value": "0.71.1"
+        },
+        {
+          "key": "span.kind",
+          "type": "string",
+          "value": "internal"
+        }
+      ],
+      "logs": [],
+      "processID": "p1"
+    },
+    {
+      "traceID": "b7ae800228873da18efd3c23edb46a97",
+      "spanID": "ff77770afc0031da",
+      "operationName": "pg.query:SELECT shop",
+      "startTime": 1792353789190000,
+      "duration": 704,
+      "tags": [
+        {
+          "key": "db.namespace",
+          "type": "string",
+          "value": "shop"
+        },
+        {
+          "key": "db.query.text",
+          "type": "string",
+          "value": "select id from carts where id = $1"
+        },
+        {
+          "key": "db.system.name",
+          "type": "string",
+          "value": "postgresql"
+        },
+        {
+          "key": "otel.scope.name",
+          "type": "string",
+          "value": "@opentelemetry/instrumentation-pg"
+        },
+        {
+          "key": "otel.scope.version",
+          "type": "string",
+          "value": "0.76.0"
+        },
+        {
+          "key": "server.address",
+          "type": "string",
+          "value": "localhost"
+        },
+        {
+          "key": "server.port",
+          "type": "int64",
+          "value": 5434
+        },
+        {
+          "key": "span.kind",
+          "type": "string",
+          "value": "client"
+        }
+      ],
+      "logs": [],
+      "processID": "p1"
+    },
+    {
+      "traceID": "b7ae800228873da18efd3c23edb46a97",
+      "spanID": "03ff22015f0a4741",
+      "operationName": "pg-pool.connect",
+      "startTime": 1792353789191000,
+      "duration": 106,
+      "tags": [
+        {
+          "key": "db.namespace",
+          "type": "string",
+          "value": "shop"
+        },
+        {
+          "key": "db.postgresql.idle.timeout.millis",
+          "type": "int64",
+          "value": 10000
+        },
+        {
+          "key": "db.system.name",
+          "type": "string",
+          "value": "postgresql"
+        },
+        {
+          "key": "otel.scope.name",
+          "type": "string",
+          "value": "@opentelemetry/instrumentation-pg"
+        },
+        {
+          "key": "otel.scope.version",
+          "type": "string",
+          "value": "0.76.0"
+        },
+        {
+          "key": "server.address",
+          "type": "string",
+          "value": "localhost"
+        },
+        {
+          "key": "server.port",
+          "type": "int64",
+          "value": 5434
+        },
+        {
+          "key": "span.kind",
+          "type": "string",
+          "value": "client"
+        }
+      ],
+      "logs": [],
+      "processID": "p1"
+    },
+    {
+      "traceID": "b7ae800228873da18efd3c23edb46a97",
+      "spanID": "c14676c9f0727102",
+      "operationName": "pg-pool.connect",
+      "startTime": 1792353789192000,
+      "duration": 30,
+      "tags": [
+        {
+          "key": "db.namespace",
+          "type": "string",
+          "value": "shop"
+        },
+        {
+          "key": "db.postgresql.idle.timeout.millis",
+          "type": "int64",
+          "value": 10000
+        },
+        {
+          "key": "db.system.name",
+          "type": "string",
+          "value": "postgresql"
+        },
+        {
+          "key": "otel.scope.name",
+          "type": "string",
+          "value": "@opentelemetry/instrumentation-pg"
+        },
+        {
+          "key": "otel.scope.version",
+          "type": "string",
+          "value": "0.76.0"
+        },
+        {
+          "key": "server.address",
+          "type": "string",
+          "value": "localhost"
+        },
+        {
+          "key": "server.port",
+          "type": "int64",
+          "value": 5434
+        },
+        {
+          "key": "span.kind",
+          "type": "string",
+          "value": "client"
+        }
+      ],
+      "logs": [],
+      "processID": "p1"
+    },
+    {
+      "traceID": "b7ae800228873da18efd3c23edb46a97",
+      "spanID": "18f57826ed0e131b",
+      "operationName": "pg.query:SELECT shop",
+      "startTime": 1792353789192000,
+      "duration": 416,
+      "tags": [
+        {
+          "key": "db.namespace",
+          "type": "string",
+          "value": "shop"
+        },
+        {
+          "key": "db.query.text",
+          "type": "string",
+          "value": "select * from coupons"
+        },
+        {
+          "key": "db.system.name",
+          "type": "string",
+          "value": "postgresql"
+        },
+        {
+          "key": "otel.scope.name",
+          "type": "string",
+          "value": "@opentelemetry/instrumentation-pg"
+        },
+        {
+          "key": "otel.scope.version",
+          "type": "string",
+          "value": "0.76.0"
+        },
+        {
+          "key": "server.address",
+          "type": "string",
+          "value": "localhost"
+        },
+        {
+          "key": "server.port",
+          "type": "int64",
+          "value": 5434
+        },
+        {
+          "key": "span.kind",
+          "type": "string",
+          "value": "client"
+        }
+      ],
+      "logs": [],
+      "processID": "p1"
+    }
+  ],
+  "processes": {
+    "p1": {
+      "serviceName": "demo-shop-api",
+      "tags": [
+        {
+          "key": "deployment.environment.name",
+          "type": "string",
+          "value": "production"
+        },
+        {
+          "key": "host.arch",
+          "type": "string",
+          "value": "arm64"
+        },
+        {
+          "key": "host.id",
+          "type": "string",
+          "value": "8D757BE7-6AA8-5099-8F96-37E2A51F75C2"
+        },
+        {
+          "key": "host.name",
+          "type": "string",
+          "value": "Jasveers-MacBook-Air.local"
+        },
+        {
+          "key": "process.command",
+          "type": "string",
+          "value": "/app/api/src/server.ts"
+        },
+        {
+          "key": "process.command_args",
+          "type": "string",
+          "value": "[\"/app\",\"--require\",\"/app/node_modules/.pnpm/tsx@4.23.15/node_modules/tsx/dist/preflight.cjs\",\"--import\",\"file:///app/node_modules/.pnpm/tsx@4.23.15/node_modules/tsx/dist/loader.mjs\",\"--env-file-if-exists=.env\",\"/app/api/src/server.ts\"]"
+        },
+        {
+          "key": "process.executable.name",
+          "type": "string",
+          "value": "/app"
+        },
+        {
+          "key": "process.executable.path",
+          "type": "string",
+          "value": "/app"
+        },
+        {
+          "key": "process.owner",
+          "type": "string",
+          "value": "jasveersingh"
+        },
+        {
+          "key": "process.pid",
+          "type": "int64",
+          "value": 68732
+        },
+        {
+          "key": "process.runtime.description",
+          "type": "string",
+          "value": "Node.js"
+        },
+        {
+          "key": "process.runtime.name",
+          "type": "string",
+          "value": "nodejs"
+        },
+        {
+          "key": "process.runtime.version",
+          "type": "string",
+          "value": "22.19.0"
+        },
+        {
+          "key": "service.version",
+          "type": "string",
+          "value": "1.0.0"
+        },
+        {
+          "key": "vcs.ref.head.revision",
+          "type": "string",
+          "value": "unknown"
+        }
+      ]
+    }
+  },
+  "warnings": null
+}

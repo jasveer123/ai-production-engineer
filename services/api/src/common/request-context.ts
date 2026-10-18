@@ -18,6 +18,8 @@ declare global {
       correlationId: string;
       auth?: AuthContext;
       membership?: MembershipContext;
+      /** Exact request bytes, kept for webhook signature checks. */
+      rawBody?: Buffer;
     }
   }
 }
