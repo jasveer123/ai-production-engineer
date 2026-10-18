@@ -1,0 +1,11 @@
+{
+  "name": "@ape/api-contracts",
+  "version": "0.0.1",
+  "private": true,
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "echo \"api-contracts: placeholder until Phase 1\"",
+    "lint": "echo \"api-contracts: placeholder\"",
+    "test": "echo \"api-contracts: placeholder\""
+  }
+}

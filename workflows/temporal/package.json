@@ -1,0 +1,11 @@
+{
+  "name": "@ape/temporal-workflows",
+  "version": "0.0.1",
+  "private": true,
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "echo \"temporal: placeholder until Phase 4 (SDK choice is ADR D-3)\"",
+    "lint": "echo \"temporal: placeholder\"",
+    "test": "echo \"temporal: placeholder\""
+  }
+}

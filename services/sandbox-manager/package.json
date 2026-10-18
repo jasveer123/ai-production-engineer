@@ -1,0 +1,10 @@
+{
+  "name": "@ape/sandbox-manager",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "typecheck": "echo \"sandbox-manager: placeholder until Phase 5\"",
+    "lint": "echo \"sandbox-manager: placeholder\"",
+    "test": "echo \"sandbox-manager: placeholder\""
+  }
+}
