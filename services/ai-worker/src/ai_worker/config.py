@@ -28,7 +28,8 @@ class Settings(BaseSettings):
 
     # Model gateway (ADR-016). No key -> investigations end as needs_review, never invented.
     # "auto" picks Anthropic when its key is set, else Gemini when its key is set.
-    ai_provider: Literal["auto", "anthropic", "gemini"] = "auto"
+    # "openai" is only used when chosen explicitly (Phase 9 comparison, ADR-021).
+    ai_provider: Literal["auto", "anthropic", "gemini", "openai"] = "auto"
     anthropic_api_key: SecretStr | None = None
     ai_model: str = "claude-opus-5-5"
     ai_effort: str = "high"
@@ -44,8 +45,9 @@ class Settings(BaseSettings):
     gemini_timeout_seconds: float = 90.0
     gemini_fallback_models: list[str] = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash"]
 
-    # Kept for the Phase 9 model comparison; no OpenAI adapter yet.
+    # OpenAI (Phase 9 model comparison). Never picked by "auto"; set AI_PROVIDER=openai to use it.
     openai_api_key: SecretStr | None = None
+    openai_model: str | None = None
 
 
 @lru_cache

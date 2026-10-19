@@ -1,0 +1,34 @@
+{
+  "observations": [],
+  "hypotheses": [
+    {
+      "rank": 1,
+      "summary": "The v1.1.1 catalog refactor broke checkout.",
+      "confidence": "high",
+      "confidence_rationale": "It was deployed right before the errors.",
+      "supporting_evidence": ["E4", "E8"],
+      "contradicting_evidence": [],
+      "missing_information": [],
+      "suspected_location": {
+        "file": "api/src/services/catalog.ts",
+        "line": null,
+        "symbol": null
+      }
+    },
+    {
+      "rank": 2,
+      "summary": "discountV2 dereferences an undefined coupon: promotions.get(code ?? '') returns undefined when no coupon code is sent, so promo.percentOff throws a TypeError.",
+      "confidence": "high",
+      "confidence_rationale": "The stack frame, the failing code line and the v2 pricing commit all point at the same line.",
+      "supporting_evidence": ["E1", "E6"],
+      "contradicting_evidence": [],
+      "missing_information": ["Whether requests with a valid coupon also fail"],
+      "suspected_location": {
+        "file": "api/src/services/checkout.ts",
+        "line": 81,
+        "symbol": "discountV2"
+      }
+    }
+  ],
+  "data_gaps": []
+}

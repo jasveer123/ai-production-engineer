@@ -19,7 +19,7 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   return (
     <div>
       <p className="text-xs text-subtle">{label}</p>
-      <p className="mt-0.5 text-lg font-semibold tabular-nums">{value}</p>
+      <p className="mt-0.5 text-lg font-semibold">{value}</p>
       {hint && <p className="text-xs text-subtle">{hint}</p>}
     </div>
   );

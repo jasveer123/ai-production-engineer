@@ -62,6 +62,8 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy src tests
       - run: uv run pytest -q
+      # The evaluation harness on its scripted reference answers (no model or key needed).
+      - run: uv run python -m ai_worker.evaluation run --no-save --min-pass-rate 1
 
   secrets:
     runs-on: ubuntu-latest

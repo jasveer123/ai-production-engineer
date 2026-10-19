@@ -71,6 +71,13 @@
       "when": 1792437335642,
       "tag": "0009_realtime_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792439349462,
+      "tag": "0010_hypothesis_feedback",
+      "breakpoints": true
     }
   ]
 }

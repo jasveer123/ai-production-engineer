@@ -1,9 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import type { EvidenceRef, IncidentInvestigation, InvestigationView } from '@ape/api-contracts';
+import type {
+  EvidenceRef,
+  HypothesisVerdict,
+  IncidentInvestigation,
+  InvestigationView,
+} from '@ape/api-contracts';
+
+type HypothesisView = InvestigationView['hypotheses'][number];
 import { Badge, Button, Card, ErrorBox, Input, Loading } from '@/components/ui';
-import { useEvidence, useIncidentAction, useInvestigation } from '@/lib/queries';
+import {
+  useEvidence,
+  useHypothesisFeedback,
+  useIncidentAction,
+  useInvestigation,
+} from '@/lib/queries';
 
 const STATUS_TEXT: Record<InvestigationView['status'], string> = {
   collecting_evidence: 'Collecting evidence…',
@@ -100,6 +112,60 @@ function EvidencePanel({
         </div>
       )}
     </Card>
+  );
+}
+
+const VERDICTS: { v: HypothesisVerdict; label: string }[] = [
+  { v: 'correct', label: 'Correct' },
+  { v: 'partly', label: 'Partly' },
+  { v: 'wrong', label: 'Wrong' },
+];
+
+/** Was this the real cause? Engineers' verdicts feed the Quality page (Phase 9). */
+function Verdict({
+  ws,
+  incidentId,
+  h,
+  canAct,
+}: {
+  ws: string;
+  incidentId: string;
+  h: HypothesisView;
+  canAct: boolean;
+}) {
+  const vote = useHypothesisFeedback(ws, incidentId);
+  const { correct, partly, wrong, mine } = h.feedback;
+  const total = correct + partly + wrong;
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-line pt-2 text-xs">
+      <span className="text-subtle">Was this the cause?</span>
+      {canAct ? (
+        <div role="group" aria-label={`Verdict on hypothesis ${h.rank}`} className="flex gap-1">
+          {VERDICTS.map(({ v, label }) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={mine === v}
+              disabled={vote.isPending}
+              onClick={() => vote.mutate({ hypothesisId: h.id, verdict: v })}
+              className={`rounded border px-2 py-0.5 ${
+                mine === v
+                  ? 'border-accent bg-accent/15 font-medium text-accent'
+                  : 'border-line text-subtle hover:bg-muted'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {total > 0 && (
+        <span className="text-subtle">
+          {correct} correct · {partly} partly · {wrong} wrong
+        </span>
+      )}
+      {vote.error ? <ErrorBox error={vote.error} /> : null}
+    </div>
   );
 }
 
@@ -274,6 +340,7 @@ export function InvestigationReport({
                     Would confirm: {h.missingInformation.join('; ')}
                   </p>
                 )}
+                <Verdict ws={ws} incidentId={incidentId} h={h} canAct={canAct} />
               </li>
             ))}
           </ol>

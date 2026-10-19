@@ -5,6 +5,7 @@ export const NAV = [
   { slug: 'services', label: 'Services' },
   { slug: 'investigations', label: 'Investigations', phase: 4 },
   { slug: 'fixes', label: 'Fixes & PRs' },
+  { slug: 'quality', label: 'Quality' },
   { slug: 'integrations', label: 'Integrations' },
   { slug: 'audit', label: 'Audit log' },
   { slug: 'members', label: 'Members' },

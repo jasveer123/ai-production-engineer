@@ -380,6 +380,34 @@ export const hypotheses = pgTable('hypotheses', {
   ...timestamps(),
 });
 
+/**
+ * An engineer's verdict on a hypothesis (Phase 9): the online counterpart of the offline
+ * evaluation. One row per person per hypothesis; changing your mind updates it.
+ */
+export const hypothesisFeedback = pgTable(
+  'hypothesis_feedback',
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    investigationId: uuid('investigation_id')
+      .notNull()
+      .references(() => investigations.id, { onDelete: 'cascade' }),
+    hypothesisId: uuid('hypothesis_id')
+      .notNull()
+      .references(() => hypotheses.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    verdict: text('verdict').notNull(), // correct | partly | wrong
+    note: text('note'),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex('hypothesis_feedback_user_key').on(t.hypothesisId, t.userId),
+    index('hypothesis_feedback_workspace_idx').on(t.workspaceId, t.createdAt),
+  ],
+);
+
 // ---------- Fixes ----------
 
 /**

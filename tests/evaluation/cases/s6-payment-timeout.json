@@ -1,0 +1,109 @@
+{
+  "id": "s6-payment-timeout",
+  "scenario": "S6",
+  "description": "A deploy with unchanged code set PAYMENT_TIMEOUT_MS=5, below gateway latency.",
+  "expect": {
+    "mode": "diagnose"
+  },
+  "bundle": {
+    "version": 1,
+    "investigationId": "s6-payment-timeout",
+    "incident": {
+      "id": "s6-payment-timeout-incident",
+      "severity": "high",
+      "serviceName": "demo-shop-api",
+      "environment": "production",
+      "repositoryFullName": "jasveer123/demo-shop",
+      "title": "AppError: Payment gateway timed out (/checkout)",
+      "firstSeenAt": "2026-10-19T09:14:02.010Z",
+      "lastSeenAt": "2026-10-19T09:16:40.877Z",
+      "eventCount": 388
+    },
+    "note": null,
+    "coverage": {
+      "error_events": 388,
+      "traces": "ok",
+      "deploys": 2,
+      "code": 2,
+      "code_ref": "9b1d3f5a7c9e1b3d5f7a9c1e3b5d7f9a1c3e5b7d",
+      "commits": 1,
+      "logs": "not_supported",
+      "metrics": "not_supported",
+      "redactions": 0
+    },
+    "items": [
+      {
+        "ref": "E1",
+        "id": "s6-payment-timeout-e1",
+        "sourceUrl": null,
+        "kind": "error_event",
+        "title": "Recent occurrence at 2026-10-19T09:16:40.877Z",
+        "source": "otel_jaeger",
+        "content": "AppError: Payment gateway timed out (/checkout)\noccurred_at: 2026-10-19T09:16:40.877Z\noperation: POST /checkout route: /checkout status: 504\ntrace_id: aa11bb22cc33dd44ee55ff6600112233\nstack:\nat Timeout._onTimeout (/app/api/src/services/payment-gateway.ts:32:20)\nat listOnTimeout (node:internal/timers:588:17)"
+      },
+      {
+        "ref": "E2",
+        "id": "s6-payment-timeout-e2",
+        "sourceUrl": null,
+        "kind": "error_event",
+        "title": "First occurrence at 2026-10-19T09:14:02.010Z",
+        "source": "otel_jaeger",
+        "content": "AppError: Payment gateway timed out (/checkout)\noccurred_at: 2026-10-19T09:14:02.010Z\noperation: POST /checkout route: /checkout status: 504\ntrace_id: 0f1e2d3c4b5a69788796a5b4c3d2e1f0\nstack:\nat Timeout._onTimeout (/app/api/src/services/payment-gateway.ts:32:20)\nat listOnTimeout (node:internal/timers:588:17)"
+      },
+      {
+        "ref": "E3",
+        "id": "s6-payment-timeout-e3",
+        "sourceUrl": null,
+        "kind": "trace",
+        "title": "Trace aa11bb22cc33 (4 spans)",
+        "source": "otel_jaeger",
+        "content": "+0ms demo-shop-api POST /checkout (9ms) status=504 ERROR exception=\"Payment gateway timed out\"\n+1ms demo-shop-api pg.query:SELECT shop (1ms)\n+2ms demo-shop-api pg.query:INSERT shop (1ms)\n+3ms demo-shop-api pg.query:UPDATE shop (1ms)"
+      },
+      {
+        "ref": "E4",
+        "id": "s6-payment-timeout-e4",
+        "sourceUrl": null,
+        "kind": "deploy",
+        "title": "Deploy v1.2.1 at 2026-10-19T09:12:40.000Z",
+        "source": "deploy_webhook",
+        "content": "service: demo-shop-api environment: production\nversion: v1.2.1 commit: 9b1d3f5a7c9e1b3d5f7a9c1e3b5d7f9a1c3e5b7d\ndeployed_at: 2026-10-19T09:12:40.000Z\nThe first error of this incident happened 1 minute(s) after this deploy."
+      },
+      {
+        "ref": "E5",
+        "id": "s6-payment-timeout-e5",
+        "sourceUrl": null,
+        "kind": "deploy",
+        "title": "Deploy v1.2.0 at 2026-10-17T15:03:12.000Z",
+        "source": "deploy_webhook",
+        "content": "service: demo-shop-api environment: production\nversion: v1.2.0 commit: 9b1d3f5a7c9e1b3d5f7a9c1e3b5d7f9a1c3e5b7d\ndeployed_at: 2026-10-17T15:03:12.000Z\nThe first error of this incident happened 2531 minute(s) after this deploy."
+      },
+      {
+        "ref": "E6",
+        "id": "s6-payment-timeout-e6",
+        "sourceUrl": null,
+        "kind": "code",
+        "title": "api/src/services/payment-gateway.ts:32 (MockPaymentGateway.capture)",
+        "source": "github",
+        "content": "jasveer123/demo-shop @ 4f6c2a9e1b7d3c5a8e0f2b4d6a8c0e2f4a6b8d0c\napi/src/services/payment-gateway.ts lines 2-43 (>> marks the failing line)\n    2 | \n    3 | export interface PaymentGateway {\n    4 |   capture(orderId: number, amountCents: number): Promise<{ captureId: string }>;\n    5 | }\n    6 | \n    7 | const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));\n    8 | \n    9 | /**\n   10 |  * Stand-in for a card processor: 40\u2013120 ms latency, declines charges above the card limit.\n   11 |  * Calls give up after `timeoutMs`.\n   12 |  */\n   13 | export class MockPaymentGateway implements PaymentGateway {\n   14 |   static readonly CARD_LIMIT_CENTS = 30_000;\n   15 | \n   16 |   constructor(\n   17 |     private readonly timeoutMs: number,\n   18 |     private readonly latency = () => 40 + Math.random() * 80,\n   19 |   ) {}\n   20 | \n   21 |   async capture(orderId: number, amountCents: number) {\n   22 |     const work = (async () => {\n   23 |       await sleep(this.latency());\n   24 |       if (amountCents > MockPaymentGateway.CARD_LIMIT_CENTS) {\n   25 |         throw new AppError(402, 'payment_declined', 'Card declined: over limit');\n   26 |       }\n   27 |       return { captureId: `cap_${orderId}_${Date.now()}` };\n   28 |     })();\n   29 |     let timer: NodeJS.Timeout | undefined;\n   30 |     const timeout = new Promise<never>((_, reject) => {\n   31 |       timer = setTimeout(\n>> 32 |         () => reject(new AppError(504, 'payment_timeout', 'Payment gateway timed out')),\n   33 |         this.timeoutMs,\n   34 |       );\n   35 |     });\n   36 |     try {\n   37 |       return await Promise.race([work, timeout]);\n   38 |     } finally {\n   39 |       clearTimeout(timer);\n   40 |     }\n   41 |   }\n   42 | }\n   43 | "
+      },
+      {
+        "ref": "E7",
+        "id": "s6-payment-timeout-e7",
+        "sourceUrl": null,
+        "kind": "code",
+        "title": "api/src/config.ts:15",
+        "source": "github",
+        "content": "jasveer123/demo-shop @ 4f6c2a9e1b7d3c5a8e0f2b4d6a8c0e2f4a6b8d0c\napi/src/config.ts lines 1-38 (>> marks the failing line)\n    1 | import { z } from 'zod';\n    2 | \n    3 | const flag = z.enum(['true', 'false']).default('false').transform((v) => v === 'true');\n    4 | \n    5 | const schema = z.object({\n    6 |   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),\n    7 |   PORT: z.coerce.number().int().positive().default(5050),\n    8 |   DATABASE_URL: z.string().url().default('postgresql://shop:shop@localhost:5434/shop'),\n    9 |   SERVICE_VERSION: z.string().default('1.0.0'),\n   10 |   DEPLOY_ENV: z.string().default('production'),\n   11 |   GIT_COMMIT_SHA: z.string().default('unknown'),\n   12 |   OTEL_ENABLED: flag,\n   13 |   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().default('http://localhost:4318'),\n   14 |   SENTRY_DSN: z.string().url().optional().or(z.literal('').transform(() => undefined)),\n>> 15 |   PAYMENT_TIMEOUT_MS: z.coerce.number().int().positive().default(2000),\n   16 |   // Feature flags for staged rollouts of new code paths.\n   17 |   FF_CHECKOUT_V2: flag,\n   18 |   FF_ORDER_ITEMS_INLINE: flag,\n   19 |   FF_CATALOG_PAGE_NUMBERS: flag,\n   20 |   FF_ASYNC_PAYMENT_CAPTURE: flag,\n   21 |   FF_STOCK_RESERVATION_V2: flag,\n   22 | });\n   23 | \n   24 | export type Config = z.infer<typeof schema>;\n   25 | \n   26 | export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {\n   27 |   return schema.parse(env);\n   28 | }\n   29 | \n   30 | export type FeatureFlags = Pick<\n   31 |   Config,\n   32 |   | 'FF_CHECKOUT_V2'\n   33 |   | 'FF_ORDER_ITEMS_INLINE'\n   34 |   | 'FF_CATALOG_PAGE_NUMBERS'\n   35 |   | 'FF_ASYNC_PAYMENT_CAPTURE'\n   36 |   | 'FF_STOCK_RESERVATION_V2'\n   37 | >;\n   38 | "
+      },
+      {
+        "ref": "E8",
+        "id": "s6-payment-timeout-e8",
+        "sourceUrl": null,
+        "kind": "commit",
+        "title": "Commit 9b1d3f5: fix(cart): keep quantities when merging carts",
+        "source": "github",
+        "content": "sha: 9b1d3f5a7c9e1b3d5f7a9c1e3b5d7f9a1c3e5b7d\nauthor: Demo Dev date: 2026-10-17T14:40:51Z\ntouches: api/src/services/cart.ts\n\nfix(cart): keep quantities when merging carts"
+      }
+    ]
+  }
+}

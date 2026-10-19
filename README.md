@@ -61,7 +61,14 @@ The dashboard updates live over server-sent events (the dot next to the product 
 
 See [ADR-020](docs/architecture/020-live-updates-and-notifications.md).
 
-Other targets: `make test`, `make lint`, `make typecheck`, `make format`, `make down`, `make clean` (deletes local data volumes).
+### Measuring quality (Phase 9)
+
+- **Offline:** `make eval` runs the frozen cases in `tests/evaluation/cases/` (S1, S1 with a prompt injection, S1 with a red-herring deploy, S6, and a no-evidence case that should abstain) through the real investigation pipeline and scores them against `tests/evaluation/answer-key.json`. With API keys in `services/ai-worker/.env`, compare models: `make eval MODELS="gemini:gemini-3.6-flash anthropic:claude-opus-5-5 openai:<model>" REPEAT=3`. Without keys it runs hand-written reference answers, which tests the harness (CI does this).
+- **Online:** mark each hypothesis *correct / partly / wrong* on the incident page. The **Quality** page combines those verdicts with real outcomes: the funnel from detection to verified recovery, top-1 precision per model, fix validation rate, cost and latency.
+
+See [ADR-021](docs/architecture/021-evaluation-and-model-comparison.md).
+
+Other targets: `make test`, `make eval`, `make lint`, `make typecheck`, `make format`, `make down`, `make clean` (deletes local data volumes).
 
 ## Layout
 

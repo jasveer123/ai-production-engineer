@@ -24,6 +24,7 @@ Format: **Context → Decision → Consequences**. Status is *Accepted* unless n
 | [ADR-018](018-approval-gate-and-idempotent-pull-requests.md) | Approval gate and idempotent pull request creation |
 | [ADR-019](019-recovery-verification.md) | Recovery verification after the fix is deployed |
 | [ADR-020](020-live-updates-and-notifications.md) | Live updates over SSE and outbox-driven notifications |
+| [ADR-021](021-evaluation-and-model-comparison.md) | Offline evaluation, model comparison and outcome-based quality |
 
 ## Open decisions
 (make these during the build)

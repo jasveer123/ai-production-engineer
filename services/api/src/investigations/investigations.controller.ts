@@ -9,7 +9,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  hypothesisFeedbackSchema,
   incidentActionSchema,
+  type HypothesisFeedbackInput,
   type IncidentActionInput,
   type IncidentInvestigation,
 } from '@ape/api-contracts';
@@ -52,5 +54,17 @@ export class InvestigationsController {
     @Body(new ZodValidationPipe(incidentActionSchema)) body: IncidentActionInput,
   ): Promise<IncidentInvestigation> {
     return this.svc.act(actor, id, body);
+  }
+
+  /** Was this hypothesis right? Feeds the Quality page (Phase 9). */
+  @Post('investigation/feedback')
+  @MinRole('engineer')
+  @HttpCode(200)
+  feedback(
+    @Actor() actor: ActorContext,
+    @Param('incidentId', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(hypothesisFeedbackSchema)) body: HypothesisFeedbackInput,
+  ): Promise<IncidentInvestigation> {
+    return this.svc.feedback(actor, id, body);
   }
 }

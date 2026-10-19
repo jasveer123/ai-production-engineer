@@ -36,6 +36,8 @@ import type {
 } from '@ape/api-contracts';
 import type {
   ApprovalPolicyInput,
+  HypothesisFeedbackInput,
+  QualitySummary,
   CreateNotificationChannelInput,
   NotificationChannel,
   NotificationChannelWithSecret,
@@ -512,4 +514,25 @@ export const useSetApprovalPolicy = (ws: string) =>
         body: JSON.stringify(body),
       }),
     [[...settingsKeys.approval(ws)]],
+  );
+
+// ----- Quality (Phase 9) -----
+export const useQuality = (ws: string, days: number) =>
+  useQuery({
+    queryKey: ['workspace', ws, 'quality', days],
+    queryFn: () => api<QualitySummary>(`/workspaces/${ws}/quality?days=${days}`),
+  });
+
+export const useHypothesisFeedback = (ws: string, incidentId: string) =>
+  useWrite(
+    ws,
+    (body: HypothesisFeedbackInput) =>
+      api<IncidentInvestigation>(
+        `/workspaces/${ws}/incidents/${incidentId}/investigation/feedback`,
+        { method: 'POST', body: JSON.stringify(body) },
+      ),
+    [
+      ['workspace', ws, 'incident', incidentId],
+      ['workspace', ws, 'quality'],
+    ],
   );

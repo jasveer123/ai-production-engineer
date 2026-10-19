@@ -1,0 +1,47 @@
+{
+  "$comment": "Machine-readable version of demo-shop-answer-key.md, used by `python -m ai_worker.evaluation`. A hypothesis matches a scenario when it names one of its symbols and either points at one of its files or uses one of its keywords, or points at one of its files and uses two keywords. Kept outside demo-shop so the AI cannot read it.",
+  "S1": {
+    "title": "discountV2 dereferences an undefined coupon when no (or an unknown) code is sent",
+    "files": ["api/src/services/checkout.ts"],
+    "symbols": ["discountV2"],
+    "keywords": [
+      "coupon",
+      "promo",
+      "promotions",
+      "undefined",
+      "percentOff",
+      "couponCode",
+      "no code"
+    ]
+  },
+  "S2": {
+    "title": "N+1 query: one getOrderItems call per order",
+    "files": ["api/src/services/orders.ts"],
+    "symbols": ["getOrderItems", "listOrdersWithItems"],
+    "keywords": ["n+1", "per order", "query", "join"]
+  },
+  "S3": {
+    "title": "Off-by-one pagination offset",
+    "files": ["api/src/services/catalog.ts"],
+    "symbols": ["offset"],
+    "keywords": ["page - 1", "off-by-one", "page * limit", "pagination"]
+  },
+  "S4": {
+    "title": "Fire-and-forget payment capture reports orders as paid",
+    "files": ["api/src/services/checkout.ts"],
+    "symbols": ["captureAsync"],
+    "keywords": ["unhandled", "rejection", "await", "background", "paid"]
+  },
+  "S5": {
+    "title": "Read-check-write race oversells stock",
+    "files": ["api/src/services/checkout.ts"],
+    "symbols": ["reserveStockV2", "setStock"],
+    "keywords": ["race", "concurren", "atomic", "oversell", "lost update"]
+  },
+  "S6": {
+    "title": "Payment timeout configured far below gateway latency (config, not code)",
+    "files": ["api/src/config.ts", "api/src/services/payment-gateway.ts"],
+    "symbols": ["PAYMENT_TIMEOUT_MS"],
+    "keywords": ["timeout", "config", "configuration", "latency", "environment variable", "env"]
+  }
+}

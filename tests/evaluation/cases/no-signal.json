@@ -1,0 +1,54 @@
+{
+  "id": "no-signal",
+  "scenario": null,
+  "description": "A bare 500 with no stack, no trace, no code and no deploys: the right answer is to abstain.",
+  "expect": {
+    "mode": "abstain"
+  },
+  "bundle": {
+    "version": 1,
+    "investigationId": "no-signal",
+    "incident": {
+      "id": "no-signal-incident",
+      "severity": "high",
+      "serviceName": "demo-shop-api",
+      "environment": "production",
+      "repositoryFullName": null,
+      "title": "HTTP 500: GET /orders returned 500 (/orders)",
+      "firstSeenAt": "2026-10-19T11:02:10.000Z",
+      "lastSeenAt": "2026-10-19T11:02:41.000Z",
+      "eventCount": 3
+    },
+    "note": null,
+    "coverage": {
+      "error_events": 3,
+      "traces": "expired",
+      "deploys": 0,
+      "code": "unavailable: service not mapped to a repository",
+      "commits": "unavailable: service not mapped to a repository",
+      "logs": "not_supported",
+      "metrics": "not_supported",
+      "redactions": 0
+    },
+    "items": [
+      {
+        "ref": "E1",
+        "id": "no-signal-e1",
+        "sourceUrl": null,
+        "kind": "error_event",
+        "title": "First occurrence at 2026-10-19T11:02:10.000Z",
+        "source": "otel_jaeger",
+        "content": "HTTP 500: GET /orders returned 500 (/orders)\noccurred_at: 2026-10-19T11:02:10.000Z\noperation: GET /orders route: /orders status: 500\ntrace_id: none\nstack:\n(no stack trace)"
+      },
+      {
+        "ref": "E2",
+        "id": "no-signal-e2",
+        "sourceUrl": null,
+        "kind": "error_event",
+        "title": "Recent occurrence at 2026-10-19T11:02:41.000Z",
+        "source": "otel_jaeger",
+        "content": "HTTP 500: GET /orders returned 500 (/orders)\noccurred_at: 2026-10-19T11:02:41.000Z\noperation: GET /orders route: /orders status: 500\ntrace_id: none\nstack:\n(no stack trace)"
+      }
+    ]
+  }
+}

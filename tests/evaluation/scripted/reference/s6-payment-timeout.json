@@ -1,0 +1,29 @@
+{
+  "observations": [
+    {
+      "statement": "Checkout returns 504 payment_timeout after about 9 ms, while the gateway's documented latency is 40-120 ms",
+      "evidence": ["E3", "E6"]
+    },
+    {
+      "statement": "v1.2.1 redeployed the same commit as v1.2.0, so the code did not change",
+      "evidence": ["E4", "E5"]
+    }
+  ],
+  "hypotheses": [
+    {
+      "rank": 1,
+      "summary": "The v1.2.1 deploy set PAYMENT_TIMEOUT_MS far below the gateway's 40-120 ms latency, so every capture times out; the code is unchanged, so this is a configuration problem.",
+      "confidence": "medium",
+      "confidence_rationale": "Same commit in both deploys and sub-10 ms timeouts; the deployed environment value itself is not in the evidence.",
+      "supporting_evidence": ["E3", "E4", "E5", "E6", "E7"],
+      "contradicting_evidence": [],
+      "missing_information": ["The PAYMENT_TIMEOUT_MS value in the v1.2.1 environment"],
+      "suspected_location": {
+        "file": "api/src/config.ts",
+        "line": 15,
+        "symbol": "PAYMENT_TIMEOUT_MS"
+      }
+    }
+  ],
+  "data_gaps": ["Deployed environment variables are not collected"]
+}

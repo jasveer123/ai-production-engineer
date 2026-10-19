@@ -191,4 +191,8 @@ def get_provider(settings: Settings) -> ModelProvider:
         from ai_worker.llm.gemini import GeminiProvider  # optional dependency path
 
         return GeminiProvider(settings)
+    if choice == "openai" and _has(settings.openai_api_key):
+        from ai_worker.llm.openai_provider import OpenAIProvider
+
+        return OpenAIProvider(settings)
     return NoProvider()

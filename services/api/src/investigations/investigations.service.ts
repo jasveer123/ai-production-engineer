@@ -1,6 +1,8 @@
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { and, asc, count, desc, eq } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray } from 'drizzle-orm';
 import type {
+  HypothesisFeedbackInput,
+  HypothesisVerdict,
   IncidentActionInput,
   IncidentInvestigation,
   InvestigationView,
@@ -11,7 +13,14 @@ import { ApiException, notFound } from '../common/errors';
 import type { ActorContext } from '../common/request-context';
 import { DB } from '../db/database.module';
 import type { Database } from '../db/client';
-import { approvals, evidenceItems, hypotheses, incidents, investigations } from '../db/schema';
+import {
+  approvals,
+  evidenceItems,
+  hypotheses,
+  hypothesisFeedback,
+  incidents,
+  investigations,
+} from '../db/schema';
 import { TemporalService } from '../temporal/temporal.service';
 
 @Injectable()
@@ -61,14 +70,17 @@ export class InvestigationsService {
       workflow = { phase: 'unknown (Temporal unreachable)', attempt: 0 };
     }
     return {
-      latest: latest ? await this.view(latest) : null,
+      latest: latest ? await this.view(latest, actor.userId) : null,
       attempts: Number(n),
       workflow,
       reproductionApproved: approved.length > 0,
     };
   }
 
-  private async view(inv: typeof investigations.$inferSelect): Promise<InvestigationView> {
+  private async view(
+    inv: typeof investigations.$inferSelect,
+    userId: string,
+  ): Promise<InvestigationView> {
     const ev = await this.db
       .select()
       .from(evidenceItems)
@@ -81,6 +93,31 @@ export class InvestigationsService {
       .from(hypotheses)
       .where(eq(hypotheses.investigationId, inv.id))
       .orderBy(asc(hypotheses.rank));
+    const votes = hs.length
+      ? await this.db
+          .select({
+            hypothesisId: hypothesisFeedback.hypothesisId,
+            userId: hypothesisFeedback.userId,
+            verdict: hypothesisFeedback.verdict,
+          })
+          .from(hypothesisFeedback)
+          .where(
+            inArray(
+              hypothesisFeedback.hypothesisId,
+              hs.map((h) => h.id),
+            ),
+          )
+      : [];
+    const feedbackFor = (id: string): InvestigationView['hypotheses'][number]['feedback'] => {
+      const mine = votes.filter((v) => v.hypothesisId === id);
+      const n = (v: HypothesisVerdict) => mine.filter((x) => x.verdict === v).length;
+      return {
+        correct: n('correct'),
+        partly: n('partly'),
+        wrong: n('wrong'),
+        mine: (mine.find((x) => x.userId === userId)?.verdict as HypothesisVerdict) ?? null,
+      };
+    };
     return {
       id: inv.id,
       attempt: inv.attempt,
@@ -115,6 +152,7 @@ export class InvestigationsService {
         missingInformation: h.missingInformation,
         suspectedLocation:
           h.suspectedLocation as InvestigationView['hypotheses'][number]['suspectedLocation'],
+        feedback: feedbackFor(h.id),
       })),
     };
   }
@@ -215,6 +253,56 @@ export class InvestigationsService {
       outcome: 'success',
       correlationId: actor.correlationId,
       metadata: { note: input.note ?? null, phase: state?.phase ?? null },
+    });
+    return this.forIncident(actor, incidentId);
+  }
+
+  /** An engineer's verdict on a hypothesis (Phase 9). Re-voting replaces the earlier verdict. */
+  async feedback(
+    actor: ActorContext,
+    incidentId: string,
+    input: HypothesisFeedbackInput,
+  ): Promise<IncidentInvestigation> {
+    await this.incident(actor, incidentId);
+    const [h] = await this.db
+      .select({
+        id: hypotheses.id,
+        investigationId: hypotheses.investigationId,
+        rank: hypotheses.rank,
+      })
+      .from(hypotheses)
+      .innerJoin(investigations, eq(investigations.id, hypotheses.investigationId))
+      .where(
+        and(
+          eq(hypotheses.id, input.hypothesisId),
+          eq(investigations.incidentId, incidentId),
+          eq(hypotheses.workspaceId, actor.workspaceId),
+        ),
+      );
+    if (!h) throw notFound('Hypothesis');
+    await this.db
+      .insert(hypothesisFeedback)
+      .values({
+        workspaceId: actor.workspaceId,
+        investigationId: h.investigationId,
+        hypothesisId: h.id,
+        userId: actor.userId,
+        verdict: input.verdict,
+        note: input.note ?? null,
+      })
+      .onConflictDoUpdate({
+        target: [hypothesisFeedback.hypothesisId, hypothesisFeedback.userId],
+        set: { verdict: input.verdict, note: input.note ?? null },
+      });
+    await this.audit.record({
+      workspaceId: actor.workspaceId,
+      actorId: actor.userId,
+      action: 'hypothesis.feedback',
+      resourceType: 'hypothesis',
+      resourceId: h.id,
+      outcome: 'success',
+      correlationId: actor.correlationId,
+      metadata: { verdict: input.verdict, rank: h.rank, incidentId },
     });
     return this.forIncident(actor, incidentId);
   }

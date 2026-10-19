@@ -1,7 +1,7 @@
 COMPOSE := docker compose -f infrastructure/docker/docker-compose.yml
 WORKER  := services/ai-worker
 
-.PHONY: setup up down logs ps migrate seed dev test lint typecheck format clean
+.PHONY: setup up down logs ps migrate seed dev test lint typecheck format clean eval
 
 ## First-time setup: install deps and create local .env files from examples
 setup:
@@ -57,6 +57,13 @@ test:
 	pnpm -r run test
 	pnpm --filter @ape/api test:e2e
 	cd $(WORKER) && uv run pytest -q
+
+## Score investigations against the answer key (ADR-021). Real models need keys in the worker's .env:
+##   make eval MODELS="gemini:gemini-3.6-flash anthropic:claude-opus-5-5" REPEAT=3
+MODELS ?= scripted:reference
+REPEAT ?= 1
+eval:
+	cd $(WORKER) && uv run python -m ai_worker.evaluation run --models $(MODELS) --repeat $(REPEAT)
 
 lint:
 	pnpm format:check
