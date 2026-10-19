@@ -9,6 +9,7 @@ interface JaegerSpan {
   spanID: string;
   operationName: string;
   startTime: number; // microseconds
+  duration?: number; // microseconds
   processID: string;
   tags: KeyValue[];
   logs?: { timestamp: number; fields: KeyValue[] }[];
@@ -28,7 +29,7 @@ const tag = (kvs: KeyValue[] | undefined, ...keys: string[]) => {
 };
 
 /** Tag value as a string; Jaeger tag values are strings, numbers or booleans. */
-const str = (v: unknown, fallback: string): string =>
+export const str = (v: unknown, fallback: string): string =>
   typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' ? String(v) : fallback;
 
 /**
@@ -111,6 +112,15 @@ export class JaegerClient {
     const res = await fetch(`${this.baseUrl}/api/services`, { signal: AbortSignal.timeout(5000) });
     if (!res.ok) throw new Error(`Jaeger returned ${res.status}`);
     return ((await res.json()) as { data: string[] | null }).data ?? [];
+  }
+
+  async getTrace(traceId: string): Promise<JaegerTrace | null> {
+    const res = await fetch(`${this.baseUrl}/api/traces/${encodeURIComponent(traceId)}`, {
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`Jaeger returned ${res.status}`);
+    return ((await res.json()) as { data: JaegerTrace[] | null }).data?.[0] ?? null;
   }
 
   async errorTraces(

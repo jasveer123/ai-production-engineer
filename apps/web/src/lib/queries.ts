@@ -20,6 +20,8 @@ import type {
   DeadLetter,
   GitHubAppInfo,
   Incident,
+  IncidentActionInput,
+  IncidentInvestigation,
   IncidentListQuery,
   Integration,
   IntegrationWithSecret,
@@ -313,3 +315,38 @@ export const useServiceCommits = (ws: string, serviceId: string | null) =>
     enabled: !!serviceId,
     retry: false,
   });
+
+// ----- Investigations -----
+export const useInvestigation = (ws: string, incidentId: string) =>
+  useQuery({
+    queryKey: ['workspace', ws, 'incident', incidentId, 'investigation'],
+    queryFn: () =>
+      api<IncidentInvestigation>(`/workspaces/${ws}/incidents/${incidentId}/investigation`),
+    // Poll faster while an investigation is running.
+    refetchInterval: (q) => (q.state.data?.workflow?.phase === 'investigating' ? 2000 : 8000),
+  });
+
+export const useEvidence = (ws: string, incidentId: string, evidenceId: string | null) =>
+  useQuery({
+    queryKey: ['workspace', ws, 'incident', incidentId, 'evidence', evidenceId],
+    queryFn: () =>
+      api<{ ref: string; title: string; content: string }>(
+        `/workspaces/${ws}/incidents/${incidentId}/evidence/${evidenceId}`,
+      ),
+    enabled: !!evidenceId,
+    staleTime: Infinity,
+  });
+
+export const useIncidentAction = (ws: string, incidentId: string) =>
+  useWrite(
+    ws,
+    (body: IncidentActionInput) =>
+      api<IncidentInvestigation>(`/workspaces/${ws}/incidents/${incidentId}/actions`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    [
+      ['workspace', ws, 'incident', incidentId],
+      ['workspace', ws, 'incidents'],
+    ],
+  );

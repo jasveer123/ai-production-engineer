@@ -127,10 +127,11 @@ export class GitHubAppClient {
   listCommits(
     installationId: number,
     repo: string,
-    opts: { sha?: string; since?: string; limit?: number } = {},
+    opts: { sha?: string; since?: string; path?: string; limit?: number } = {},
   ) {
     const q = new URLSearchParams({ per_page: String(opts.limit ?? 10) });
     if (opts.sha) q.set('sha', opts.sha);
+    if (opts.path) q.set('path', opts.path);
     if (opts.since) q.set('since', opts.since);
     return this.asInstallation<GitHubCommit[]>(
       installationId,
@@ -153,6 +154,22 @@ export class GitHubAppClient {
       installationId,
       `/repos/${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`,
     );
+  }
+
+  /** All file paths at a ref (used to map runtime stack-frame paths to repository paths). */
+  async tree(
+    installationId: number,
+    repo: string,
+    ref: string,
+  ): Promise<{ paths: string[]; truncated: boolean }> {
+    const res = await this.asInstallation<{
+      tree: { path: string; type: string }[];
+      truncated: boolean;
+    }>(installationId, `/repos/${repo}/git/trees/${encodeURIComponent(ref)}?recursive=1`);
+    return {
+      paths: res.tree.filter((t) => t.type === 'blob').map((t) => t.path),
+      truncated: res.truncated,
+    };
   }
 
   async fileContent(

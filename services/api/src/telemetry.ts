@@ -8,11 +8,11 @@ import { PgInstrumentation } from '@opentelemetry/instrumentation-pg';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 
-export function startTelemetry(): NodeSDK | undefined {
+export function startTelemetry(serviceName = 'ape-api'): NodeSDK | undefined {
   if (process.env.OTEL_ENABLED === 'false') return undefined;
   const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? 'http://localhost:4318';
   const sdk = new NodeSDK({
-    resource: resourceFromAttributes({ [ATTR_SERVICE_NAME]: 'ape-api' }),
+    resource: resourceFromAttributes({ [ATTR_SERVICE_NAME]: serviceName }),
     traceExporter: new OTLPTraceExporter({ url: `${endpoint}/v1/traces` }),
     instrumentations: [
       new HttpInstrumentation({ ignoreIncomingRequestHook: (req) => req.url === '/health' }),

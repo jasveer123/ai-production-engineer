@@ -18,6 +18,8 @@ Format: **Context → Decision → Consequences**. Status is *Accepted* unless n
 | [ADR-012](012-managed-containers-before-kubernetes.md) | Managed containers before Kubernetes |
 | [ADR-013](013-drizzle-orm.md) | Drizzle ORM for PostgreSQL |
 | [ADR-014](014-auth-github-oauth-api-sessions.md) | GitHub OAuth with API-issued sessions |
+| [ADR-015](015-temporal-typescript-workflows-python-ai-activities.md) | TypeScript workflows, polyglot activities |
+| [ADR-016](016-anthropic-model-gateway-and-evidence-guard.md) | Model gateway: Claude first, structured output, evidence guard |
 
 ## Open decisions
 (make these during the build)
@@ -26,7 +28,7 @@ Format: **Context → Decision → Consequences**. Status is *Accepted* unless n
 |---|---|---|---|
 | D-1 | ORM | ~~Prisma vs Drizzle~~ → Drizzle (ADR-013) | Phase 1 |
 | D-2 | Auth | ~~Auth.js vs NestJS sessions~~ → NestJS sessions (ADR-014) | Phase 1 |
-| D-3 | Temporal SDK for workflows | TypeScript vs Python | Phase 4 |
+| D-3 | Temporal SDK for workflows | ~~TypeScript vs Python~~ → TS workflows + polyglot activities (ADR-015) | Phase 4 |
 | D-4 | Pre-Temporal buffer | Postgres table vs BullMQ | Phase 3 |
 | D-5 | Hosting | VPS + Compose vs AWS + Terraform | Phase 10 |
 | D-6 | Stream (if Phase 11) | Redis Streams vs NATS vs Kafka | Phase 11 |

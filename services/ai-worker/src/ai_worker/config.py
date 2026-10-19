@@ -11,9 +11,30 @@ class Settings(BaseSettings):
 
     env: str = "development"
     port: int = 8000
-    temporal_address: str = "localhost:7233"
     otel_exporter_otlp_endpoint: str = "http://localhost:4318"
+    otel_enabled: bool = True
+
+    # Temporal (ADR-015): this worker serves the `ai` task queue.
+    temporal_address: str = "localhost:7233"
+    temporal_namespace: str = "default"
+    temporal_task_queue: str = "ai"
+
+    # Object storage for evidence bundles and reports (RustFS locally, S3 in deployment).
+    s3_endpoint: str = "http://localhost:9000"
+    s3_access_key: str = "ape-minio"
+    s3_secret_key: SecretStr = SecretStr("ape-minio-secret")
+    s3_bucket: str = "ape-artifacts"
+
+    # Model gateway (ADR-016). No key -> investigations end as needs_review, never invented.
     anthropic_api_key: SecretStr | None = None
+    ai_model: str = "claude-opus-5-5"
+    ai_effort: str = "high"
+    ai_max_tokens: int = 16000
+    ai_timeout_seconds: float = 240.0
+    # Refuse bundles larger than this (rough chars/4 token estimate) instead of truncating silently.
+    ai_max_input_tokens: int = 150_000
+
+    # Kept for the Phase 9 model comparison; no OpenAI adapter yet.
     openai_api_key: SecretStr | None = None
 
 

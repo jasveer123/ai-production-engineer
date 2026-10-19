@@ -297,6 +297,14 @@ export class GitHubService {
     }));
   }
 
+  /** Installation that can read `repo` in this workspace, if any. */
+  async installationFor(workspaceId: string, repo: string): Promise<number | null> {
+    const match = (await this.connectedInstallations(workspaceId)).find((i) =>
+      i.cfg.repositories.some((r) => r.toLowerCase() === repo.toLowerCase()),
+    );
+    return match?.cfg.installationId ?? null;
+  }
+
   toScope(row: Row): Partial<Integration> {
     const cfg = row.config as unknown as Partial<GitHubConfig>;
     return {

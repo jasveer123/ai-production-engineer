@@ -301,19 +301,41 @@ export const deployments = pgTable(
 
 // ---------- Investigation ----------
 
-export const investigations = pgTable('investigations', {
-  id: id(),
-  workspaceId: workspaceRef(),
-  incidentId: uuid('incident_id')
-    .notNull()
-    .references(() => incidents.id, { onDelete: 'cascade' }),
-  workflowId: text('workflow_id').notNull(),
-  status: text('status').notNull(),
-  promptVersion: text('prompt_version'),
-  startedAt: timestamp('started_at', { withTimezone: true }),
-  completedAt: timestamp('completed_at', { withTimezone: true }),
-  ...timestamps(),
-});
+export const investigations = pgTable(
+  'investigations',
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    incidentId: uuid('incident_id')
+      .notNull()
+      .references(() => incidents.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id').notNull(),
+    /** 1 for the first run; "Investigate further" starts attempt 2, 3, ... */
+    attempt: integer('attempt').notNull().default(1),
+    // collecting_evidence | analyzing | completed | needs_review | failed | cancelled
+    status: text('status').notNull(),
+    statusReason: text('status_reason'),
+    promptVersion: text('prompt_version'),
+    model: text('model'),
+    evidenceBundleRef: text('evidence_bundle_ref'),
+    reportRef: text('report_ref'),
+    /** Which evidence sources were available, empty or missing (FR-04: never fabricate). */
+    coverage: jsonb('coverage').$type<Record<string, unknown>>().notNull().default({}),
+    observations: jsonb('observations').$type<unknown[]>().notNull().default([]),
+    dataGaps: jsonb('data_gaps').$type<string[]>().notNull().default([]),
+    /** Items the evidence guard removed (cited unknown or no evidence). */
+    rejected: jsonb('rejected').$type<unknown[]>().notNull().default([]),
+    usage: jsonb('usage').$type<Record<string, unknown>>().notNull().default({}),
+    requestNote: text('request_note'),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex('investigations_workflow_attempt_key').on(t.workflowId, t.attempt),
+    index('investigations_incident_idx').on(t.incidentId),
+  ],
+);
 
 export const evidenceItems = pgTable('evidence_items', {
   id: id(),
@@ -321,8 +343,12 @@ export const evidenceItems = pgTable('evidence_items', {
   investigationId: uuid('investigation_id')
     .notNull()
     .references(() => investigations.id, { onDelete: 'cascade' }),
-  kind: text('kind').notNull(),
+  /** Short id the model cites, e.g. "E3". Unique within an investigation. */
+  ref: text('ref').notNull(),
+  kind: text('kind').notNull(), // error_event | trace | deploy | code | commit
+  title: text('title').notNull(),
   sourceReference: text('source_reference').notNull(),
+  sourceUrl: text('source_url'),
   artifactReference: text('artifact_reference'),
   contentHash: text('content_hash').notNull(),
   ...timestamps(),
@@ -338,6 +364,8 @@ export const hypotheses = pgTable('hypotheses', {
   summary: text('summary').notNull(),
   // A model-generated estimate, not a calibrated probability.
   confidence: numeric('confidence', { precision: 3, scale: 2 }),
+  confidenceLabel: text('confidence_label'), // high | medium | low
+  suspectedLocation: jsonb('suspected_location').$type<Record<string, unknown> | null>(),
   confidenceRationale: text('confidence_rationale'),
   supportingEvidenceIds: uuid('supporting_evidence_ids').array().notNull().default([]),
   contradictingEvidenceIds: uuid('contradicting_evidence_ids').array().notNull().default([]),

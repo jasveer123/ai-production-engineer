@@ -6,7 +6,7 @@ WORKER  := services/ai-worker
 ## First-time setup: install deps and create local .env files from examples
 setup:
 	pnpm install
-	pnpm --filter @ape/config --filter @ape/api-contracts build
+	pnpm $(PACKAGES) build
 	cd $(WORKER) && uv sync
 	@for f in services/api services/ai-worker apps/web; do \
 	  [ -f $$f/.env ] || cp $$f/.env.example $$f/.env; done
@@ -36,17 +36,21 @@ migrate:
 seed:
 	pnpm --filter @ape/api db:seed
 
-## Run web (3000), api (4000) and ai-worker (8000) together
+PACKAGES := --filter @ape/config --filter @ape/api-contracts --filter @ape/temporal-workflows
+
+## Run web (3000), api (4000), ai-worker (8000) and both Temporal workers together
 dev:
-	pnpm --filter @ape/config --filter @ape/api-contracts build
+	pnpm $(PACKAGES) build
 	@trap 'kill 0' INT TERM; \
 	pnpm --filter @ape/web --filter @ape/api --parallel run dev & \
+	(until [ -f services/api/dist/worker.js ]; do sleep 1; done; cd services/api && node --watch dist/worker.js) & \
 	(cd $(WORKER) && uv run python -m ai_worker.main) & \
+	(cd $(WORKER) && uv run python -m ai_worker.temporal_worker) & \
 	wait
 
-## Unit tests, API integration tests (needs `make up`) and Python tests
+## Unit tests, API integration tests (needs `make up`: Postgres + Temporal) and Python tests
 test:
-	pnpm --filter @ape/config --filter @ape/api-contracts build
+	pnpm $(PACKAGES) build
 	pnpm -r run test
 	pnpm --filter @ape/api test:e2e
 	cd $(WORKER) && uv run pytest -q
@@ -57,7 +61,7 @@ lint:
 	cd $(WORKER) && uv run ruff check . && uv run ruff format --check .
 
 typecheck:
-	pnpm --filter @ape/config --filter @ape/api-contracts build
+	pnpm $(PACKAGES) build
 	pnpm -r run typecheck
 	cd $(WORKER) && uv run mypy src tests
 

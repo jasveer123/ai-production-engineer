@@ -2,10 +2,20 @@
   "name": "@ape/temporal-workflows",
   "version": "0.0.1",
   "private": true,
-  "main": "src/index.ts",
+  "description": "Temporal workflow definitions and cross-language activity contracts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "typecheck": "echo \"temporal: placeholder until Phase 4 (SDK choice is ADR D-3)\"",
-    "lint": "echo \"temporal: placeholder\"",
-    "test": "echo \"temporal: placeholder\""
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "echo \"lint via root prettier\"",
+    "test": "echo \"workflow tests run in services/api (needs a Temporal server)\""
+  },
+  "dependencies": {
+    "@temporalio/workflow": "^1.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
   }
 }

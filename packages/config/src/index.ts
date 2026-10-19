@@ -10,6 +10,7 @@ export const apiEnvSchema = z
     DATABASE_URL: z.string().url(),
     REDIS_URL: z.string().url(),
     TEMPORAL_ADDRESS: z.string().min(1).default('localhost:7233'),
+    TEMPORAL_NAMESPACE: z.string().min(1).default('default'),
     S3_ENDPOINT: z.string().url(),
     S3_ACCESS_KEY: z.string().min(1),
     S3_SECRET_KEY: z.string().min(1),
@@ -38,6 +39,8 @@ export const apiEnvSchema = z
     GITHUB_APP_ID: z.string().regex(/^\d+$/).optional(),
     GITHUB_APP_PRIVATE_KEY_PATH: z.string().optional(),
     GITHUB_API_URL: z.string().url().default('https://api.github.com'),
+    // Start an AI investigation automatically for every new incident (each run costs model tokens).
+    AUTO_INVESTIGATE: booleanFlag.default('true'),
     GITHUB_HEALTH_INTERVAL_MS: z.coerce.number().int().positive().default(60000),
   })
   .refine((env) => !(env.NODE_ENV === 'production' && env.AUTH_DEV_LOGIN), {

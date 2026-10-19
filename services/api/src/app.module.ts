@@ -9,6 +9,7 @@ import { DatabaseModule } from './db/database.module';
 import { HealthModule } from './health/health.module';
 import { IncidentsModule } from './incidents/incidents.module';
 import { IngestionModule } from './ingestion/ingestion.module';
+import { InvestigationsModule } from './investigations/investigations.module';
 import { SecretsModule } from './secrets/secrets.module';
 import { ServiceMappingsModule } from './service-mappings/service-mappings.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
@@ -25,6 +26,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     ServiceMappingsModule,
     IncidentsModule,
     IngestionModule,
+    InvestigationsModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: ApiErrorFilter }],
 })

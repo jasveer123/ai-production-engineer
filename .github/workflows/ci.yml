@@ -32,7 +32,13 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @ape/config --filter @ape/api-contracts build
+      - run: pnpm --filter @ape/config --filter @ape/api-contracts --filter @ape/temporal-workflows build
+      # Temporal dev server for the workflow integration tests.
+      - name: Start Temporal
+        run: |
+          curl -sSf https://temporal.download/cli.sh | sh
+          ~/.temporalio/bin/temporal server start-dev --headless --log-level warn &
+          for i in $(seq 1 30); do ~/.temporalio/bin/temporal operator cluster health && break; sleep 1; done
       - run: pnpm format:check
       - run: pnpm -r run lint
       - run: pnpm -r run typecheck
