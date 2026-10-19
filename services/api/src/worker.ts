@@ -15,6 +15,7 @@ import { NativeConnection, Worker } from '@temporalio/worker';
 import { TASK_QUEUES } from '@ape/temporal-workflows';
 import { apiEnvSchema, loadEnv } from '@ape/config';
 import { AppModule } from './app.module';
+import { FixActivitiesService } from './fixes/fix-activities.service';
 import { InvestigationActivities } from './investigations/investigation-activities.service';
 
 async function main() {
@@ -22,6 +23,7 @@ async function main() {
   const app = await NestFactory.createApplicationContext(AppModule, { bufferLogs: false });
   app.enableShutdownHooks();
   const acts = app.get(InvestigationActivities);
+  const fix = app.get(FixActivitiesService);
   const connection = await NativeConnection.connect({ address: env.TEMPORAL_ADDRESS });
 
   const workflows = await Worker.create({
@@ -41,6 +43,12 @@ async function main() {
       markInvestigation: acts.markInvestigation.bind(acts),
       closeIncident: acts.closeIncident.bind(acts),
       recordReproductionApproval: acts.recordReproductionApproval.bind(acts),
+      prepareFix: fix.prepareFix.bind(fix),
+      recordRun: fix.recordRun.bind(fix),
+      applyPatch: fix.applyPatch.bind(fix),
+      updateFix: fix.updateFix.bind(fix),
+      setIncidentStatus: fix.setIncidentStatus.bind(fix),
+      testOverlay: fix.testOverlay.bind(fix),
     },
     maxConcurrentActivityTaskExecutions: 10,
   });

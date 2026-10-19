@@ -156,6 +156,22 @@ export class GitHubAppClient {
     );
   }
 
+  /** The repository as a .tar.gz at an exact commit (for the sandbox). */
+  async tarball(installationId: number, repo: string, sha: string): Promise<Buffer> {
+    const res = await fetch(`${this.apiUrl}/repos/${repo}/tarball/${encodeURIComponent(sha)}`, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': 'ai-production-engineer',
+        Authorization: `token ${await this.installationToken(installationId)}`,
+      },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(120_000),
+    });
+    if (!res.ok) throw new GitHubError(res.status, `GitHub ${res.status}: tarball download failed`);
+    return Buffer.from(await res.arrayBuffer());
+  }
+
   /** All file paths at a ref (used to map runtime stack-frame paths to repository paths). */
   async tree(
     installationId: number,

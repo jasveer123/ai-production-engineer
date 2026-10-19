@@ -18,7 +18,9 @@ import type {
   CreateIncidentInput,
   CreateIntegrationInput,
   DeadLetter,
+  FixActionInput,
   GitHubAppInfo,
+  IncidentFixes,
   Incident,
   IncidentActionInput,
   IncidentInvestigation,
@@ -349,4 +351,28 @@ export const useIncidentAction = (ws: string, incidentId: string) =>
       ['workspace', ws, 'incident', incidentId],
       ['workspace', ws, 'incidents'],
     ],
+  );
+
+// ----- Fixes (Phase 5) -----
+export const useFixes = (ws: string, incidentId: string) =>
+  useQuery({
+    queryKey: ['workspace', ws, 'incident', incidentId, 'fixes'],
+    queryFn: () => api<IncidentFixes>(`/workspaces/${ws}/incidents/${incidentId}/fixes`),
+    refetchInterval: (q) =>
+      ['reproducing', 'patching', 'validating', 'reproduction_approved'].includes(
+        q.state.data?.phase ?? '',
+      )
+        ? 2000
+        : 8000,
+  });
+
+export const useFixAction = (ws: string, incidentId: string) =>
+  useWrite(
+    ws,
+    (body: FixActionInput) =>
+      api<IncidentFixes>(`/workspaces/${ws}/incidents/${incidentId}/fixes/actions`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    [['workspace', ws, 'incident', incidentId]],
   );

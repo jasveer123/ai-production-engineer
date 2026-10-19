@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { INCIDENT_TRANSITIONS, type IncidentStatus, type TimelineEntry } from '@ape/api-contracts';
+import { FixPanel } from '@/components/fix-panel';
 import { InvestigationReport } from '@/components/investigation-report';
 import { Badge, Button, Card, ErrorBox, Input, Loading } from '@/components/ui';
 import {
@@ -22,6 +23,7 @@ const KIND_STYLE: Record<TimelineEntry['kind'], { dot: string; name: string }> =
   deploy: { dot: 'bg-info', name: 'Deploy' },
   created: { dot: 'bg-accent', name: 'Detected' },
   investigation: { dot: 'bg-info', name: 'AI' },
+  fix: { dot: 'bg-ok', name: 'Fix' },
   status_change: { dot: 'bg-subtle', name: 'Status' },
 };
 
@@ -193,6 +195,7 @@ export default function IncidentPage() {
         </Card>
       )}
 
+      <FixPanel ws={workspaceId} incidentId={incidentId} canAct={canAct} />
       <InvestigationReport ws={workspaceId} incidentId={incidentId} canAct={canAct} />
 
       {i.serviceId && i.repositoryFullName && (

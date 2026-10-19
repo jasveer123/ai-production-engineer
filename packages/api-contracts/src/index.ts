@@ -197,7 +197,7 @@ export type TransitionIncidentInput = z.infer<typeof transitionIncidentSchema>;
 
 export type TimelineEntry =
   | {
-      kind: 'error' | 'created' | 'status_change' | 'investigation';
+      kind: 'error' | 'created' | 'status_change' | 'investigation' | 'fix';
       id: string;
       at: string;
       source: string;
@@ -361,3 +361,45 @@ export const incidentActionSchema = z.object({
   note: z.string().trim().max(2000).optional(),
 });
 export type IncidentActionInput = z.infer<typeof incidentActionSchema>;
+
+// ----- Fixes (Phase 5) -----
+export interface ValidationRunView {
+  id: string;
+  kind: 'baseline' | 'reproduction' | 'regression' | 'full_suite' | 'policy';
+  attempt: number;
+  status: 'passed' | 'failed' | 'error' | 'skipped';
+  durationMs: number | null;
+  summary: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface FixView {
+  id: string;
+  version: number;
+  status: string;
+  statusReason: string | null;
+  repositoryFullName: string | null;
+  baseCommitSha: string;
+  testPath: string | null;
+  test: string | null;
+  testRationale: string | null;
+  diff: string | null;
+  explanation: string | null;
+  diffStat: { files: number; additions: number; deletions: number } | null;
+  patchAttempts: number;
+  runs: ValidationRunView[];
+  createdAt: string;
+}
+
+export interface IncidentFixes {
+  latest: FixView | null;
+  versions: number;
+  phase: string | null;
+}
+
+export const FIX_ACTIONS = ['regenerate', 'reject', 'approve_pr'] as const;
+export const fixActionSchema = z.object({
+  action: z.enum(FIX_ACTIONS),
+  note: z.string().trim().max(2000).optional(),
+});
+export type FixActionInput = z.infer<typeof fixActionSchema>;

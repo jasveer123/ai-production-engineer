@@ -1,2 +1,10 @@
 export * from './contracts';
-export { approveReproduction, dismiss, requestMoreInvestigation, stateQuery } from './workflows';
+export {
+  approvePullRequest,
+  approveReproduction,
+  dismiss,
+  regenerateFix,
+  rejectFix,
+  requestMoreInvestigation,
+  stateQuery,
+} from './workflows';

@@ -38,7 +38,7 @@ seed:
 
 PACKAGES := --filter @ape/config --filter @ape/api-contracts --filter @ape/temporal-workflows
 
-## Run web (3000), api (4000), ai-worker (8000) and both Temporal workers together
+## Run web (3000), api (4000), ai-worker (8000) and the Temporal workers (incident, AI, sandbox)
 dev:
 	pnpm $(PACKAGES) build
 	@trap 'kill 0' INT TERM; \
@@ -46,6 +46,7 @@ dev:
 	(until [ -f services/api/dist/worker.js ]; do sleep 1; done; cd services/api && node --watch dist/worker.js) & \
 	(cd $(WORKER) && uv run python -m ai_worker.main) & \
 	(cd $(WORKER) && uv run python -m ai_worker.temporal_worker) & \
+	(cd services/sandbox-manager && pnpm dev) & \
 	wait
 
 ## Unit tests, API integration tests (needs `make up`: Postgres + Temporal) and Python tests

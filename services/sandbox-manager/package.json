@@ -2,9 +2,29 @@
   "name": "@ape/sandbox-manager",
   "version": "0.0.1",
   "private": true,
+  "description": "Runs untrusted tests and patches in isolated, network-less containers (ADR-007)",
+  "main": "dist/index.js",
   "scripts": {
-    "typecheck": "echo \"sandbox-manager: placeholder until Phase 5\"",
-    "lint": "echo \"sandbox-manager: placeholder\"",
-    "test": "echo \"sandbox-manager: placeholder\""
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch --env-file-if-exists=.env src/worker.ts",
+    "start": "node --env-file-if-exists=.env dist/worker.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test": "jest --runInBand"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1152.0",
+    "@temporalio/activity": "1.24.0",
+    "@temporalio/worker": "1.24.0",
+    "tar": "^7.5.22",
+    "@ape/temporal-workflows": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.20.5",
+    "jest": "^30.5.2",
+    "ts-jest": "^29.4.15",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
   }
 }

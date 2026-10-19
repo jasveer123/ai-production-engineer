@@ -11,6 +11,7 @@ from temporalio.worker import Worker
 from ai_worker.artifacts import ArtifactStore
 from ai_worker.config import get_settings
 from ai_worker.contracts import EvidenceBundle, InvestigateInput, InvestigateResult
+from ai_worker.fixing import FixContext, generate_patch, generate_test
 from ai_worker.investigate import run_investigation
 from ai_worker.llm.gateway import ModelProvider, get_provider
 from ai_worker.telemetry import setup_tracing
@@ -44,6 +45,42 @@ class InvestigateActivities:
         )
         return result.model_dump(by_alias=True)
 
+    @activity.defn(name="generateTest")
+    async def generate_test(self, raw: dict[str, Any]) -> dict[str, Any]:
+        ctx = FixContext.model_validate(await self.store.get_json(raw["contextRef"]))
+        out, problem, usage = await generate_test(ctx, self.provider, raw["promptVersion"])
+        if out is None:
+            log.warning("generateTest %s failed: %s", raw["fixProposalId"], problem)
+            return {"status": "failed", "reason": problem, "testRef": None, "rationale": None}
+        ref = await self.store.put_json(
+            f"fixes/{raw['workspaceId']}/{raw['fixProposalId']}/test.json",
+            {
+                "path": raw["testPath"],
+                "content": out.content,
+                "rationale": out.rationale,
+                "usage": usage,
+            },
+        )
+        return {"status": "ok", "reason": None, "testRef": ref, "rationale": out.rationale}
+
+    @activity.defn(name="generatePatch")
+    async def generate_patch(self, raw: dict[str, Any]) -> dict[str, Any]:
+        ctx = FixContext.model_validate(await self.store.get_json(raw["contextRef"]))
+        test = await self.store.get_json(raw["testRef"])
+        run = await self.store.get_json(raw["failureRef"])
+        failure = f"{run.get('stdout', '')}\n{run.get('stderr', '')}"
+        out, problem, usage = await generate_patch(
+            ctx, test, failure, raw.get("feedback"), self.provider, raw["promptVersion"]
+        )
+        if out is None:
+            log.warning("generatePatch %s failed: %s", raw["fixProposalId"], problem)
+            return {"status": "failed", "reason": problem, "patchRef": None, "explanation": None}
+        ref = await self.store.put_json(
+            f"fixes/{raw['workspaceId']}/{raw['fixProposalId']}/attempt-{raw['attempt']}/patch.json",
+            {**out.model_dump(), "usage": usage},
+        )
+        return {"status": "ok", "reason": None, "patchRef": ref, "explanation": out.explanation}
+
 
 async def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -57,7 +94,7 @@ async def main() -> None:
     worker = Worker(
         client,
         task_queue=settings.temporal_task_queue,
-        activities=[acts.investigate],
+        activities=[acts.investigate, acts.generate_test, acts.generate_patch],
         max_concurrent_activities=4,  # bounds parallel model spend
     )
     log.info(

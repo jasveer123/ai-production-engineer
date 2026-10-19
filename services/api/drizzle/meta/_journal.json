@@ -36,6 +36,13 @@
       "when": 1792426895343,
       "tag": "0004_dedupe_traces",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792432334550,
+      "tag": "0005_fix_proposals",
+      "breakpoints": true
     }
   ]
 }

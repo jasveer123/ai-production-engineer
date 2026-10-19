@@ -15,6 +15,7 @@ import { approvals, inboundEvents, incidents, outbox } from '../src/db/schema';
 import { IngestionProcessor } from '../src/ingestion/ingestion.processor';
 import { extractError, type JaegerTrace } from '../src/ingestion/jaeger';
 import { JaegerPoller } from '../src/ingestion/jaeger.poller';
+import { FixActivitiesService } from '../src/fixes/fix-activities.service';
 import { InvestigationActivities } from '../src/investigations/investigation-activities.service';
 import { OutboxPublisher } from '../src/temporal/outbox-publisher.service';
 import s1 from './fixtures/jaeger-trace-s1.json';
@@ -122,6 +123,7 @@ describe('AI investigation workflow (e2e, needs a Temporal server)', () => {
     jest.spyOn(app.get(JaegerPoller).client, 'services').mockResolvedValue(['demo-shop-api']);
 
     const acts = app.get(InvestigationActivities);
+    const fix = app.get(FixActivitiesService);
     const connection = await NativeConnection.connect({ address: ADDRESS });
     workers = await Promise.all([
       Worker.create({
@@ -141,6 +143,12 @@ describe('AI investigation workflow (e2e, needs a Temporal server)', () => {
           markInvestigation: acts.markInvestigation.bind(acts),
           closeIncident: acts.closeIncident.bind(acts),
           recordReproductionApproval: acts.recordReproductionApproval.bind(acts),
+          prepareFix: fix.prepareFix.bind(fix),
+          recordRun: fix.recordRun.bind(fix),
+          applyPatch: fix.applyPatch.bind(fix),
+          updateFix: fix.updateFix.bind(fix),
+          setIncidentStatus: fix.setIncidentStatus.bind(fix),
+          testOverlay: fix.testOverlay.bind(fix),
         },
       }),
       Worker.create({
@@ -239,10 +247,17 @@ describe('AI investigation workflow (e2e, needs a Temporal server)', () => {
       .post(`/workspaces/${ws}/incidents/${incident.id}/actions`)
       .send({ action: 'approve_reproduction' })
       .expect(200);
+    // Workflow B starts; with no GitHub installation it stops before touching any code and waits.
     await until(async () => {
       const r = await investigation(owner, ws, incident.id);
-      return r.reproductionApproved && r.workflow?.phase === 'completed';
+      return r.reproductionApproved && r.workflow?.phase === 'awaiting_fix_decision';
     });
+    const fixes = (await owner.get(`/workspaces/${ws}/incidents/${incident.id}/fixes`).expect(200))
+      .body as {
+      latest: unknown;
+      phase: string;
+    };
+    expect(fixes).toMatchObject({ latest: null, phase: 'awaiting_fix_decision' });
     expect(
       await db.select().from(approvals).where(eq(approvals.resourceId, incident.id)),
     ).toHaveLength(1);

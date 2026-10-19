@@ -52,6 +52,25 @@ export class ArtifactStore implements OnModuleInit {
     return `s3://${this.bucket}/${key}`;
   }
 
+  async putBytes(key: string, body: Buffer, contentType: string): Promise<string> {
+    await this.s3.send(
+      new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType }),
+    );
+    return `s3://${this.bucket}/${key}`;
+  }
+
+  async putText(key: string, body: string, contentType = 'text/plain'): Promise<string> {
+    return this.putBytes(key, Buffer.from(body), contentType);
+  }
+
+  async getText(ref: string): Promise<string> {
+    const m = /^s3:\/\/([^/]+)\/(.+)$/.exec(ref);
+    if (!m || m[1] !== this.bucket)
+      throw new Error(`Not an artifact reference in ${this.bucket}: ${ref}`);
+    const res = await this.s3.send(new GetObjectCommand({ Bucket: this.bucket, Key: m[2] }));
+    return res.Body!.transformToString();
+  }
+
   async getJson<T>(ref: string): Promise<T> {
     const m = /^s3:\/\/([^/]+)\/(.+)$/.exec(ref);
     if (!m || m[1] !== this.bucket)

@@ -34,6 +34,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @ape/config --filter @ape/api-contracts --filter @ape/temporal-workflows build
       # Temporal dev server for the workflow integration tests.
+      # Base image for the sandbox isolation tests (they start real containers).
+      - run: docker pull node:22-slim
       - name: Start Temporal
         run: |
           curl -sSf https://temporal.download/cli.sh | sh

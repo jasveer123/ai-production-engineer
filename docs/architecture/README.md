@@ -20,6 +20,7 @@ Format: **Context → Decision → Consequences**. Status is *Accepted* unless n
 | [ADR-014](014-auth-github-oauth-api-sessions.md) | GitHub OAuth with API-issued sessions |
 | [ADR-015](015-temporal-typescript-workflows-python-ai-activities.md) | TypeScript workflows, polyglot activities |
 | [ADR-016](016-anthropic-model-gateway-and-evidence-guard.md) | Model gateway: Claude first, structured output, evidence guard |
+| [ADR-017](017-sandbox-and-deterministic-patches.md) | Sandbox worker and deterministic patch application |
 
 ## Open decisions
 (make these during the build)
@@ -32,4 +33,3 @@ Format: **Context → Decision → Consequences**. Status is *Accepted* unless n
 | D-4 | Pre-Temporal buffer | Postgres table vs BullMQ | Phase 3 |
 | D-5 | Hosting | VPS + Compose vs AWS + Terraform | Phase 10 |
 | D-6 | Stream (if Phase 11) | Redis Streams vs NATS vs Kafka | Phase 11 |
-

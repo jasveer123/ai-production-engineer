@@ -1,7 +1,10 @@
 import { Inject, Injectable, OnApplicationShutdown } from '@nestjs/common';
 import { Client, Connection, WorkflowNotFoundError } from '@temporalio/client';
 import {
+  approvePullRequest,
   approveReproduction,
+  regenerateFix,
+  rejectFix,
   dismiss,
   incidentWorkflowId,
   requestMoreInvestigation,
@@ -88,6 +91,19 @@ export class TemporalService implements OnApplicationShutdown {
     await client.workflow
       .getHandle(incidentWorkflowId(incidentId))
       .signal(approveReproduction, { actorId });
+  }
+
+  async fixDecision(
+    incidentId: string,
+    actorId: string,
+    action: 'regenerate' | 'reject' | 'approve_pr',
+    note: string | null,
+  ) {
+    const handle = (await this.getClient()).workflow.getHandle(incidentWorkflowId(incidentId));
+    if (action === 'regenerate') await handle.signal(regenerateFix, { actorId, note });
+    else if (action === 'reject')
+      await handle.signal(rejectFix, { actorId, reason: note || 'Fix rejected by reviewer' });
+    else await handle.signal(approvePullRequest, { actorId });
   }
 
   async dismiss(incidentId: string, actorId: string, reason: string) {
