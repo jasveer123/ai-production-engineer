@@ -1,6 +1,7 @@
 """Turns a redacted evidence bundle into a validated, evidence-guarded report."""
 
 import json
+import logging
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -9,6 +10,7 @@ from ai_worker.contracts import EvidenceBundle
 from ai_worker.llm.gateway import ModelError, ModelProvider
 from ai_worker.report import OUTPUT_SCHEMA, ModelReport, Rejected, StoredReport, Usage
 
+log = logging.getLogger("ai_worker")
 PROMPTS_DIR = Path(__file__).resolve().parents[4] / "prompts"
 MAX_ATTEMPTS = 2  # one retry when the output fails validation
 

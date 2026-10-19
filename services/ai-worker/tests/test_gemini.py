@@ -164,3 +164,8 @@ async def test_does_not_fall_back_on_a_bad_request() -> None:
     with pytest.raises(ModelError):
         await p.structured(system="s", user="u", schema=OUTPUT_SCHEMA, purpose="t")
     assert fake.tried == ["gemini-3.5-flash"]
+
+
+def test_timeouts_are_retryable() -> None:
+    assert type(map_error(TimeoutError("read timed out"))) is ModelUnavailable
+    assert map_error(Exception("ReadTimeout: timed out")).retryable is True

@@ -43,6 +43,13 @@ def map_error(err: Exception) -> ModelError:
     text = str(err)[:300]
     if status in (401, 403):
         return ModelNotConfigured(f"Gemini rejected the API key: {text}")
+    # A hung model must not end the investigation: let the next model or a retry try.
+    if (
+        isinstance(err, TimeoutError)
+        or "timeout" in type(err).__name__.lower()
+        or "timed out" in text.lower()
+    ):
+        return ModelUnavailable(f"Gemini request timed out: {text or type(err).__name__}")
     if (
         status in (408, 429, 500, 502, 503, 504)
         or "high demand" in text
@@ -76,7 +83,8 @@ class GeminiProvider:
             response_mime_type="application/json",
             response_json_schema=schema,
             max_output_tokens=s.ai_max_tokens,
-            http_options=types.HttpOptions(timeout=int(s.ai_timeout_seconds * 1000)),
+            # Per-model timeout, so a slow model leaves time to fall back to the next one.
+            http_options=types.HttpOptions(timeout=int(s.gemini_timeout_seconds * 1000)),
         )
         with tracer.start_as_current_span("llm.structured") as span:
             span.set_attributes(

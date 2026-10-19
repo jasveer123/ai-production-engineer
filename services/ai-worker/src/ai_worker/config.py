@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr | None = None
     gemini_model: str = "gemini-3.5-flash"
     # Tried in order when the model above is overloaded (503) or over its free quota (429).
+    gemini_timeout_seconds: float = 90.0
     gemini_fallback_models: list[str] = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash"]
 
     # Kept for the Phase 9 model comparison; no OpenAI adapter yet.
