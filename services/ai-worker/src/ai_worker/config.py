@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -26,6 +27,8 @@ class Settings(BaseSettings):
     s3_bucket: str = "ape-artifacts"
 
     # Model gateway (ADR-016). No key -> investigations end as needs_review, never invented.
+    # "auto" picks Anthropic when its key is set, else Gemini when its key is set.
+    ai_provider: Literal["auto", "anthropic", "gemini"] = "auto"
     anthropic_api_key: SecretStr | None = None
     ai_model: str = "claude-opus-5-5"
     ai_effort: str = "high"
@@ -33,6 +36,12 @@ class Settings(BaseSettings):
     ai_timeout_seconds: float = 240.0
     # Refuse bundles larger than this (rough chars/4 token estimate) instead of truncating silently.
     ai_max_input_tokens: int = 150_000
+
+    # Google Gemini (free tier works; capacity errors are retried by Temporal).
+    gemini_api_key: SecretStr | None = None
+    gemini_model: str = "gemini-3.5-flash"
+    # Tried in order when the model above is overloaded (503) or over its free quota (429).
+    gemini_fallback_models: list[str] = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash"]
 
     # Kept for the Phase 9 model comparison; no OpenAI adapter yet.
     openai_api_key: SecretStr | None = None

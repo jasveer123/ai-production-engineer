@@ -11,6 +11,7 @@ from typing import Any, Protocol
 import anthropic
 from anthropic.types.beta import BetaMessageParam, BetaOutputConfigParam
 from opentelemetry import trace
+from pydantic import SecretStr
 
 from ai_worker.config import Settings
 
@@ -178,7 +179,16 @@ class AnthropicProvider:
             )
 
 
+def _has(secret: SecretStr | None) -> bool:
+    return bool(secret and secret.get_secret_value().strip())
+
+
 def get_provider(settings: Settings) -> ModelProvider:
-    if settings.anthropic_api_key and settings.anthropic_api_key.get_secret_value().strip():
+    choice = settings.ai_provider
+    if choice in ("auto", "anthropic") and _has(settings.anthropic_api_key):
         return AnthropicProvider(settings)
+    if choice in ("auto", "gemini") and _has(settings.gemini_api_key):
+        from ai_worker.llm.gemini import GeminiProvider  # optional dependency path
+
+        return GeminiProvider(settings)
     return NoProvider()

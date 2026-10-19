@@ -51,7 +51,7 @@ async def main() -> None:
     setup_tracing(settings)
     provider = get_provider(settings)
     if provider.name == "none":
-        log.warning("ANTHROPIC_API_KEY is not set: investigations will end as needs_review")
+        log.warning("No model API key is set: investigations will end as needs_review")
     client = await Client.connect(settings.temporal_address, namespace=settings.temporal_namespace)
     acts = InvestigateActivities(ArtifactStore(settings), provider)
     worker = Worker(

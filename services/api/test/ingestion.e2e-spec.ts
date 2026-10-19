@@ -219,6 +219,23 @@ describe('Ingestion and incidents (e2e)', () => {
     expect(firstError?.kind === 'error' && firstError.sourceUrl).toContain('/trace/');
   });
 
+  it('counts a trace once even when two integrations deliver it', async () => {
+    const first = await jaegerIntegration();
+    const second = (
+      await owner
+        .post(`/workspaces/${ws}/integrations`)
+        .send({ provider: 'otel_jaeger', name: 'Jaeger 2' })
+        .expect(201)
+    ).body as { id: string };
+    const ids = traceIds(5);
+    await queueErrors(first, ids);
+    await queueErrors(second.id, ids);
+    await processor.processBatch(50);
+    const [incident] = (await owner.get(`/workspaces/${ws}/incidents`).expect(200))
+      .body as Incident[];
+    expect(incident!.eventCount).toBe(5);
+  });
+
   it('flags incidents from unmapped services instead of guessing a repository', async () => {
     const jaeger = await jaegerIntegration();
     const base = extractError(trace, 'demo-shop-api')!;

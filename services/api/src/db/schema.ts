@@ -220,6 +220,10 @@ export const incidentEvents = pgTable(
   },
   (t) => [
     uniqueIndex('incident_events_external_key').on(t.integrationId, t.externalEventId),
+    // One trace counts once per incident, even when two integrations deliver it.
+    uniqueIndex('incident_events_trace_key')
+      .on(t.incidentId, t.traceId)
+      .where(sql`${t.traceId} is not null and ${t.kind} = 'error'`),
     index('incident_events_incident_idx').on(t.incidentId),
   ],
 );

@@ -187,12 +187,21 @@ export class GitHubService {
         patch = { status: 'error', lastError: `GitHub check failed: ${(err as Error).message}` };
       }
     }
+    // Only the check that actually flips the row to disconnected records the revocation, so two
+    // concurrent checks (overlapping timers, a restart) never audit it twice.
     const [updated] = await this.db
       .update(integrations)
       .set(patch)
-      .where(eq(integrations.id, row.id))
+      .where(and(eq(integrations.id, row.id), ne(integrations.status, 'disconnected')))
       .returning();
-    if (row.status !== 'disconnected' && updated!.status === 'disconnected') {
+    if (!updated) {
+      const [current] = await this.db
+        .select()
+        .from(integrations)
+        .where(eq(integrations.id, row.id));
+      return current!;
+    }
+    if (updated.status === 'disconnected') {
       await this.audit.record({
         workspaceId: row.workspaceId,
         actorType: 'system',
@@ -204,7 +213,7 @@ export class GitHubService {
         metadata: { provider: 'github', installationId: cfg.installationId },
       });
     }
-    return updated!;
+    return updated;
   }
 
   /** Background health check for every active GitHub integration. */
