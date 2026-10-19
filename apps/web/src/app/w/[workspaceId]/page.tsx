@@ -50,8 +50,15 @@ export default function OverviewPage() {
         <Stat label="PRs merged" value="—" />
       </div>
       <Card className="mt-6 p-4 text-sm text-subtle">
-        Incidents, investigations and fixes appear here once integrations are connected (Phase 3
-        onward).
+        Getting started: map your services to repositories on the{' '}
+        <Link href={`/w/${workspaceId}/services`} className="text-accent hover:underline">
+          Services
+        </Link>{' '}
+        page, then connect an error source and GitHub on{' '}
+        <Link href={`/w/${workspaceId}/integrations`} className="text-accent hover:underline">
+          Integrations
+        </Link>
+        . New incidents are investigated automatically.
       </Card>
     </div>
   );

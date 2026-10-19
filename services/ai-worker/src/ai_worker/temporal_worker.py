@@ -61,9 +61,10 @@ async def main() -> None:
         max_concurrent_activities=4,  # bounds parallel model spend
     )
     log.info(
-        "AI worker polling task queue %r (model %s)",
+        "AI worker polling task queue %r (provider %s, model %s)",
         settings.temporal_task_queue,
-        settings.ai_model,
+        provider.name,
+        settings.gemini_model if provider.name == "gemini" else settings.ai_model,
     )
     await worker.run()
 
