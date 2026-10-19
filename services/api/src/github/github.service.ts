@@ -73,7 +73,18 @@ export class GitHubService {
     if (!this.configured)
       return { configured: false, slug: null, installUrl: null, installations: [] };
     const gh = this.gh();
-    this.slug ??= (await gh.app()).slug;
+    try {
+      this.slug ??= (await gh.app()).slug;
+    } catch (err) {
+      if (err instanceof GitHubError && [401, 404].includes(err.status)) {
+        throw new ApiException(
+          HttpStatus.BAD_GATEWAY,
+          'github_app_invalid',
+          'GitHub App not found or key rejected: check GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY_PATH',
+        );
+      }
+      throw err;
+    }
     const claimed = await this.db
       .select({ id: integrations.externalAccountId })
       .from(integrations)
