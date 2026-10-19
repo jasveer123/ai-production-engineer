@@ -23,6 +23,7 @@ Format: **Context → Decision → Consequences**. Status is *Accepted* unless n
 | [ADR-017](017-sandbox-and-deterministic-patches.md) | Sandbox worker and deterministic patch application |
 | [ADR-018](018-approval-gate-and-idempotent-pull-requests.md) | Approval gate and idempotent pull request creation |
 | [ADR-019](019-recovery-verification.md) | Recovery verification after the fix is deployed |
+| [ADR-020](020-live-updates-and-notifications.md) | Live updates over SSE and outbox-driven notifications |
 
 ## Open decisions
 (make these during the build)

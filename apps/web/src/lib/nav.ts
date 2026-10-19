@@ -8,5 +8,5 @@ export const NAV = [
   { slug: 'integrations', label: 'Integrations' },
   { slug: 'audit', label: 'Audit log' },
   { slug: 'members', label: 'Members' },
-  { slug: 'settings', label: 'Settings', phase: 8 },
+  { slug: 'settings', label: 'Settings' },
 ];

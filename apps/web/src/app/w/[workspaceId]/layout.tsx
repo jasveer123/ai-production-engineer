@@ -6,8 +6,15 @@ import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
 import { Badge, Button, ErrorBox, Loading } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { useLiveUpdates, type LiveState } from '@/lib/live';
 import { NAV } from '@/lib/nav';
 import { useMe, useWorkspace } from '@/lib/queries';
+
+const LIVE_LABEL: Record<LiveState, { dot: string; text: string }> = {
+  live: { dot: 'bg-ok', text: 'Live' },
+  connecting: { dot: 'bg-warn', text: 'Connecting…' },
+  offline: { dot: 'bg-subtle', text: 'Offline: refreshing every few seconds' },
+};
 
 export default function WorkspaceLayout({ children }: { children: ReactNode }) {
   const { workspaceId } = useParams<{ workspaceId: string }>();
@@ -16,6 +23,7 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const me = useMe();
   const ws = useWorkspace(workspaceId);
+  const live = useLiveUpdates(workspaceId);
 
   useEffect(() => {
     if (me.error instanceof ApiError && me.error.status === 401) router.replace('/login');
@@ -41,7 +49,19 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
     <div className="flex min-h-screen flex-col md:flex-row">
       <aside className="flex shrink-0 flex-col border-b border-line bg-surface md:w-60 md:border-r md:border-b-0">
         <div className="p-4">
-          <p className="text-sm font-semibold">AI Production Engineer</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold">AI Production Engineer</p>
+            <span
+              className="flex items-center gap-1.5 text-xs text-subtle"
+              title={LIVE_LABEL[live].text}
+              role="status"
+            >
+              <span className={`h-2 w-2 rounded-full ${LIVE_LABEL[live].dot}`} aria-hidden />
+              <span className="sr-only md:not-sr-only">
+                {live === 'live' ? 'Live' : live === 'connecting' ? '…' : 'Offline'}
+              </span>
+            </span>
+          </div>
           <label className="mt-3 block text-xs text-subtle" htmlFor="ws-switch">
             Workspace
           </label>

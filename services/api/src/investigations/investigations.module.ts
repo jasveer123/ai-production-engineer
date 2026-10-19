@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ArtifactStore } from '../artifacts/artifact-store.service';
 import { IngestionModule } from '../ingestion/ingestion.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { OutboxPublisher } from '../temporal/outbox-publisher.service';
 import { TemporalService } from '../temporal/temporal.service';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
@@ -21,7 +22,7 @@ import { VerificationService } from '../verification/verification.service';
 import { VerifyActivitiesService } from '../verification/verify-activities.service';
 
 @Module({
-  imports: [WorkspacesModule, IngestionModule],
+  imports: [WorkspacesModule, IngestionModule, NotificationsModule],
   controllers: [
     InvestigationsController,
     FixesController,

@@ -6,6 +6,7 @@ import { existsSync } from 'node:fs';
 if (existsSync('.env')) process.loadEnvFile('.env');
 process.env.INGEST_WORKER_ENABLED = 'false'; // the API process owns ingestion
 process.env.OUTBOX_PUBLISHER_ENABLED = 'true';
+process.env.REALTIME_ENABLED = 'false'; // SSE clients connect to the API process
 import { startTelemetry } from './telemetry';
 startTelemetry('ape-temporal-worker');
 

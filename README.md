@@ -52,6 +52,15 @@ When the fix's pull request is merged, the incident moves to **monitoring**. The
 
 The numbers are on the incident page under *Recovery verification*. Tune with the `VERIFY_*` variables in `services/api/.env` ([ADR-019](docs/architecture/019-recovery-verification.md)).
 
+### Live updates and notifications (Phase 8)
+
+The dashboard updates live over server-sent events (the dot next to the product name says *Live*); if the stream drops it falls back to polling. Under **Settings**:
+
+- **Notifications**: add a Slack incoming webhook or any HTTPS webhook and choose the events (new incident, fix waiting for review, needs attention, resolved, recovery not verified) and a minimum severity. *Send test* checks the channel. Webhooks are signed like the deploy webhook; the secret is shown once.
+- **Severity rules** and the **pull request approval** policy (owners only).
+
+See [ADR-020](docs/architecture/020-live-updates-and-notifications.md).
+
 Other targets: `make test`, `make lint`, `make typecheck`, `make format`, `make down`, `make clean` (deletes local data volumes).
 
 ## Layout

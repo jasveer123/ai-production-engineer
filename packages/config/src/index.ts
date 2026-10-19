@@ -75,6 +75,10 @@ export const apiEnvSchema = z
     VERIFY_MIN_ERRORS: z.coerce.number().int().positive().default(3),
     // Zero errors only proves recovery with enough traffic (or enough expected errors).
     VERIFY_MIN_REQUESTS: z.coerce.number().int().positive().default(20),
+    // Live updates over SSE (Phase 8, ADR-020). Only the HTTP API process listens.
+    REALTIME_ENABLED: booleanFlag.default('true'),
+    REALTIME_BATCH_MS: z.coerce.number().int().positive().default(500),
+    REALTIME_RECHECK_MS: z.coerce.number().int().positive().default(60_000),
   })
   .refine((env) => !(env.NODE_ENV === 'production' && env.AUTH_DEV_LOGIN), {
     message: 'AUTH_DEV_LOGIN must be false in production',
@@ -87,7 +91,9 @@ export function loadEnv<T extends z.ZodTypeAny>(
   schema: T,
   source: NodeJS.ProcessEnv = process.env,
 ): z.infer<T> {
-  const result = schema.safeParse(source);
+  // `KEY=` in a .env file means "not set": optional values stay unset and defaults apply.
+  const set = Object.fromEntries(Object.entries(source).filter(([, v]) => v !== ''));
+  const result = schema.safeParse(set);
   if (!result.success) {
     const issues = result.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`).join('\n');
     throw new Error(`Invalid environment configuration:\n${issues}`);

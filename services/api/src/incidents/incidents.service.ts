@@ -3,6 +3,7 @@ import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, gte, lt, lte, notInArray, inArray, type SQL } from 'drizzle-orm';
 import {
   CLOSED_STATUSES,
+  type ApprovalPolicyInput,
   type CreateIncidentInput,
   type Incident,
   type IncidentListQuery,
@@ -21,6 +22,7 @@ import {
   incidents,
   outbox,
   services,
+  DEFAULT_APPROVAL_POLICY,
   users,
   workspaces,
 } from '../db/schema';
@@ -302,5 +304,47 @@ export class IncidentsService {
       metadata: { before, after: rules },
     });
     return rules;
+  }
+
+  async approvalPolicy(actor: ActorContext): Promise<ApprovalPolicyInput> {
+    const [ws] = await this.db
+      .select({ settings: workspaces.settings })
+      .from(workspaces)
+      .where(eq(workspaces.id, actor.workspaceId));
+    return (ws?.settings.approvalPolicy ?? DEFAULT_APPROVAL_POLICY) as ApprovalPolicyInput;
+  }
+
+  /** The PR activity re-checks the current policy at write time (ADR-018), so this applies to
+   * approvals already given too. */
+  async setApprovalPolicy(
+    actor: ActorContext,
+    policy: ApprovalPolicyInput,
+  ): Promise<ApprovalPolicyInput> {
+    const before = await this.approvalPolicy(actor);
+    await this.db.transaction(async (tx) => {
+      const [ws] = await tx
+        .select({ settings: workspaces.settings })
+        .from(workspaces)
+        .where(eq(workspaces.id, actor.workspaceId))
+        .for('update');
+      await tx
+        .update(workspaces)
+        .set({ settings: { ...ws!.settings, approvalPolicy: policy } })
+        .where(eq(workspaces.id, actor.workspaceId));
+      await this.audit.record(
+        {
+          workspaceId: actor.workspaceId,
+          actorId: actor.userId,
+          action: 'settings.approval_policy_changed',
+          resourceType: 'workspace',
+          resourceId: actor.workspaceId,
+          outcome: 'success',
+          correlationId: actor.correlationId,
+          metadata: { before, after: policy },
+        },
+        tx,
+      );
+    });
+    return policy;
   }
 }

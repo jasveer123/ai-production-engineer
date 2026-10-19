@@ -34,7 +34,18 @@ import type {
   TimelineEntry,
   TransitionIncidentInput,
 } from '@ape/api-contracts';
+import type {
+  ApprovalPolicyInput,
+  CreateNotificationChannelInput,
+  NotificationChannel,
+  NotificationChannelWithSecret,
+  NotificationDelivery,
+  NotificationTestResult,
+  SeverityRule,
+  UpdateNotificationChannelInput,
+} from '@ape/api-contracts';
 import { api } from './api';
+import { liveInterval } from './live';
 
 export const keys = {
   me: ['me'] as const,
@@ -168,7 +179,8 @@ export const useRemoveMember = (ws: string) =>
 
 // ----- Incidents -----
 
-const LIVE_MS = 5000;
+/** Fast polling until the SSE stream is up, then a slow safety net (Phase 8). */
+const LIVE_MS = liveInterval(5000);
 
 export const incidentKeys = {
   list: (ws: string, q: IncidentListQuery) => ['workspace', ws, 'incidents', q] as const,
@@ -183,7 +195,7 @@ const qs = (q: object) =>
     Object.entries(q).filter(([, v]) => v !== undefined && v !== '') as [string, string][],
   ).toString();
 
-/** Polls so new incidents and events show up without a reload (SSE comes in Phase 8). */
+/** Live via the SSE stream (useLiveUpdates); polling is the fallback when it is down. */
 export const useIncidents = (ws: string, q: IncidentListQuery) =>
   useQuery({
     queryKey: incidentKeys.list(ws, q),
@@ -404,4 +416,100 @@ export const useSyncPullRequest = (ws: string) =>
       ['workspace', ws, 'pull-requests'],
       ['workspace', ws, 'incident'],
     ],
+  );
+
+// ----- Settings: notifications, severity rules, approval policy (Phase 8) -----
+const settingsKeys = {
+  channels: (ws: string) => ['workspace', ws, 'notification-channels'] as const,
+  deliveries: (ws: string) => ['workspace', ws, 'notification-deliveries'] as const,
+  severity: (ws: string) => ['workspace', ws, 'severity-rules'] as const,
+  approval: (ws: string) => ['workspace', ws, 'approval-policy'] as const,
+};
+
+export const useNotificationChannels = (ws: string) =>
+  useQuery({
+    queryKey: settingsKeys.channels(ws),
+    queryFn: () => api<NotificationChannel[]>(`/workspaces/${ws}/notifications/channels`),
+  });
+
+export const useNotificationDeliveries = (ws: string, enabled: boolean) =>
+  useQuery({
+    queryKey: settingsKeys.deliveries(ws),
+    queryFn: () => api<NotificationDelivery[]>(`/workspaces/${ws}/notifications/deliveries`),
+    enabled,
+    refetchInterval: 15000,
+  });
+
+export const useCreateNotificationChannel = (ws: string) =>
+  useWrite(
+    ws,
+    (body: CreateNotificationChannelInput) =>
+      api<NotificationChannelWithSecret>(`/workspaces/${ws}/notifications/channels`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    [[...settingsKeys.channels(ws)]],
+  );
+
+export const useUpdateNotificationChannel = (ws: string) =>
+  useWrite(
+    ws,
+    ({ id, ...body }: UpdateNotificationChannelInput & { id: string }) =>
+      api<NotificationChannel>(`/workspaces/${ws}/notifications/channels/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    [[...settingsKeys.channels(ws)]],
+  );
+
+export const useDeleteNotificationChannel = (ws: string) =>
+  useWrite(
+    ws,
+    (id: string) =>
+      api<void>(`/workspaces/${ws}/notifications/channels/${id}`, { method: 'DELETE' }),
+    [[...settingsKeys.channels(ws)], [...settingsKeys.deliveries(ws)]],
+  );
+
+export const useTestNotificationChannel = (ws: string) =>
+  useWrite(
+    ws,
+    (id: string) =>
+      api<NotificationTestResult>(`/workspaces/${ws}/notifications/channels/${id}/test`, {
+        method: 'POST',
+      }),
+    [[...settingsKeys.channels(ws)], [...settingsKeys.deliveries(ws)]],
+  );
+
+export const useSeverityRules = (ws: string) =>
+  useQuery({
+    queryKey: settingsKeys.severity(ws),
+    queryFn: () => api<SeverityRule[]>(`/workspaces/${ws}/settings/severity-rules`),
+  });
+
+export const useSetSeverityRules = (ws: string) =>
+  useWrite(
+    ws,
+    (rules: SeverityRule[]) =>
+      api<SeverityRule[]>(`/workspaces/${ws}/settings/severity-rules`, {
+        method: 'PUT',
+        body: JSON.stringify({ rules }),
+      }),
+    [[...settingsKeys.severity(ws)]],
+  );
+
+export const useApprovalPolicy = (ws: string) =>
+  useQuery({
+    queryKey: settingsKeys.approval(ws),
+    queryFn: () => api<ApprovalPolicyInput>(`/workspaces/${ws}/settings/approval-policy`),
+  });
+
+export const useSetApprovalPolicy = (ws: string) =>
+  useWrite(
+    ws,
+    (body: ApprovalPolicyInput) =>
+      api<ApprovalPolicyInput>(`/workspaces/${ws}/settings/approval-policy`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+    [[...settingsKeys.approval(ws)]],
   );

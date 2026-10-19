@@ -5,14 +5,17 @@ import {
   OnApplicationBootstrap,
   OnApplicationShutdown,
 } from '@nestjs/common';
-import { and, asc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, lt, lte, sql } from 'drizzle-orm';
 import { ENV, type ApiEnv } from '../config/config.module';
 import { DB } from '../db/database.module';
 import type { Database } from '../db/client';
 import { incidents, outbox } from '../db/schema';
+import { NotificationDispatcher } from '../notifications/notification-dispatcher.service';
 import { TemporalService } from './temporal.service';
 
 const MAX_ATTEMPTS = 20;
+/** 2 s, 4 s, ... capped at 10 minutes: about 2.5 hours of retries in total. */
+const backoffMs = (attempts: number) => Math.min(10 * 60_000, 1000 * 2 ** attempts);
 
 /**
  * Publishes outbox rows written in the same transaction as their incident (transactional outbox).
@@ -29,6 +32,7 @@ export class OutboxPublisher implements OnApplicationBootstrap, OnApplicationShu
     @Inject(DB) private readonly db: Database,
     @Inject(ENV) private readonly env: ApiEnv,
     private readonly temporal: TemporalService,
+    private readonly notifications: NotificationDispatcher,
   ) {}
 
   onApplicationBootstrap() {
@@ -60,7 +64,13 @@ export class OutboxPublisher implements OnApplicationBootstrap, OnApplicationShu
         const [row] = await tx
           .select()
           .from(outbox)
-          .where(and(isNull(outbox.publishedAt), lt(outbox.attempts, MAX_ATTEMPTS)))
+          .where(
+            and(
+              isNull(outbox.publishedAt),
+              lt(outbox.attempts, MAX_ATTEMPTS),
+              lte(outbox.nextAttemptAt, sql`now()`),
+            ),
+          )
           .orderBy(asc(outbox.id))
           .limit(1)
           .for('update', { skipLocked: true });
@@ -69,6 +79,8 @@ export class OutboxPublisher implements OnApplicationBootstrap, OnApplicationShu
           if (row.topic === 'incident.detected') {
             const p = row.payload as { incidentId: string; workspaceId: string };
             if (this.env.AUTO_INVESTIGATE) await this.temporal.startIncidentWorkflow(p);
+          } else if (row.topic === 'notify') {
+            await this.notifications.dispatch(row.payload as { incidentEventId: string });
           } else if (row.topic === 'deploy.recorded') {
             await this.signalWaitingForDeploy(
               row.workspaceId,
@@ -83,7 +95,11 @@ export class OutboxPublisher implements OnApplicationBootstrap, OnApplicationShu
         } catch (err) {
           await tx
             .update(outbox)
-            .set({ attempts: row.attempts + 1, lastError: (err as Error).message.slice(0, 1000) })
+            .set({
+              attempts: row.attempts + 1,
+              lastError: (err as Error).message.slice(0, 1000),
+              nextAttemptAt: sql`now() + ${backoffMs(row.attempts + 1)} * interval '1 millisecond'`,
+            })
             .where(eq(outbox.id, row.id));
           return false;
         }

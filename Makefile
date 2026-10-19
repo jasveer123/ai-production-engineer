@@ -38,12 +38,14 @@ seed:
 
 PACKAGES := --filter @ape/config --filter @ape/api-contracts --filter @ape/temporal-workflows
 
-## Run web (3000), api (4000), ai-worker (8000) and the Temporal workers (incident, AI, sandbox)
+## Run web (3000), api (4000), ai-worker (8000) and the Temporal workers (incident, AI, sandbox).
+## The TS worker waits for the API's health check: `nest --watch` rebuilds dist/ on start, and a
+## stale dist/worker.js would otherwise start mid-rebuild and crash.
 dev:
 	pnpm $(PACKAGES) build
 	@trap 'kill 0' INT TERM; \
 	pnpm --filter @ape/web --filter @ape/api --parallel run dev & \
-	(until [ -f services/api/dist/worker.js ]; do sleep 1; done; cd services/api && node --watch dist/worker.js) & \
+	(until curl -sf localhost:4000/health >/dev/null 2>&1; do sleep 1; done; cd services/api && node --watch dist/worker.js) & \
 	(cd $(WORKER) && uv run python -m ai_worker.main) & \
 	(cd $(WORKER) && uv run python -m ai_worker.temporal_worker) & \
 	(cd services/sandbox-manager && pnpm dev) & \

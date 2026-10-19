@@ -11,10 +11,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  approvalPolicySchema,
   createIncidentSchema,
   incidentListQuerySchema,
   severityRulesSchema,
   transitionIncidentSchema,
+  type ApprovalPolicyInput,
   type CreateIncidentInput,
   type Incident,
   type SeverityRule,
@@ -90,5 +92,20 @@ export class IncidentsController {
     @Body(new ZodValidationPipe(severityRulesSchema)) body: { rules: SeverityRule[] },
   ): Promise<SeverityRule[]> {
     return this.svc.setSeverityRules(actor, body.rules);
+  }
+
+  @Get('settings/approval-policy')
+  approvalPolicy(@Actor() actor: ActorContext): Promise<ApprovalPolicyInput> {
+    return this.svc.approvalPolicy(actor);
+  }
+
+  /** Who may approve opening a pull request. Owner only: it changes the approval gate itself. */
+  @Put('settings/approval-policy')
+  @MinRole('owner')
+  setApprovalPolicy(
+    @Actor() actor: ActorContext,
+    @Body(new ZodValidationPipe(approvalPolicySchema)) body: ApprovalPolicyInput,
+  ): Promise<ApprovalPolicyInput> {
+    return this.svc.setApprovalPolicy(actor, body);
   }
 }

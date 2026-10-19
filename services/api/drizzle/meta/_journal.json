@@ -57,6 +57,20 @@
       "when": 1792436495778,
       "tag": "0007_verification",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792437330189,
+      "tag": "0008_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792437335642,
+      "tag": "0009_realtime_triggers",
+      "breakpoints": true
     }
   ]
 }

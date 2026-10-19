@@ -10,6 +10,8 @@ import { HealthModule } from './health/health.module';
 import { IncidentsModule } from './incidents/incidents.module';
 import { IngestionModule } from './ingestion/ingestion.module';
 import { InvestigationsModule } from './investigations/investigations.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { RealtimeModule } from './realtime/realtime.module';
 import { SecretsModule } from './secrets/secrets.module';
 import { ServiceMappingsModule } from './service-mappings/service-mappings.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
@@ -27,6 +29,8 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     IncidentsModule,
     IngestionModule,
     InvestigationsModule,
+    NotificationsModule,
+    RealtimeModule,
   ],
   providers: [{ provide: APP_FILTER, useClass: ApiErrorFilter }],
 })
