@@ -7,7 +7,17 @@ import { ApiException, notFound } from '../common/errors';
 import type { ActorContext } from '../common/request-context';
 import { DB } from '../db/database.module';
 import type { Database } from '../db/client';
-import { fixProposals, incidents, validationRuns } from '../db/schema';
+import {
+  APPROVAL_POLICY_VERSION,
+  approvals,
+  DEFAULT_APPROVAL_POLICY,
+  fixProposals,
+  incidents,
+  validationRuns,
+  workspaces,
+} from '../db/schema';
+import { hasRole } from '../workspaces/roles';
+import { PullsService } from '../pulls/pulls.service';
 import { TemporalService } from '../temporal/temporal.service';
 
 @Injectable()
@@ -17,6 +27,7 @@ export class FixesService {
     private readonly artifacts: ArtifactStore,
     private readonly temporal: TemporalService,
     private readonly audit: AuditService,
+    private readonly pulls: PullsService,
   ) {}
 
   private async ensureIncident(actor: ActorContext, incidentId: string) {
@@ -49,6 +60,7 @@ export class FixesService {
       latest: latest ? await this.view(latest) : null,
       versions: Number(n),
       phase: state?.phase ?? null,
+      pullRequest: latest ? await this.pulls.forFix(actor.workspaceId, latest.id) : null,
     };
   }
 
@@ -99,7 +111,11 @@ export class FixesService {
   ): Promise<IncidentFixes> {
     await this.ensureIncident(actor, incidentId);
     const current = await this.forIncident(actor, incidentId);
-    if (current.phase !== 'awaiting_fix_decision') {
+    // While a PR is open the only decision left here is to reject (close the incident).
+    const allowed =
+      current.phase === 'awaiting_fix_decision' ||
+      (current.phase === 'pr_open' && input.action === 'reject');
+    if (!allowed) {
       throw new ApiException(
         HttpStatus.CONFLICT,
         'not_awaiting_fix_decision',
@@ -113,7 +129,16 @@ export class FixesService {
         'Only a validated fix can be approved',
       );
     }
-    await this.temporal.fixDecision(incidentId, actor.userId, input.action, input.note ?? null);
+    let approvalId: string | null = null;
+    if (input.action === 'approve_pr')
+      approvalId = await this.recordApproval(actor, current.latest!.id);
+    await this.temporal.fixDecision(
+      incidentId,
+      actor.userId,
+      input.action,
+      input.note ?? null,
+      approvalId,
+    );
     await this.audit.record({
       workspaceId: actor.workspaceId,
       actorId: actor.userId,
@@ -122,8 +147,55 @@ export class FixesService {
       resourceId: current.latest?.id ?? null,
       outcome: 'success',
       correlationId: actor.correlationId,
-      metadata: { note: input.note ?? null, patchHash: current.latest?.diff ? 'present' : null },
+      metadata: { note: input.note ?? null, approvalId },
     });
     return this.forIncident(actor, incidentId);
+  }
+
+  /**
+   * Records who approved which exact patch under which policy. The PR activity re-checks all of
+   * this at execution time, so a later demotion or patch change blocks the write.
+   */
+  private async recordApproval(actor: ActorContext, fixId: string): Promise<string> {
+    const [ws] = await this.db
+      .select({ settings: workspaces.settings })
+      .from(workspaces)
+      .where(eq(workspaces.id, actor.workspaceId));
+    const minRole = ws?.settings.approvalPolicy?.prMinRole ?? DEFAULT_APPROVAL_POLICY.prMinRole;
+    if (!hasRole(actor.role, minRole)) {
+      await this.audit.record({
+        workspaceId: actor.workspaceId,
+        actorId: actor.userId,
+        action: 'fix.approve_pr',
+        resourceType: 'fix_proposal',
+        resourceId: fixId,
+        outcome: 'denied',
+        correlationId: actor.correlationId,
+        metadata: { role: actor.role, required: minRole },
+      });
+      throw new ApiException(
+        HttpStatus.FORBIDDEN,
+        'approval_policy',
+        `Approving a pull request needs the ${minRole} role or higher`,
+      );
+    }
+    const [fix] = await this.db.select().from(fixProposals).where(eq(fixProposals.id, fixId));
+    if (!fix?.patchHash) {
+      throw new ApiException(HttpStatus.CONFLICT, 'fix_not_validated', 'The fix has no patch');
+    }
+    const [row] = await this.db
+      .insert(approvals)
+      .values({
+        workspaceId: actor.workspaceId,
+        resourceType: 'pull_request',
+        resourceId: fixId,
+        actorId: actor.userId,
+        decision: 'approved',
+        policyVersion: APPROVAL_POLICY_VERSION,
+        artifactHash: fix.patchHash,
+        actorRole: actor.role,
+      })
+      .returning({ id: approvals.id });
+    return row!.id;
   }
 }

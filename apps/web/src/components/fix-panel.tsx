@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import type { FixView, ValidationRunView } from '@ape/api-contracts';
+import type { FixView, PullRequestView, ValidationRunView } from '@ape/api-contracts';
 import { Badge, Button, Card, ErrorBox, Input, Loading } from '@/components/ui';
-import { useFixAction, useFixes } from '@/lib/queries';
+import { useFixAction, useFixes, useSyncPullRequest } from '@/lib/queries';
 
 const PHASE_TEXT: Record<string, string> = {
   reproduction_approved: 'Preparing the sandbox…',
@@ -11,7 +11,9 @@ const PHASE_TEXT: Record<string, string> = {
   patching: 'Generating a minimal patch…',
   validating: 'Validating the patch in the sandbox…',
   awaiting_fix_decision: 'Waiting for your decision',
-  pr_approved: 'Approved for a pull request (Phase 6)',
+  pr_approved: 'Approved: opening the pull request…',
+  pr_open: 'Pull request open: waiting for review and merge',
+  pr_merged: 'Pull request merged',
   fix_rejected: 'Fix rejected',
 };
 
@@ -184,7 +186,7 @@ export function FixPanel({
               <Button
                 variant="danger"
                 className="h-8"
-                disabled={!deciding || action.isPending}
+                disabled={!(deciding || phase === 'pr_open') || action.isPending}
                 onClick={() => run('reject')}
               >
                 Reject
@@ -209,6 +211,8 @@ export function FixPanel({
           </div>
         )}
       </Card>
+
+      {data?.pullRequest && <PullRequestCard ws={ws} pr={data.pullRequest} canAct={canAct} />}
 
       {fix && (fix.diff || fix.test) && (
         <Card className="p-4">
@@ -246,5 +250,87 @@ export function FixPanel({
         </Card>
       )}
     </section>
+  );
+}
+
+export const PR_TONE: Record<string, string> = {
+  open: 'success',
+  merged: 'success',
+  closed: 'disconnected',
+  passing: 'success',
+  failing: 'denied',
+  pending: 'pending',
+  none: 'disconnected',
+};
+
+export function PullRequestCard({
+  ws,
+  pr,
+  canAct,
+}: {
+  ws: string;
+  pr: PullRequestView;
+  canAct: boolean;
+}) {
+  const sync = useSyncPullRequest(ws);
+  return (
+    <Card className="p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">
+            Pull request{' '}
+            {pr.url ? (
+              <a
+                className="text-accent hover:underline"
+                href={pr.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                #{pr.number}
+              </a>
+            ) : (
+              'pending'
+            )}{' '}
+            <Badge tone={PR_TONE[pr.status]}>{pr.status}</Badge>{' '}
+            <Badge tone={PR_TONE[pr.checksStatus]}>checks {pr.checksStatus}</Badge>
+          </p>
+          <p className="mt-0.5 truncate text-xs text-subtle">
+            {pr.title} · <span className="font-mono">{pr.branchName}</span> →{' '}
+            <span className="font-mono">{pr.baseBranch}</span>
+            {pr.approvedBy && <> · approved by {pr.approvedBy}</>}
+            {pr.lastSyncedAt && <> · synced {new Date(pr.lastSyncedAt).toLocaleTimeString()}</>}
+          </p>
+        </div>
+        {canAct && (
+          <Button
+            variant="secondary"
+            className="h-8"
+            disabled={sync.isPending}
+            onClick={() => sync.mutate(pr.id)}
+          >
+            {sync.isPending ? 'Syncing…' : 'Sync now'}
+          </Button>
+        )}
+      </div>
+      <ErrorBox error={sync.error} />
+      {pr.checks.length > 0 && (
+        <ul className="mt-3 space-y-1 text-xs">
+          {pr.checks.map((c) => (
+            <li key={c.name} className="flex items-center gap-2">
+              <Badge
+                tone={
+                  PR_TONE[
+                    c.conclusion === 'success' ? 'passing' : c.conclusion ? 'failing' : 'pending'
+                  ]
+                }
+              >
+                {c.conclusion ?? c.status}
+              </Badge>
+              {c.name}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }

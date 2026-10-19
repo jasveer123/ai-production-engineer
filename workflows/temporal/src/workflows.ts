@@ -20,6 +20,8 @@ import {
   type GeneratePatchResult,
   type GenerateTestResult,
   type PrepareFixResult,
+  type PrActivities,
+  type PrStatusSignal,
   type SandboxActivities,
   type Actor,
   type AiActivities,
@@ -36,7 +38,9 @@ export const dismiss = defineSignal<[Actor & { reason: string }]>('dismiss');
 export const stateQuery = defineQuery<WorkflowState>('state');
 export const regenerateFix = defineSignal<[Actor & { note: string | null }]>('regenerateFix');
 export const rejectFix = defineSignal<[Actor & { reason: string }]>('rejectFix');
-export const approvePullRequest = defineSignal<[Actor]>('approvePullRequest');
+export const approvePullRequest =
+  defineSignal<[Actor & { approvalId: string }]>('approvePullRequest');
+export const pullRequestStatus = defineSignal<[PrStatusSignal]>('pullRequestStatus');
 
 const evidence = proxyActivities<EvidenceActivities>({
   taskQueue: TASK_QUEUES.evidence,
@@ -56,6 +60,13 @@ const fixes = proxyActivities<FixActivities>({
   taskQueue: TASK_QUEUES.evidence,
   startToCloseTimeout: '5 minutes',
   retry: { maximumAttempts: 5, initialInterval: '2 seconds', backoffCoefficient: 2 },
+});
+
+// Writes to GitHub: idempotent, so retries are safe; bounded so a broken token fails visibly.
+const prs = proxyActivities<PrActivities>({
+  taskQueue: TASK_QUEUES.evidence,
+  startToCloseTimeout: '2 minutes',
+  retry: { maximumAttempts: 5, initialInterval: '5 seconds', backoffCoefficient: 2 },
 });
 
 const fixAi = proxyActivities<FixAiActivities>({
@@ -90,7 +101,7 @@ async function reproduceAndFix(
   input: IncidentWorkflowInput,
   state: WorkflowState,
   version: number,
-): Promise<'validated' | 'stopped'> {
+): Promise<{ outcome: 'validated' | 'stopped'; fixProposalId: string | null }> {
   const runKey = `${workflowInfo().workflowId}:${workflowInfo().runId}`;
   state.phase = 'reproducing';
   let prep: PrepareFixResult;
@@ -98,17 +109,17 @@ async function reproduceAndFix(
     prep = await fixes.prepareFix({ ...input, runKey, version });
   } catch (err) {
     if (isCancellation(err)) throw err;
-    return 'stopped';
+    return { outcome: 'stopped', fixProposalId: null };
   }
-  if (!prep.ok) return 'stopped';
+  if (!prep.ok) return { outcome: 'stopped', fixProposalId: prep.fixProposalId };
   const { fixProposalId } = prep;
   try {
-    return await runFixStages(input, state, prep);
+    return { outcome: await runFixStages(input, state, prep), fixProposalId };
   } catch (err) {
     if (isCancellation(err)) throw err;
     // An unexpected failure (sandbox, storage) ends this fix version, not the incident workflow.
     await fixes.updateFix({ fixProposalId, status: 'error', reason: errText(err) });
-    return 'stopped';
+    return { outcome: 'stopped', fixProposalId };
   }
 }
 
@@ -403,7 +414,8 @@ export async function incidentWorkflow(input: IncidentWorkflowInput): Promise<st
 async function fixLoop(input: IncidentWorkflowInput, state: WorkflowState): Promise<string> {
   let regenerate: (Actor & { note: string | null }) | null = null;
   let rejected: (Actor & { reason: string }) | null = null;
-  let prApproved: Actor | null = null;
+  let prApproved: (Actor & { approvalId: string }) | null = null;
+  let prStatus: PrStatusSignal | null = null;
   setHandler(regenerateFix, (s) => {
     regenerate ??= s;
   });
@@ -413,29 +425,58 @@ async function fixLoop(input: IncidentWorkflowInput, state: WorkflowState): Prom
   setHandler(approvePullRequest, (s) => {
     prApproved ??= s;
   });
+  setHandler(pullRequestStatus, (s) => {
+    prStatus = s;
+  });
 
   for (let version = 1; ; version++) {
-    const outcome = await reproduceAndFix(input, state, version);
-    state.phase = 'awaiting_fix_decision';
-    await condition(
-      () =>
-        regenerate !== null ||
-        rejected !== null ||
-        (prApproved !== null && outcome === 'validated'),
-    );
-    if (rejected) {
-      await evidence.closeIncident({
-        ...input,
-        actorId: (rejected as Actor).actorId,
-        reason: (rejected as { reason: string }).reason,
-      });
-      state.phase = 'fix_rejected';
-      return 'fix_rejected';
-    }
-    if (prApproved && outcome === 'validated') {
-      // Phase 6 creates the pull request from here.
+    const { outcome, fixProposalId } = await reproduceAndFix(input, state, version);
+    for (;;) {
+      state.phase = 'awaiting_fix_decision';
+      await condition(
+        () =>
+          regenerate !== null ||
+          rejected !== null ||
+          (prApproved !== null && outcome === 'validated'),
+      );
+      if (rejected) {
+        const r = rejected as Actor & { reason: string };
+        await evidence.closeIncident({ ...input, actorId: r.actorId, reason: r.reason });
+        state.phase = 'fix_rejected';
+        return 'fix_rejected';
+      }
+      if (regenerate) break;
+
+      // Approved: open the pull request (Phase 6). A blocked attempt waits for a new decision.
+      const approval = prApproved as unknown as Actor & { approvalId: string };
+      prApproved = null;
       state.phase = 'pr_approved';
-      return 'pr_approved';
+      const pr = await prs.createPullRequest({
+        ...input,
+        fixProposalId: fixProposalId!,
+        approvalId: approval.approvalId,
+      });
+      if (pr.status === 'blocked') continue;
+
+      state.phase = 'pr_open';
+      prStatus = null;
+      await condition(() => prStatus !== null || rejected !== null);
+      if (rejected) continue; // handled at the top of the loop
+      const st = prStatus as unknown as PrStatusSignal;
+      await fixes.setIncidentStatus({
+        ...input,
+        to: st.status === 'merged' ? 'monitoring' : 'fix_proposed',
+        summary:
+          st.status === 'merged'
+            ? `Pull request #${st.number} merged; monitoring for recovery`
+            : `Pull request #${st.number} was closed without merging`,
+      });
+      if (st.status === 'merged') {
+        // Phase 7 (recovery verification) continues from here.
+        state.phase = 'pr_merged';
+        return 'pr_merged';
+      }
+      // Closed without merging: back to a decision (regenerate, reject, or re-approve).
     }
     regenerate = null; // "Regenerate": try again with a new fix version
   }

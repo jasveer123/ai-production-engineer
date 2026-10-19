@@ -328,7 +328,7 @@ export class GitHubService {
   toScope(row: Row): Partial<Integration> {
     const cfg = row.config as unknown as Partial<GitHubConfig>;
     return {
-      scope: `Read code and history${cfg.repositories ? ` of ${cfg.repositories.length} repo(s): ${cfg.repositories.join(', ')}` : ''}. Write access is only used after an approved fix (Phase 6).`,
+      scope: `Read code and history${cfg.repositories ? ` of ${cfg.repositories.length} repo(s): ${cfg.repositories.join(', ')}` : ''}. Writes only open a pull request on an ai-fix/* branch, after a human approves a validated fix.`,
     };
   }
 }

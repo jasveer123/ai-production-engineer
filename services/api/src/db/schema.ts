@@ -440,26 +440,48 @@ export const validationRuns = pgTable('validation_runs', {
   ...timestamps(),
 });
 
+/** A pull request opened for an approved fix. One per fix proposal (deterministic branch). */
 export const pullRequests = pgTable(
   'pull_requests',
   {
     id: id(),
     workspaceId: workspaceRef(),
+    incidentId: uuid('incident_id').references(() => incidents.id, { onDelete: 'cascade' }),
     fixProposalId: uuid('fix_proposal_id')
       .notNull()
       .references(() => fixProposals.id, { onDelete: 'cascade' }),
+    approvalId: uuid('approval_id'),
+    repositoryFullName: text('repository_full_name'),
     branchName: text('branch_name').notNull(),
+    baseBranch: text('base_branch'),
+    headSha: text('head_sha'),
     providerPrId: text('provider_pr_id'),
+    number: integer('number'),
     url: text('url'),
+    title: text('title'),
+    // open | merged | closed
     status: text('status').notNull(),
+    // pending | passing | failing | none
+    checksStatus: text('checks_status').notNull().default('pending'),
+    checks: jsonb('checks')
+      .$type<{ name: string; status: string; conclusion: string | null }[]>()
+      .notNull()
+      .default([]),
+    mergeCommitSha: text('merge_commit_sha'),
+    mergedAt: timestamp('merged_at', { withTimezone: true }),
+    lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
     ...timestamps(),
   },
-  (t) => [uniqueIndex('pull_requests_branch_key').on(t.workspaceId, t.branchName)],
+  (t) => [
+    uniqueIndex('pull_requests_branch_key').on(t.workspaceId, t.branchName),
+    uniqueIndex('pull_requests_fix_key').on(t.fixProposalId),
+  ],
 );
 
 export const approvals = pgTable('approvals', {
   id: id(),
   workspaceId: workspaceRef(),
+  // reproduction | pull_request
   resourceType: text('resource_type').notNull(),
   resourceId: uuid('resource_id').notNull(),
   actorId: uuid('actor_id')
@@ -468,6 +490,8 @@ export const approvals = pgTable('approvals', {
   decision: text('decision').notNull(), // approved | rejected
   policyVersion: text('policy_version').notNull(),
   artifactHash: text('artifact_hash'),
+  /** The role the approver held when approving (re-checked again at execution time). */
+  actorRole: text('actor_role'),
   ...timestamps(),
 });
 
@@ -559,6 +583,15 @@ export interface SandboxProfile {
   testDir: string;
 }
 
+export interface ApprovalPolicy {
+  /** Lowest role allowed to approve a pull request. */
+  prMinRole: Role;
+}
+
+export const DEFAULT_APPROVAL_POLICY: ApprovalPolicy = { prMinRole: 'engineer' };
+export const APPROVAL_POLICY_VERSION = 'pr-approval-v1';
+
 export interface WorkspaceSettings {
   severityRules?: SeverityRule[];
+  approvalPolicy?: ApprovalPolicy;
 }

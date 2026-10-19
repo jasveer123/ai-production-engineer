@@ -87,6 +87,8 @@ export type WorkflowPhase =
   | 'validating'
   | 'awaiting_fix_decision'
   | 'pr_approved'
+  | 'pr_open'
+  | 'pr_merged'
   | 'fix_rejected'
   | 'dismissed'
   | 'cancelled';
@@ -237,4 +239,27 @@ export interface FixAiActivities {
 export interface WorkflowState {
   phase: WorkflowPhase;
   attempt: number;
+}
+
+// ----- Phase 6: approval and pull request -----
+
+export type PullRequestOutcome =
+  | { status: 'created' | 'existing'; number: number; url: string }
+  | { status: 'blocked'; reason: string };
+
+export interface PrActivities {
+  /**
+   * Opens the pull request for an approved, validated fix. Idempotent: a retry after a lost
+   * response finds the existing branch and PR. Re-checks the approver's role, the GitHub
+   * installation's write access and the approved patch hash before writing anything.
+   */
+  createPullRequest(
+    input: IncidentWorkflowInput & { fixProposalId: string; approvalId: string },
+  ): Promise<PullRequestOutcome>;
+}
+
+export interface PrStatusSignal {
+  status: 'merged' | 'closed';
+  mergeCommitSha: string | null;
+  number: number;
 }

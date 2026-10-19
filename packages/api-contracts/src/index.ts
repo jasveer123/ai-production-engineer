@@ -391,10 +391,31 @@ export interface FixView {
   createdAt: string;
 }
 
+export interface PullRequestView {
+  id: string;
+  incidentId: string | null;
+  incidentTitle: string | null;
+  fixProposalId: string | null;
+  repositoryFullName: string | null;
+  number: number | null;
+  url: string | null;
+  title: string | null;
+  branchName: string;
+  baseBranch: string | null;
+  status: 'open' | 'merged' | 'closed';
+  checksStatus: 'pending' | 'passing' | 'failing' | 'none';
+  checks: { name: string; status: string; conclusion: string | null }[];
+  approvedBy: string | null;
+  mergedAt: string | null;
+  lastSyncedAt: string | null;
+  createdAt: string;
+}
+
 export interface IncidentFixes {
   latest: FixView | null;
   versions: number;
   phase: string | null;
+  pullRequest: PullRequestView | null;
 }
 
 export const FIX_ACTIONS = ['regenerate', 'reject', 'approve_pr'] as const;

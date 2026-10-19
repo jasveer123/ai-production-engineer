@@ -3,6 +3,7 @@ export {
   approvePullRequest,
   approveReproduction,
   dismiss,
+  pullRequestStatus,
   regenerateFix,
   rejectFix,
   requestMoreInvestigation,

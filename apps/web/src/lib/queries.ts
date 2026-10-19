@@ -9,6 +9,7 @@ import type {
   InviteMemberInput,
   Me,
   Member,
+  PullRequestView,
   Role,
   Service,
   UpdateServiceInput,
@@ -375,4 +376,22 @@ export const useFixAction = (ws: string, incidentId: string) =>
         body: JSON.stringify(body),
       }),
     [['workspace', ws, 'incident', incidentId]],
+  );
+
+export const usePullRequests = (ws: string) =>
+  useQuery({
+    queryKey: ['workspace', ws, 'pull-requests'],
+    queryFn: () => api<PullRequestView[]>(`/workspaces/${ws}/pull-requests`),
+    refetchInterval: 15000,
+  });
+
+export const useSyncPullRequest = (ws: string) =>
+  useWrite(
+    ws,
+    (id: string) =>
+      api<PullRequestView>(`/workspaces/${ws}/pull-requests/${id}/sync`, { method: 'POST' }),
+    [
+      ['workspace', ws, 'pull-requests'],
+      ['workspace', ws, 'incident'],
+    ],
   );

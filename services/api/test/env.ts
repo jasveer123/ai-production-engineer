@@ -20,4 +20,5 @@ Object.assign(process.env, {
   AUTO_INVESTIGATE: 'true',
   GITHUB_APP_ID: '1',
   GITHUB_APP_PRIVATE_KEY_PATH: '/nonexistent/test.pem', // tests inject a fake client
+  GITHUB_WEBHOOK_SECRET: 'test-webhook-secret-not-real',
 });

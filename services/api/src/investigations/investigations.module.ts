@@ -6,6 +6,11 @@ import { TemporalService } from '../temporal/temporal.service';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { FixActivitiesService } from '../fixes/fix-activities.service';
 import { FixesService } from '../fixes/fixes.service';
+import { GitHubWebhookController } from '../pulls/github-webhook.controller';
+import { PrActivitiesService } from '../pulls/pr-activities.service';
+import { PullSyncService } from '../pulls/pull-sync.service';
+import { PullsController } from '../pulls/pulls.controller';
+import { PullsService } from '../pulls/pulls.service';
 import { EvidenceCollector } from './evidence-collector.service';
 import { InvestigationActivities } from './investigation-activities.service';
 import { FixesController } from '../fixes/fixes.controller';
@@ -14,7 +19,12 @@ import { InvestigationsService } from './investigations.service';
 
 @Module({
   imports: [WorkspacesModule, IngestionModule],
-  controllers: [InvestigationsController, FixesController],
+  controllers: [
+    InvestigationsController,
+    FixesController,
+    GitHubWebhookController,
+    PullsController,
+  ],
   providers: [
     ArtifactStore,
     TemporalService,
@@ -24,7 +34,18 @@ import { InvestigationsService } from './investigations.service';
     InvestigationsService,
     FixActivitiesService,
     FixesService,
+    PrActivitiesService,
+    PullSyncService,
+    PullsService,
   ],
-  exports: [InvestigationActivities, TemporalService, OutboxPublisher, FixActivitiesService],
+  exports: [
+    InvestigationActivities,
+    TemporalService,
+    OutboxPublisher,
+    FixActivitiesService,
+    PrActivitiesService,
+    PullSyncService,
+    PullsService,
+  ],
 })
 export class InvestigationsModule {}

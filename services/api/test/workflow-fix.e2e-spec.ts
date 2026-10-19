@@ -10,9 +10,11 @@ import { NativeConnection, Worker } from '@temporalio/worker';
 import {
   approvePullRequest,
   approveReproduction,
+  pullRequestStatus,
   rejectFix,
   stateQuery,
   TASK_QUEUES,
+  type PullRequestOutcome,
   type SandboxRunResult,
 } from '@ape/temporal-workflows';
 
@@ -52,8 +54,11 @@ const behaviour = {
     explanation: 'e',
   }),
   validationPasses: true,
+  pr: { status: 'created', number: 7, url: 'u' } as PullRequestOutcome,
 };
 const fixUpdates: { status: string; reason?: string | null }[] = [];
+const statuses: string[] = [];
+const prCalls: string[] = [];
 
 describe('Workflow B: reproduce, patch, validate (stubbed activities)', () => {
   let workers: Worker[];
@@ -93,7 +98,13 @@ describe('Workflow B: reproduce, patch, validate (stubbed activities)', () => {
       updateFix: async (u: { status: string; reason?: string | null }) => {
         fixUpdates.push(u);
       },
-      setIncidentStatus: async () => undefined,
+      setIncidentStatus: async ({ to }: { to: string }) => {
+        statuses.push(to);
+      },
+      createPullRequest: async ({ approvalId }: { approvalId: string }) => {
+        prCalls.push(approvalId);
+        return behaviour.pr;
+      },
       testOverlay: async () => ({ overlayRef: 't' }),
     };
     workers = await Promise.all([
@@ -159,6 +170,9 @@ describe('Workflow B: reproduce, patch, validate (stubbed activities)', () => {
 
   beforeEach(() => {
     fixUpdates.length = 0;
+    statuses.length = 0;
+    prCalls.length = 0;
+    behaviour.pr = { status: 'created', number: 7, url: 'u' };
     behaviour.validationPasses = true;
     behaviour.generateTest = async () => ({
       status: 'ok',
@@ -197,11 +211,30 @@ describe('Workflow B: reproduce, patch, validate (stubbed activities)', () => {
     throw new Error(`phase ${phase} not reached`);
   }
 
-  it('validates a patch, then completes when the PR is approved', async () => {
+  it('validates a patch, opens the PR on approval and completes when it is merged', async () => {
     const handle = await startAndApprove();
     expect(fixUpdates.map((u) => u.status)).toContain('validated');
-    await handle.signal(approvePullRequest, { actorId: 'u1' });
-    expect(await handle.result()).toBe('pr_approved');
+    await handle.signal(approvePullRequest, { actorId: 'u1', approvalId: 'a1' });
+    await waitPhase(handle, 'pr_open');
+    expect(prCalls).toEqual(['a1']);
+    await handle.signal(pullRequestStatus, { status: 'merged', number: 7, mergeCommitSha: 'm' });
+    expect(await handle.result()).toBe('pr_merged');
+    expect(statuses.at(-1)).toBe('monitoring');
+  });
+
+  it('goes back to a decision when the PR is blocked or closed without merging', async () => {
+    behaviour.pr = { status: 'blocked', reason: 'patch changed' };
+    const handle = await startAndApprove();
+    await handle.signal(approvePullRequest, { actorId: 'u1', approvalId: 'a1' });
+    await waitPhase(handle, 'awaiting_fix_decision');
+    behaviour.pr = { status: 'created', number: 8, url: 'u' };
+    await handle.signal(approvePullRequest, { actorId: 'u1', approvalId: 'a2' });
+    await waitPhase(handle, 'pr_open');
+    await handle.signal(pullRequestStatus, { status: 'closed', number: 8, mergeCommitSha: null });
+    await waitPhase(handle, 'awaiting_fix_decision');
+    expect(statuses.at(-1)).toBe('fix_proposed');
+    await handle.signal(rejectFix, { actorId: 'u1', reason: 'no' });
+    expect(await handle.result()).toBe('fix_rejected');
   });
 
   it('stops after the bounded number of patch attempts and keeps the workflow alive', async () => {

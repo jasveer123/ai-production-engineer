@@ -7,10 +7,12 @@ import {
   rejectFix,
   dismiss,
   incidentWorkflowId,
+  pullRequestStatus,
   requestMoreInvestigation,
   stateQuery,
   TASK_QUEUES,
   type IncidentWorkflowInput,
+  type PrStatusSignal,
 } from '@ape/temporal-workflows';
 import { ENV, type ApiEnv } from '../config/config.module';
 
@@ -98,12 +100,19 @@ export class TemporalService implements OnApplicationShutdown {
     actorId: string,
     action: 'regenerate' | 'reject' | 'approve_pr',
     note: string | null,
+    approvalId: string | null = null,
   ) {
     const handle = (await this.getClient()).workflow.getHandle(incidentWorkflowId(incidentId));
     if (action === 'regenerate') await handle.signal(regenerateFix, { actorId, note });
     else if (action === 'reject')
       await handle.signal(rejectFix, { actorId, reason: note || 'Fix rejected by reviewer' });
-    else await handle.signal(approvePullRequest, { actorId });
+    else if (approvalId) await handle.signal(approvePullRequest, { actorId, approvalId });
+    else throw new Error('approve_pr needs a recorded approval');
+  }
+
+  async pullRequestStatus(incidentId: string, status: PrStatusSignal) {
+    const handle = (await this.getClient()).workflow.getHandle(incidentWorkflowId(incidentId));
+    await handle.signal(pullRequestStatus, status);
   }
 
   async dismiss(incidentId: string, actorId: string, reason: string) {

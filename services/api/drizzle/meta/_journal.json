@@ -43,6 +43,13 @@
       "when": 1792432334550,
       "tag": "0005_fix_proposals",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792434274845,
+      "tag": "0006_pull_requests",
+      "breakpoints": true
     }
   ]
 }

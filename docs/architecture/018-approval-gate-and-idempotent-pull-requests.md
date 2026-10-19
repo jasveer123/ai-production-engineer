@@ -1,0 +1,12 @@
+# ADR-018 — Approval gate and idempotent pull request creation
+
+- **Status:** Accepted
+- **Date:** 2026-10-20
+
+- **Context:** Phase 6 writes to the customer's repository. The approval can be hours or days old when the write runs. Temporal retries activities, and a lost HTTP response must not create a second branch or PR.
+- **Decision:**
+  - *Approval is a record, not just a signal.* The API checks the workspace policy (`approvalPolicy.prMinRole`, default engineer), then stores an `approvals` row with actor, role, policy version (`pr-approval-v1`) and the patch hash. Only that row's id is passed to the workflow.
+  - *Everything is re-checked when the write runs.* Before touching GitHub, `createPullRequest` checks: the approval still exists; the approver is still a member whose role meets the *current* policy; the fix is still `validated`; its patch hash equals the approved hash; and the installation is installed, not suspended, and grants `contents:write` and `pull_requests:write`. Any failure returns `blocked`, adds a timeline event and a denied audit record, and the workflow goes back to waiting for a decision.
+  - *Writes are idempotent by name.* The branch is `ai-fix/incident-<8>-v<version>`. The activity reuses an existing PR row, branch or PR, and treats a 422 on branch creation as "already created". It builds the commit through the Git Data API (blobs, tree on the base commit, commit, ref), so the default branch is never written. The PR's base is the service's default branch, so branch protection and the repo's own CI apply as normal.
+  - *Status sync uses polling first, with a webhook as an extra.* Localhost can't receive GitHub webhooks, so the API polls open PRs every `PR_SYNC_INTERVAL_MS`. A webhook at `POST /webhooks/github`, signed with `X-Hub-Signature-256` and `GITHUB_WEBHOOK_SECRET`, triggers the same sync. Payloads are only hints: the PR is always re-read from GitHub. The open → merged/closed transition is a conditional update, so only one sync signals `pullRequestStatus` to the workflow. On merge the incident moves to `monitoring` (Phase 7 continues there); on close it moves back to `fix_proposed`.
+- **Consequences:** A demotion, uninstall or patch change after approval stops the write. A retried or racing activity converges on one branch and one PR (covered by `test/pulls.e2e-spec.ts`). Polling adds up to a minute of delay; the "Sync now" button and the webhook remove it.

@@ -42,6 +42,10 @@ export const apiEnvSchema = z
     // Start an AI investigation automatically for every new incident (each run costs model tokens).
     AUTO_INVESTIGATE: booleanFlag.default('true'),
     GITHUB_HEALTH_INTERVAL_MS: z.coerce.number().int().positive().default(60000),
+    // Pull request status and checks sync. Localhost cannot receive GitHub webhooks, so the
+    // poller is the primary path; the signed webhook (GITHUB_WEBHOOK_SECRET) only makes it faster.
+    PR_SYNC_INTERVAL_MS: z.coerce.number().int().positive().default(60000),
+    GITHUB_WEBHOOK_SECRET: z.string().min(16).optional(),
   })
   .refine((env) => !(env.NODE_ENV === 'production' && env.AUTH_DEV_LOGIN), {
     message: 'AUTH_DEV_LOGIN must be false in production',

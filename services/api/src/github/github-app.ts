@@ -21,6 +21,19 @@ export interface GitHubCommit {
   commit: { message: string; author: { name: string; date: string } | null };
 }
 
+export interface GitHubPull {
+  id: number;
+  number: number;
+  html_url: string;
+  state: 'open' | 'closed';
+  merged?: boolean;
+  merged_at: string | null;
+  merge_commit_sha: string | null;
+  head: { ref: string; sha: string };
+  base: { ref: string };
+  title: string;
+}
+
 export class GitHubError extends Error {
   constructor(
     readonly status: number,
@@ -94,8 +107,111 @@ export class GitHubAppClient {
     return res.token;
   }
 
-  private async asInstallation<T>(installationId: number, path: string): Promise<T> {
-    return this.request<T>(path, `token ${await this.installationToken(installationId)}`);
+  private async asInstallation<T>(
+    installationId: number,
+    path: string,
+    init?: RequestInit,
+  ): Promise<T> {
+    return this.request<T>(path, `token ${await this.installationToken(installationId)}`, init);
+  }
+
+  private post<T>(installationId: number, path: string, body: unknown): Promise<T> {
+    return this.asInstallation<T>(installationId, path, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  // ----- Writes (Phase 6). Only called after an approval, re-checked at execution time. -----
+
+  getCommit(installationId: number, repo: string, sha: string) {
+    return this.asInstallation<{ sha: string; tree: { sha: string } }>(
+      installationId,
+      `/repos/${repo}/git/commits/${sha}`,
+    );
+  }
+
+  createBlob(installationId: number, repo: string, content: string) {
+    return this.post<{ sha: string }>(installationId, `/repos/${repo}/git/blobs`, {
+      content: Buffer.from(content).toString('base64'),
+      encoding: 'base64',
+    });
+  }
+
+  createTree(
+    installationId: number,
+    repo: string,
+    baseTree: string,
+    files: { path: string; sha: string }[],
+  ) {
+    return this.post<{ sha: string }>(installationId, `/repos/${repo}/git/trees`, {
+      base_tree: baseTree,
+      tree: files.map((f) => ({ path: f.path, mode: '100644', type: 'blob', sha: f.sha })),
+    });
+  }
+
+  createCommit(
+    installationId: number,
+    repo: string,
+    message: string,
+    tree: string,
+    parent: string,
+  ) {
+    return this.post<{ sha: string }>(installationId, `/repos/${repo}/git/commits`, {
+      message,
+      tree,
+      parents: [parent],
+    });
+  }
+
+  /** The branch's head sha, or null when the branch does not exist. */
+  async getBranchSha(installationId: number, repo: string, branch: string): Promise<string | null> {
+    try {
+      const r = await this.asInstallation<{ object: { sha: string } }>(
+        installationId,
+        `/repos/${repo}/git/ref/heads/${branch.split('/').map(encodeURIComponent).join('/')}`,
+      );
+      return r.object.sha;
+    } catch (err) {
+      if (err instanceof GitHubError && err.status === 404) return null;
+      throw err;
+    }
+  }
+
+  createBranch(installationId: number, repo: string, branch: string, sha: string) {
+    return this.post<{ ref: string }>(installationId, `/repos/${repo}/git/refs`, {
+      ref: `refs/heads/${branch}`,
+      sha,
+    });
+  }
+
+  /** Pull requests (any state) whose head is `owner:branch`. */
+  listPullsForBranch(installationId: number, repo: string, branch: string) {
+    const owner = repo.split('/')[0];
+    return this.asInstallation<GitHubPull[]>(
+      installationId,
+      `/repos/${repo}/pulls?state=all&head=${encodeURIComponent(`${owner}:${branch}`)}`,
+    );
+  }
+
+  createPull(
+    installationId: number,
+    repo: string,
+    pr: { title: string; body: string; head: string; base: string; draft?: boolean },
+  ) {
+    return this.post<GitHubPull>(installationId, `/repos/${repo}/pulls`, pr);
+  }
+
+  getPull(installationId: number, repo: string, number: number) {
+    return this.asInstallation<GitHubPull>(installationId, `/repos/${repo}/pulls/${number}`);
+  }
+
+  async checkRuns(installationId: number, repo: string, sha: string) {
+    const r = await this.asInstallation<{
+      check_runs: { name: string; status: string; conclusion: string | null }[];
+    }>(installationId, `/repos/${repo}/commits/${sha}/check-runs?per_page=100`);
+    return r.check_runs;
   }
 
   /** Drops a cached token, e.g. after the installation was removed. */

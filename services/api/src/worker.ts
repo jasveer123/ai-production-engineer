@@ -17,6 +17,7 @@ import { apiEnvSchema, loadEnv } from '@ape/config';
 import { AppModule } from './app.module';
 import { FixActivitiesService } from './fixes/fix-activities.service';
 import { InvestigationActivities } from './investigations/investigation-activities.service';
+import { PrActivitiesService } from './pulls/pr-activities.service';
 
 async function main() {
   const env = loadEnv(apiEnvSchema);
@@ -24,6 +25,7 @@ async function main() {
   app.enableShutdownHooks();
   const acts = app.get(InvestigationActivities);
   const fix = app.get(FixActivitiesService);
+  const prs = app.get(PrActivitiesService);
   const connection = await NativeConnection.connect({ address: env.TEMPORAL_ADDRESS });
 
   const workflows = await Worker.create({
@@ -49,6 +51,7 @@ async function main() {
       updateFix: fix.updateFix.bind(fix),
       setIncidentStatus: fix.setIncidentStatus.bind(fix),
       testOverlay: fix.testOverlay.bind(fix),
+      createPullRequest: prs.createPullRequest.bind(prs),
     },
     maxConcurrentActivityTaskExecutions: 10,
   });
