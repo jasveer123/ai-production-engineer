@@ -495,20 +495,52 @@ export const approvals = pgTable('approvals', {
   ...timestamps(),
 });
 
-export const verificationRuns = pgTable('verification_runs', {
-  id: id(),
-  workspaceId: workspaceRef(),
-  incidentId: uuid('incident_id')
-    .notNull()
-    .references(() => incidents.id, { onDelete: 'cascade' }),
-  deployCommitSha: text('deploy_commit_sha').notNull(),
-  outcome: text('outcome'), // recovered | not_recovered | inconclusive
-  baseline: jsonb('baseline'),
-  observed: jsonb('observed'),
-  windowStartedAt: timestamp('window_started_at', { withTimezone: true }),
-  windowEndedAt: timestamp('window_ended_at', { withTimezone: true }),
-  ...timestamps(),
-});
+/**
+ * One observation window after the fix was deployed (Phase 7). Window n observes
+ * [deploy + grace, deploy + grace + n * window], so an extension adds data instead of resetting.
+ */
+export const verificationRuns = pgTable(
+  'verification_runs',
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    incidentId: uuid('incident_id')
+      .notNull()
+      .references(() => incidents.id, { onDelete: 'cascade' }),
+    deploymentId: uuid('deployment_id').references(() => deployments.id, {
+      onDelete: 'set null',
+    }),
+    window: integer('window').notNull().default(1),
+    deployCommitSha: text('deploy_commit_sha').notNull(),
+    // observing | completed
+    status: text('status').notNull().default('observing'),
+    outcome: text('outcome'), // recovered | not_recovered | inconclusive
+    reason: text('reason'),
+    baseline: jsonb('baseline').$type<VerificationBaseline>(),
+    observed: jsonb('observed').$type<VerificationObserved>(),
+    windowStartedAt: timestamp('window_started_at', { withTimezone: true }),
+    windowEndedAt: timestamp('window_ended_at', { withTimezone: true }),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex('verification_runs_window_key').on(t.incidentId, t.deploymentId, t.window)],
+);
+
+export interface VerificationBaseline {
+  /** Errors with the incident's fingerprint before the fix deploy. */
+  errors: number;
+  durationMs: number;
+  errorsPerHour: number;
+}
+
+export interface VerificationObserved {
+  errors: number;
+  durationMs: number;
+  /** Requests to the failing operation in the window (Jaeger), or null when unknown. */
+  requests: number | null;
+  operation: string | null;
+  /** Errors the pre-fix rate predicts for this window if nothing had changed. */
+  expectedErrors: number;
+}
 
 // ---------- Audit, usage, outbox ----------
 

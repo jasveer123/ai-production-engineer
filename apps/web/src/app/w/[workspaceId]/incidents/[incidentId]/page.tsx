@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { INCIDENT_TRANSITIONS, type IncidentStatus, type TimelineEntry } from '@ape/api-contracts';
 import { FixPanel } from '@/components/fix-panel';
 import { InvestigationReport } from '@/components/investigation-report';
+import { VerificationPanel } from '@/components/verification-panel';
 import { Badge, Button, Card, ErrorBox, Input, Loading } from '@/components/ui';
 import {
   useIncident,
@@ -24,6 +25,7 @@ const KIND_STYLE: Record<TimelineEntry['kind'], { dot: string; name: string }> =
   created: { dot: 'bg-accent', name: 'Detected' },
   investigation: { dot: 'bg-info', name: 'AI' },
   fix: { dot: 'bg-ok', name: 'Fix' },
+  verification: { dot: 'bg-accent', name: 'Verification' },
   status_change: { dot: 'bg-subtle', name: 'Status' },
 };
 
@@ -195,6 +197,7 @@ export default function IncidentPage() {
         </Card>
       )}
 
+      <VerificationPanel ws={workspaceId} incidentId={incidentId} />
       <FixPanel ws={workspaceId} incidentId={incidentId} canAct={canAct} />
       <InvestigationReport ws={workspaceId} incidentId={incidentId} canAct={canAct} />
 

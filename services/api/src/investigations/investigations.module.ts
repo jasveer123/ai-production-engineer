@@ -16,6 +16,9 @@ import { InvestigationActivities } from './investigation-activities.service';
 import { FixesController } from '../fixes/fixes.controller';
 import { InvestigationsController } from './investigations.controller';
 import { InvestigationsService } from './investigations.service';
+import { VerificationController } from '../verification/verification.controller';
+import { VerificationService } from '../verification/verification.service';
+import { VerifyActivitiesService } from '../verification/verify-activities.service';
 
 @Module({
   imports: [WorkspacesModule, IngestionModule],
@@ -24,6 +27,7 @@ import { InvestigationsService } from './investigations.service';
     FixesController,
     GitHubWebhookController,
     PullsController,
+    VerificationController,
   ],
   providers: [
     ArtifactStore,
@@ -37,6 +41,8 @@ import { InvestigationsService } from './investigations.service';
     PrActivitiesService,
     PullSyncService,
     PullsService,
+    VerificationService,
+    VerifyActivitiesService,
   ],
   exports: [
     InvestigationActivities,
@@ -46,6 +52,7 @@ import { InvestigationsService } from './investigations.service';
     PrActivitiesService,
     PullSyncService,
     PullsService,
+    VerifyActivitiesService,
   ],
 })
 export class InvestigationsModule {}

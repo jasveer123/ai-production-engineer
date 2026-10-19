@@ -10,10 +10,13 @@ import { NativeConnection, Worker } from '@temporalio/worker';
 import {
   approvePullRequest,
   approveReproduction,
+  deployRecorded,
   pullRequestStatus,
   rejectFix,
   stateQuery,
   TASK_QUEUES,
+  type EvaluateVerificationResult,
+  type FixDeployResult,
   type PullRequestOutcome,
   type SandboxRunResult,
 } from '@ape/temporal-workflows';
@@ -55,7 +58,26 @@ const behaviour = {
   }),
   validationPasses: true,
   pr: { status: 'created', number: 7, url: 'u' } as PullRequestOutcome,
+  // Phase 7: deploy lookups and verification results are consumed in order (last one repeats).
+  plan: { deployWaitMs: 60_000, deployPollMs: 60_000, maxWindows: 2 },
+  deploys: [] as FixDeployResult[],
+  evaluations: [] as EvaluateVerificationResult[],
+  interim: null as EvaluateVerificationResult | null,
+  windowMs: 300,
 };
+const FOUND: FixDeployResult = {
+  status: 'found',
+  deploymentId: 'd1',
+  commitSha: 'm',
+  deployedAt: new Date().toISOString(),
+};
+const outcome = (o: EvaluateVerificationResult['outcome']): EvaluateVerificationResult => ({
+  outcome: o,
+  reason: o,
+  superseded: false,
+});
+const next = <T>(list: T[]): T => (list.length > 1 ? list.shift()! : list[0]!);
+const verifyCalls: string[] = [];
 const fixUpdates: { status: string; reason?: string | null }[] = [];
 const statuses: string[] = [];
 const prCalls: string[] = [];
@@ -106,6 +128,26 @@ describe('Workflow B: reproduce, patch, validate (stubbed activities)', () => {
         return behaviour.pr;
       },
       testOverlay: async () => ({ overlayRef: 't' }),
+      beginMonitoring: async () => {
+        verifyCalls.push('begin');
+        return behaviour.plan;
+      },
+      findFixDeploy: async () => {
+        verifyCalls.push('find');
+        return next(behaviour.deploys);
+      },
+      startVerification: async ({ window }: { window: number }) => {
+        verifyCalls.push(`start-${window}`);
+        return { verificationRunId: `v${window}`, waitMs: behaviour.windowMs, checkEveryMs: 100 };
+      },
+      evaluateVerification: async ({ interim }: { interim: boolean }) => {
+        verifyCalls.push(interim ? 'interim' : 'final');
+        if (interim) return behaviour.interim ?? outcome('pending');
+        return next(behaviour.evaluations);
+      },
+      noFixDeploy: async () => {
+        verifyCalls.push('no-deploy');
+      },
     };
     workers = await Promise.all([
       Worker.create({
@@ -174,6 +216,12 @@ describe('Workflow B: reproduce, patch, validate (stubbed activities)', () => {
     prCalls.length = 0;
     behaviour.pr = { status: 'created', number: 7, url: 'u' };
     behaviour.validationPasses = true;
+    behaviour.plan = { deployWaitMs: 60_000, deployPollMs: 60_000, maxWindows: 2 };
+    behaviour.deploys = [FOUND];
+    behaviour.evaluations = [outcome('recovered')];
+    behaviour.windowMs = 300;
+    behaviour.interim = null;
+    verifyCalls.length = 0;
     behaviour.generateTest = async () => ({
       status: 'ok',
       reason: null,
@@ -211,15 +259,68 @@ describe('Workflow B: reproduce, patch, validate (stubbed activities)', () => {
     throw new Error(`phase ${phase} not reached`);
   }
 
-  it('validates a patch, opens the PR on approval and completes when it is merged', async () => {
+  async function startAndMerge() {
+    const handle = await startAndApprove();
+    await handle.signal(approvePullRequest, { actorId: 'u1', approvalId: 'a1' });
+    await waitPhase(handle, 'pr_open');
+    await handle.signal(pullRequestStatus, { status: 'merged', number: 7, mergeCommitSha: 'm' });
+    return handle;
+  }
+
+  it('validates a patch, opens the PR, and resolves once the deployed fix is verified', async () => {
     const handle = await startAndApprove();
     expect(fixUpdates.map((u) => u.status)).toContain('validated');
     await handle.signal(approvePullRequest, { actorId: 'u1', approvalId: 'a1' });
     await waitPhase(handle, 'pr_open');
     expect(prCalls).toEqual(['a1']);
     await handle.signal(pullRequestStatus, { status: 'merged', number: 7, mergeCommitSha: 'm' });
-    expect(await handle.result()).toBe('pr_merged');
+    expect(await handle.result()).toBe('resolved');
     expect(statuses.at(-1)).toBe('monitoring');
+    // Interim checks ran while the window was open, then one final evaluation.
+    expect(verifyCalls[0]).toBe('begin');
+    expect(verifyCalls).toContain('interim');
+    expect(verifyCalls.at(-1)).toBe('final');
+  });
+
+  it('waits for the fix deploy and is woken by the deploy signal, not the poll', async () => {
+    behaviour.deploys = [{ status: 'not_yet' }, FOUND]; // poll interval is a minute
+    const handle = await startAndMerge();
+    await waitPhase(handle, 'awaiting_deploy');
+    expect(verifyCalls.filter((c) => c === 'find')).toHaveLength(1);
+    await handle.signal(deployRecorded);
+    expect(await handle.result()).toBe('resolved');
+    expect(verifyCalls.filter((c) => c === 'find')).toHaveLength(2);
+  });
+
+  it('stops early when an interim check shows the fix did not work', async () => {
+    behaviour.windowMs = 60_000; // would take a minute without the interim check
+    behaviour.interim = outcome('not_recovered');
+    const handle = await startAndMerge();
+    expect(await handle.result()).toBe('not_recovered');
+    expect(verifyCalls).toContain('interim');
+    expect(verifyCalls).not.toContain('final');
+  });
+
+  it('extends inconclusive windows up to the limit, then ends inconclusive', async () => {
+    behaviour.evaluations = [outcome('inconclusive')];
+    const handle = await startAndMerge();
+    expect(await handle.result()).toBe('verification_inconclusive');
+    expect(verifyCalls.filter((c) => c.startsWith('start-'))).toEqual(['start-1', 'start-2']);
+  });
+
+  it('gives up waiting when no deploy with the fix arrives in time', async () => {
+    behaviour.plan = { deployWaitMs: 500, deployPollMs: 200, maxWindows: 2 };
+    behaviour.deploys = [{ status: 'not_yet' }];
+    const handle = await startAndMerge();
+    expect(await handle.result()).toBe('no_fix_deploy');
+    expect(verifyCalls.at(-1)).toBe('no-deploy');
+    expect(verifyCalls.filter((c) => c === 'find').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('stops verifying when a human already took the incident over', async () => {
+    behaviour.deploys = [{ status: 'superseded' }];
+    const handle = await startAndMerge();
+    expect(await handle.result()).toBe('superseded');
   });
 
   it('goes back to a decision when the PR is blocked or closed without merging', async () => {

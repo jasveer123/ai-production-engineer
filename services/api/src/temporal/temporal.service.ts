@@ -5,6 +5,7 @@ import {
   approveReproduction,
   regenerateFix,
   rejectFix,
+  deployRecorded,
   dismiss,
   incidentWorkflowId,
   pullRequestStatus,
@@ -113,6 +114,18 @@ export class TemporalService implements OnApplicationShutdown {
   async pullRequestStatus(incidentId: string, status: PrStatusSignal) {
     const handle = (await this.getClient()).workflow.getHandle(incidentWorkflowId(incidentId));
     await handle.signal(pullRequestStatus, status);
+  }
+
+  /** Tells a waiting workflow a deploy arrived. A workflow that has already ended is fine. */
+  async deployRecorded(incidentId: string): Promise<boolean> {
+    const handle = (await this.getClient()).workflow.getHandle(incidentWorkflowId(incidentId));
+    try {
+      await handle.signal(deployRecorded);
+      return true;
+    } catch (err) {
+      if (err instanceof WorkflowNotFoundError) return false;
+      throw err;
+    }
   }
 
   async dismiss(incidentId: string, actorId: string, reason: string) {

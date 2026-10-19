@@ -50,6 +50,13 @@
       "when": 1792434274845,
       "tag": "0006_pull_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792436495778,
+      "tag": "0007_verification",
+      "breakpoints": true
     }
   ]
 }

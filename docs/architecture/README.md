@@ -22,6 +22,7 @@ Format: **Context → Decision → Consequences**. Status is *Accepted* unless n
 | [ADR-016](016-anthropic-model-gateway-and-evidence-guard.md) | Model gateway: Claude first, structured output, evidence guard |
 | [ADR-017](017-sandbox-and-deterministic-patches.md) | Sandbox worker and deterministic patch application |
 | [ADR-018](018-approval-gate-and-idempotent-pull-requests.md) | Approval gate and idempotent pull request creation |
+| [ADR-019](019-recovery-verification.md) | Recovery verification after the fix is deployed |
 
 ## Open decisions
 (make these during the build)

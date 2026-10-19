@@ -5,11 +5,11 @@ import {
   OnApplicationBootstrap,
   OnApplicationShutdown,
 } from '@nestjs/common';
-import { and, asc, eq, isNull, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { ENV, type ApiEnv } from '../config/config.module';
 import { DB } from '../db/database.module';
 import type { Database } from '../db/client';
-import { outbox } from '../db/schema';
+import { incidents, outbox } from '../db/schema';
 import { TemporalService } from './temporal.service';
 
 const MAX_ATTEMPTS = 20;
@@ -69,6 +69,11 @@ export class OutboxPublisher implements OnApplicationBootstrap, OnApplicationShu
           if (row.topic === 'incident.detected') {
             const p = row.payload as { incidentId: string; workspaceId: string };
             if (this.env.AUTO_INVESTIGATE) await this.temporal.startIncidentWorkflow(p);
+          } else if (row.topic === 'deploy.recorded') {
+            await this.signalWaitingForDeploy(
+              row.workspaceId,
+              row.payload as { serviceName: string; environment: string },
+            );
           }
           await tx
             .update(outbox)
@@ -87,5 +92,24 @@ export class OutboxPublisher implements OnApplicationBootstrap, OnApplicationShu
       if (done) published++;
     }
     return published;
+  }
+
+  /** Signals the workflows of incidents that are verifying this service (Phase 7). */
+  private async signalWaitingForDeploy(
+    workspaceId: string,
+    p: { serviceName: string; environment: string },
+  ) {
+    const waiting = await this.db
+      .select({ id: incidents.id })
+      .from(incidents)
+      .where(
+        and(
+          eq(incidents.workspaceId, workspaceId),
+          eq(incidents.serviceName, p.serviceName),
+          eq(incidents.environment, p.environment),
+          inArray(incidents.status, ['monitoring', 'verification_inconclusive']),
+        ),
+      );
+    for (const { id } of waiting) await this.temporal.deployRecorded(id);
   }
 }

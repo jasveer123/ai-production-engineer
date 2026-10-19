@@ -42,6 +42,16 @@ Sign in at http://localhost:3000/login with the seeded demo users (`owner@demo.l
 2. **Integrations → Deploy webhook**: copy the URL and signing secret (shown once) into demo-shop as `PLATFORM_DEPLOY_WEBHOOK_URL` / `PLATFORM_DEPLOY_WEBHOOK_SECRET`, then run `pnpm deploy-marker` there.
 3. Turn on a demo-shop scenario (see its `BUGS.md`) and run `pnpm load`. Repeated errors collapse into one incident, with deploys on its timeline.
 
+### Verifying recovery (Phase 7)
+
+When the fix's pull request is merged, the incident moves to **monitoring**. The platform waits for a deploy marker whose commit contains the merge commit (send one from demo-shop with `pnpm deploy-marker`), then watches the incident's own error for 30-minute windows after the deploy:
+
+- the same error keeps happening → **needs attention**, with the previous deploy named as a rollback candidate (the platform never rolls back itself);
+- no errors, with enough traffic in Jaeger or enough errors expected at the old rate → **resolved**;
+- otherwise the window is extended (up to 3), then **verification inconclusive** for a human to decide.
+
+The numbers are on the incident page under *Recovery verification*. Tune with the `VERIFY_*` variables in `services/api/.env` ([ADR-019](docs/architecture/019-recovery-verification.md)).
+
 Other targets: `make test`, `make lint`, `make typecheck`, `make format`, `make down`, `make clean` (deletes local data volumes).
 
 ## Layout

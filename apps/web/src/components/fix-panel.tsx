@@ -14,6 +14,11 @@ const PHASE_TEXT: Record<string, string> = {
   pr_approved: 'Approved: opening the pull request…',
   pr_open: 'Pull request open: waiting for review and merge',
   pr_merged: 'Pull request merged',
+  awaiting_deploy: 'Merged: waiting for the fix to be deployed',
+  verifying: 'Deployed: verifying recovery in production',
+  resolved: 'Verified: the error stopped after the deploy',
+  not_recovered: 'The error continued after the fix was deployed',
+  verification_inconclusive: 'Deployed, but recovery could not be confirmed',
   fix_rejected: 'Fix rejected',
 };
 

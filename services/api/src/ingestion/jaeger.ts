@@ -123,6 +123,31 @@ export class JaegerClient {
     return ((await res.json()) as { data: JaegerTrace[] | null }).data?.[0] ?? null;
   }
 
+  /**
+   * Traces of `operation` in the window, as a traffic count for recovery verification. Capped at
+   * `limit`: callers only need to know whether traffic reached a minimum.
+   */
+  async traceCount(
+    service: string,
+    operation: string,
+    startMicros: number,
+    endMicros: number,
+    limit = 1000,
+  ): Promise<number> {
+    const params = new URLSearchParams({
+      service,
+      operation,
+      start: String(startMicros),
+      end: String(endMicros),
+      limit: String(limit),
+    });
+    const res = await fetch(`${this.baseUrl}/api/traces?${params.toString()}`, {
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) throw new Error(`Jaeger returned ${res.status}`);
+    return ((await res.json()) as { data: JaegerTrace[] | null }).data?.length ?? 0;
+  }
+
   async errorTraces(
     service: string,
     startMicros: number,

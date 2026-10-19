@@ -7,6 +7,7 @@ import {
   isCancellation,
   proxyActivities,
   setHandler,
+  sleep,
   workflowInfo,
 } from '@temporalio/workflow';
 import {
@@ -27,6 +28,7 @@ import {
   type AiActivities,
   type EvidenceActivities,
   type IncidentWorkflowInput,
+  type VerifyActivities,
   type WorkflowState,
 } from './contracts';
 
@@ -41,6 +43,8 @@ export const rejectFix = defineSignal<[Actor & { reason: string }]>('rejectFix')
 export const approvePullRequest =
   defineSignal<[Actor & { approvalId: string }]>('approvePullRequest');
 export const pullRequestStatus = defineSignal<[PrStatusSignal]>('pullRequestStatus');
+/** A deploy of the incident's service was recorded; wakes the wait for the fix deploy early. */
+export const deployRecorded = defineSignal('deployRecorded');
 
 const evidence = proxyActivities<EvidenceActivities>({
   taskQueue: TASK_QUEUES.evidence,
@@ -74,6 +78,13 @@ const fixAi = proxyActivities<FixAiActivities>({
   startToCloseTimeout: '5 minutes',
   scheduleToCloseTimeout: '15 minutes',
   retry: { maximumAttempts: 3, initialInterval: '10 seconds', backoffCoefficient: 2 },
+});
+
+// Reads the database, Jaeger and GitHub: cheap and idempotent, so retry freely.
+const verify = proxyActivities<VerifyActivities>({
+  taskQueue: TASK_QUEUES.evidence,
+  startToCloseTimeout: '2 minutes',
+  retry: { maximumAttempts: 10, initialInterval: '5 seconds', backoffCoefficient: 2 },
 });
 
 // Builds may download dependencies once; test runs are offline and bounded inside the sandbox.
@@ -472,12 +483,92 @@ async function fixLoop(input: IncidentWorkflowInput, state: WorkflowState): Prom
             : `Pull request #${st.number} was closed without merging`,
       });
       if (st.status === 'merged') {
-        // Phase 7 (recovery verification) continues from here.
         state.phase = 'pr_merged';
-        return 'pr_merged';
+        return await verifyRecovery(input, state, st);
       }
       // Closed without merging: back to a decision (regenerate, reject, or re-approve).
     }
     regenerate = null; // "Regenerate": try again with a new fix version
   }
+}
+
+/**
+ * Phase 7: a merge is not a recovery. Wait for a deploy that contains the merge commit, then
+ * watch the incident's own error fingerprint (and traffic) after it. Inconclusive windows are
+ * extended up to `maxWindows`; the platform never rolls back on its own (ADR-008).
+ */
+async function verifyRecovery(
+  input: IncidentWorkflowInput,
+  state: WorkflowState,
+  merge: PrStatusSignal,
+): Promise<string> {
+  let deploys = 0;
+  setHandler(deployRecorded, () => {
+    deploys += 1;
+  });
+  const plan = await verify.beginMonitoring({
+    ...input,
+    mergeCommitSha: merge.mergeCommitSha,
+    prNumber: merge.number,
+  });
+
+  state.phase = 'awaiting_deploy';
+  const waitStarted = Date.now(); // workflow time: deterministic on replay
+  let deploymentId: string;
+  for (;;) {
+    const found = await verify.findFixDeploy({ ...input, mergeCommitSha: merge.mergeCommitSha });
+    if (found.status === 'superseded') return 'superseded';
+    if (found.status === 'found') {
+      deploymentId = found.deploymentId;
+      break;
+    }
+    const remaining = plan.deployWaitMs - (Date.now() - waitStarted);
+    if (remaining <= 0) {
+      await verify.noFixDeploy({ ...input, waitedMs: plan.deployWaitMs });
+      state.phase = 'verification_inconclusive';
+      return 'no_fix_deploy';
+    }
+    const seen = deploys;
+    await condition(() => deploys > seen, Math.min(plan.deployPollMs, remaining));
+  }
+
+  state.phase = 'verifying';
+  for (let window = 1; window <= plan.maxWindows; window++) {
+    const run = await verify.startVerification({ ...input, deploymentId, window });
+    const finalWindow = window === plan.maxWindows;
+    // Interim checks end early when the fix clearly did not work; otherwise wait out the window.
+    let left = run.waitMs;
+    while (left > 0) {
+      const step = Math.min(left, run.checkEveryMs);
+      await sleep(step);
+      left -= step;
+      if (left <= 0) break;
+      const interim = await verify.evaluateVerification({
+        verificationRunId: run.verificationRunId,
+        interim: true,
+        finalWindow,
+      });
+      if (interim.superseded) return 'superseded';
+      if (interim.outcome === 'not_recovered') {
+        state.phase = 'not_recovered';
+        return 'not_recovered';
+      }
+    }
+    const result = await verify.evaluateVerification({
+      verificationRunId: run.verificationRunId,
+      interim: false,
+      finalWindow,
+    });
+    if (result.superseded) return 'superseded';
+    if (result.outcome === 'recovered') {
+      state.phase = 'resolved';
+      return 'resolved';
+    }
+    if (result.outcome === 'not_recovered') {
+      state.phase = 'not_recovered';
+      return 'not_recovered';
+    }
+  }
+  state.phase = 'verification_inconclusive';
+  return 'verification_inconclusive';
 }

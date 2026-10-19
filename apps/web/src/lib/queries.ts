@@ -26,6 +26,7 @@ import type {
   IncidentActionInput,
   IncidentInvestigation,
   IncidentListQuery,
+  IncidentVerification,
   Integration,
   IntegrationWithSecret,
   RepoCommit,
@@ -365,6 +366,15 @@ export const useFixes = (ws: string, incidentId: string) =>
       )
         ? 2000
         : 8000,
+  });
+
+// ----- Recovery verification (Phase 7) -----
+export const useVerification = (ws: string, incidentId: string) =>
+  useQuery({
+    queryKey: ['workspace', ws, 'incident', incidentId, 'verification'],
+    queryFn: () =>
+      api<IncidentVerification>(`/workspaces/${ws}/incidents/${incidentId}/verification`),
+    refetchInterval: 10000,
   });
 
 export const useFixAction = (ws: string, incidentId: string) =>

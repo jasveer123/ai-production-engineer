@@ -89,6 +89,11 @@ export type WorkflowPhase =
   | 'pr_approved'
   | 'pr_open'
   | 'pr_merged'
+  | 'awaiting_deploy'
+  | 'verifying'
+  | 'resolved'
+  | 'not_recovered'
+  | 'verification_inconclusive'
   | 'fix_rejected'
   | 'dismissed'
   | 'cancelled';
@@ -262,4 +267,58 @@ export interface PrStatusSignal {
   status: 'merged' | 'closed';
   mergeCommitSha: string | null;
   number: number;
+}
+
+// ----- Phase 7: recovery verification -----
+
+/** Timing comes from API config through an activity, so the workflow stays deterministic. */
+export interface MonitoringPlan {
+  /** Give up waiting for a deploy that contains the fix after this long. */
+  deployWaitMs: number;
+  /** Re-check for the deploy at least this often (a deploy signal wakes the workflow sooner). */
+  deployPollMs: number;
+  /** Inconclusive windows are extended (cumulatively) up to this many times. */
+  maxWindows: number;
+}
+
+export type FixDeployResult =
+  | { status: 'found'; deploymentId: string; commitSha: string; deployedAt: string }
+  | { status: 'not_yet' }
+  /** The incident left monitoring (e.g. a human resolved it), so verification stops. */
+  | { status: 'superseded' };
+
+export interface StartVerificationResult {
+  verificationRunId: string;
+  /** Until the observation window (plus ingestion settle time) has ended. */
+  waitMs: number;
+  /** Interim checks catch a fix that did not work before the window ends. */
+  checkEveryMs: number;
+}
+
+export type RecoveryOutcome = 'recovered' | 'not_recovered' | 'inconclusive';
+
+export interface EvaluateVerificationResult {
+  /** `pending` only for interim checks that found nothing conclusive yet. */
+  outcome: RecoveryOutcome | 'pending';
+  reason: string;
+  superseded: boolean;
+}
+
+export interface VerifyActivities {
+  beginMonitoring(
+    input: IncidentWorkflowInput & { mergeCommitSha: string | null; prNumber: number },
+  ): Promise<MonitoringPlan>;
+  findFixDeploy(
+    input: IncidentWorkflowInput & { mergeCommitSha: string | null },
+  ): Promise<FixDeployResult>;
+  startVerification(
+    input: IncidentWorkflowInput & { deploymentId: string; window: number },
+  ): Promise<StartVerificationResult>;
+  evaluateVerification(input: {
+    verificationRunId: string;
+    interim: boolean;
+    finalWindow: boolean;
+  }): Promise<EvaluateVerificationResult>;
+  /** No deploy with the fix arrived in time: the incident becomes verification_inconclusive. */
+  noFixDeploy(input: IncidentWorkflowInput & { waitedMs: number }): Promise<void>;
 }

@@ -18,6 +18,7 @@ import { AppModule } from './app.module';
 import { FixActivitiesService } from './fixes/fix-activities.service';
 import { InvestigationActivities } from './investigations/investigation-activities.service';
 import { PrActivitiesService } from './pulls/pr-activities.service';
+import { VerifyActivitiesService } from './verification/verify-activities.service';
 
 async function main() {
   const env = loadEnv(apiEnvSchema);
@@ -26,6 +27,7 @@ async function main() {
   const acts = app.get(InvestigationActivities);
   const fix = app.get(FixActivitiesService);
   const prs = app.get(PrActivitiesService);
+  const verify = app.get(VerifyActivitiesService);
   const connection = await NativeConnection.connect({ address: env.TEMPORAL_ADDRESS });
 
   const workflows = await Worker.create({
@@ -52,6 +54,11 @@ async function main() {
       setIncidentStatus: fix.setIncidentStatus.bind(fix),
       testOverlay: fix.testOverlay.bind(fix),
       createPullRequest: prs.createPullRequest.bind(prs),
+      beginMonitoring: verify.beginMonitoring.bind(verify),
+      findFixDeploy: verify.findFixDeploy.bind(verify),
+      startVerification: verify.startVerification.bind(verify),
+      evaluateVerification: verify.evaluateVerification.bind(verify),
+      noFixDeploy: verify.noFixDeploy.bind(verify),
     },
     maxConcurrentActivityTaskExecutions: 10,
   });

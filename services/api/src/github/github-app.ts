@@ -214,6 +214,18 @@ export class GitHubAppClient {
     return r.check_runs;
   }
 
+  /**
+   * Whether `head` contains `base` (Phase 7: is the merge commit part of the deployed commit?).
+   * GitHub's compare status is "ahead" or "identical" exactly when it does.
+   */
+  async contains(installationId: number, repo: string, head: string, base: string) {
+    const r = await this.asInstallation<{ status: string }>(
+      installationId,
+      `/repos/${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`,
+    );
+    return r.status === 'ahead' || r.status === 'identical';
+  }
+
   /** Drops a cached token, e.g. after the installation was removed. */
   forget(installationId: number) {
     this.tokens.delete(installationId);

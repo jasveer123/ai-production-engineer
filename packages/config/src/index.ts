@@ -46,6 +46,35 @@ export const apiEnvSchema = z
     // poller is the primary path; the signed webhook (GITHUB_WEBHOOK_SECRET) only makes it faster.
     PR_SYNC_INTERVAL_MS: z.coerce.number().int().positive().default(60000),
     GITHUB_WEBHOOK_SECRET: z.string().min(16).optional(),
+    // Recovery verification (Phase 7, ADR-019). Windows are measured from the fix deploy.
+    VERIFY_GRACE_MS: z.coerce.number().int().nonnegative().default(120_000),
+    VERIFY_WINDOW_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(30 * 60_000),
+    VERIFY_MAX_WINDOWS: z.coerce.number().int().min(1).max(10).default(3),
+    // Extra wait after a window so the Jaeger poller and processor have ingested its errors.
+    VERIFY_SETTLE_MS: z.coerce.number().int().nonnegative().default(45_000),
+    VERIFY_CHECK_EVERY_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(5 * 60_000),
+    VERIFY_DEPLOY_WAIT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(7 * 24 * 60 * 60_000),
+    VERIFY_DEPLOY_POLL_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(5 * 60_000),
+    // At least this many errors with the incident's fingerprint after the deploy: not recovered.
+    VERIFY_MIN_ERRORS: z.coerce.number().int().positive().default(3),
+    // Zero errors only proves recovery with enough traffic (or enough expected errors).
+    VERIFY_MIN_REQUESTS: z.coerce.number().int().positive().default(20),
   })
   .refine((env) => !(env.NODE_ENV === 'production' && env.AUTH_DEV_LOGIN), {
     message: 'AUTH_DEV_LOGIN must be false in production',

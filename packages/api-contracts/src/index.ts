@@ -197,7 +197,7 @@ export type TransitionIncidentInput = z.infer<typeof transitionIncidentSchema>;
 
 export type TimelineEntry =
   | {
-      kind: 'error' | 'created' | 'status_change' | 'investigation' | 'fix';
+      kind: 'error' | 'created' | 'status_change' | 'investigation' | 'fix' | 'verification';
       id: string;
       at: string;
       source: string;
@@ -416,6 +416,36 @@ export interface IncidentFixes {
   versions: number;
   phase: string | null;
   pullRequest: PullRequestView | null;
+}
+
+// ----- Recovery verification (Phase 7) -----
+export interface VerificationRunView {
+  id: string;
+  window: number;
+  deployCommitSha: string;
+  deployVersion: string | null;
+  deployedAt: string | null;
+  status: 'observing' | 'completed';
+  outcome: 'recovered' | 'not_recovered' | 'inconclusive' | null;
+  reason: string | null;
+  baseline: { errors: number; durationMs: number; errorsPerHour: number } | null;
+  observed: {
+    errors: number;
+    durationMs: number;
+    requests: number | null;
+    operation: string | null;
+    expectedErrors: number;
+  } | null;
+  windowStartedAt: string | null;
+  windowEndedAt: string | null;
+}
+
+export interface IncidentVerification {
+  /** Latest window first. */
+  runs: VerificationRunView[];
+  /** The merged fix the platform is waiting to see deployed, if any. */
+  awaitingDeploy: { prNumber: number | null; mergeCommitSha: string | null } | null;
+  phase: string | null;
 }
 
 export const FIX_ACTIONS = ['regenerate', 'reject', 'approve_pr'] as const;

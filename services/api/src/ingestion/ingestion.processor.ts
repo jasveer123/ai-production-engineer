@@ -132,7 +132,7 @@ export class IngestionProcessor {
         ),
       );
     if (event.kind === 'deploy') {
-      await tx
+      const recorded = await tx
         .insert(deployments)
         .values({
           workspaceId: row.workspaceId,
@@ -145,7 +145,20 @@ export class IngestionProcessor {
           externalEventId: row.externalEventId,
           deployedAt: event.occurredAt,
         })
-        .onConflictDoNothing();
+        .onConflictDoNothing()
+        .returning({ id: deployments.id });
+      if (recorded.length > 0) {
+        // Wakes incident workflows waiting for this service's fix deploy (Phase 7).
+        await tx.insert(outbox).values({
+          workspaceId: row.workspaceId,
+          topic: 'deploy.recorded',
+          payload: {
+            deploymentId: recorded[0]!.id,
+            serviceName: event.serviceName,
+            environment: event.environment,
+          },
+        });
+      }
       return;
     }
     await this.correlateError(tx, row, event, service?.id ?? null);

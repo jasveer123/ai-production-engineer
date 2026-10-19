@@ -9,7 +9,7 @@ setup:
 	pnpm $(PACKAGES) build
 	cd $(WORKER) && uv sync
 	@for f in services/api services/ai-worker apps/web; do \
-	  [ -f $$f/.env ] || cp $$f/.env.example $$f/.env; done
+	  [ -f $$f/.env ] || [ ! -f $$f/.env.example ] || cp $$f/.env.example $$f/.env; done
 	@echo "Setup done. Next: make up && make migrate && make seed && make dev"
 
 ## Start local infrastructure (Postgres, Redis, Temporal, S3, Jaeger, OTel Collector)

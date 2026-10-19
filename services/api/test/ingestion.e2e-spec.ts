@@ -208,7 +208,11 @@ describe('Ingestion and incidents (e2e)', () => {
       environment: 'production',
       repositoryFullName: 'me/demo-shop',
     });
-    expect(await db.select().from(outbox).where(eq(outbox.workspaceId, ws))).toHaveLength(1);
+    const topics = (await db.select().from(outbox).where(eq(outbox.workspaceId, ws))).map(
+      (r) => r.topic,
+    );
+    // One investigation for 50 errors; one wake-up for the deploy (Phase 7).
+    expect(topics.sort()).toEqual(['deploy.recorded', 'incident.detected']);
 
     const timeline = (
       await owner.get(`/workspaces/${ws}/incidents/${incidents[0]!.id}/timeline`).expect(200)
