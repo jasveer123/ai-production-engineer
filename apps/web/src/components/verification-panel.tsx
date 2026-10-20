@@ -1,6 +1,6 @@
 'use client';
 
-import type { VerificationRunView } from '@ape/api-contracts';
+import { TRAFFIC_COUNT_CAP, type VerificationRunView } from '@ape/api-contracts';
 import { Badge, Card } from '@/components/ui';
 import { useVerification } from '@/lib/queries';
 
@@ -14,6 +14,9 @@ const OUTCOME: Record<
 };
 
 const mins = (ms: number) => `${Math.round(ms / 60_000)} min`;
+/** 14229.12 -> 14,229; 2.47 -> 2.5. */
+const rate = (v: number) =>
+  v >= 100 ? Math.round(v).toLocaleString() : String(Math.round(v * 10) / 10);
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -46,7 +49,7 @@ function Run({ run }: { run: VerificationRunView }) {
       <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat
           label="Errors before the fix"
-          value={b ? `${b.errorsPerHour}/h` : '—'}
+          value={b ? `${rate(b.errorsPerHour)}/h` : '—'}
           hint={b ? `${b.errors} in ${mins(b.durationMs)}` : undefined}
         />
         <Stat
@@ -56,12 +59,18 @@ function Run({ run }: { run: VerificationRunView }) {
         />
         <Stat
           label="Expected if not fixed"
-          value={o ? `~${o.expectedErrors}` : '—'}
+          value={o ? `~${rate(o.expectedErrors)}` : '—'}
           hint="at the pre-fix rate"
         />
         <Stat
           label="Requests observed"
-          value={o?.requests != null ? String(o.requests) : 'unknown'}
+          value={
+            o?.requests == null
+              ? 'unknown'
+              : o.requests >= TRAFFIC_COUNT_CAP
+                ? `${TRAFFIC_COUNT_CAP.toLocaleString()}+`
+                : String(o.requests)
+          }
           hint={o?.operation ?? undefined}
         />
       </div>

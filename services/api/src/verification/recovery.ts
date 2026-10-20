@@ -1,3 +1,4 @@
+import { TRAFFIC_COUNT_CAP } from '@ape/api-contracts';
 import type { RecoveryOutcome } from '@ape/temporal-workflows';
 
 export interface RecoveryThresholds {
@@ -29,6 +30,8 @@ export interface RecoveryDecision {
 }
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const requestsText = (n: number) =>
+  n >= TRAFFIC_COUNT_CAP ? `at least ${TRAFFIC_COUNT_CAP} requests` : plural(n, 'request');
 
 /**
  * Decides whether the incident recovered after the fix deploy. Deliberately conservative: a
@@ -48,7 +51,7 @@ export function decideRecovery(input: RecoveryInput, t: RecoveryThresholds): Rec
   if (errors === 0 && requests !== null && requests >= t.minRequests) {
     return {
       outcome: 'recovered',
-      reason: `No errors across ${plural(requests, 'request')} to the failing operation`,
+      reason: `No errors across ${requestsText(requests)} to the failing operation`,
     };
   }
   if (errors === 0 && expectedErrors >= t.minExpectedErrors) {

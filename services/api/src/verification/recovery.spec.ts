@@ -21,6 +21,10 @@ describe('decideRecovery', () => {
     expect(d.reason).toContain('120 requests');
   });
 
+  it('says when the traffic count hit the query cap', () => {
+    expect(decide(0, 1000, 0).reason).toContain('at least 1000 requests');
+  });
+
   it('is recovered without traffic data when the old rate should have produced errors', () => {
     expect(decide(0, null, 12).outcome).toBe('recovered');
     expect(decide(0, 3, 5).outcome).toBe('recovered');

@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, asc, count, desc, eq, gte, inArray, lt, lte, ne } from 'drizzle-orm';
+import { TRAFFIC_COUNT_CAP } from '@ape/api-contracts';
 import type {
   EvaluateVerificationResult,
   FixDeployResult,
@@ -406,6 +407,7 @@ export class VerifyActivitiesService implements VerifyActivities {
         operation,
         start.getTime() * 1000,
         end.getTime() * 1000,
+        TRAFFIC_COUNT_CAP,
       );
     } catch (err) {
       this.logger.warn(`Traffic count for ${operation} failed: ${(err as Error).message}`);

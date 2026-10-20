@@ -308,6 +308,7 @@ describe('Recovery verification (e2e)', () => {
       'POST /checkout',
       expect.any(Number),
       expect.any(Number),
+      1000,
     );
 
     const w2 = await verify.startVerification({ ...input, deploymentId: d.id, window: 2 });

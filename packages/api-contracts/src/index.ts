@@ -421,6 +421,9 @@ export interface IncidentFixes {
 }
 
 // ----- Recovery verification (Phase 7) -----
+/** Traffic counts stop at this many traces: enough to decide, cheap to query. */
+export const TRAFFIC_COUNT_CAP = 1000;
+
 export interface VerificationRunView {
   id: string;
   window: number;
