@@ -35,6 +35,14 @@ import type {
   TransitionIncidentInput,
 } from '@ape/api-contracts';
 import type {
+  AlertListQuery,
+  AlertPreview,
+  AlertRoute,
+  AlertRouteInput,
+  AlertSource,
+  AlertSourceWithToken,
+  AlertView,
+  CreateAlertSourceInput,
   ApprovalPolicyInput,
   HypothesisFeedbackInput,
   QualitySummary,
@@ -536,3 +544,108 @@ export const useHypothesisFeedback = (ws: string, incidentId: string) =>
       ['workspace', ws, 'quality'],
     ],
   );
+
+// ----- Alerts (Phase 10) -----
+const alertKeys = {
+  alerts: (ws: string, q: AlertListQuery) => ['workspace', ws, 'incidents', 'alerts', q] as const,
+  sources: (ws: string) => ['workspace', ws, 'alert-sources'] as const,
+  routes: (ws: string) => ['workspace', ws, 'alert-routes'] as const,
+};
+
+/** Keyed under `incidents` so live change events refresh it too. */
+export const useAlerts = (ws: string, q: AlertListQuery) =>
+  useQuery({
+    queryKey: alertKeys.alerts(ws, q),
+    queryFn: () => api<AlertView[]>(`/workspaces/${ws}/alerts?${qs(q)}`),
+    refetchInterval: LIVE_MS,
+  });
+
+export const useAlertSources = (ws: string) =>
+  useQuery({
+    queryKey: alertKeys.sources(ws),
+    queryFn: () => api<AlertSource[]>(`/workspaces/${ws}/alert-sources`),
+    refetchInterval: 15000,
+  });
+
+export const useCreateAlertSource = (ws: string) =>
+  useWrite(
+    ws,
+    (body: CreateAlertSourceInput) =>
+      api<AlertSourceWithToken>(`/workspaces/${ws}/alert-sources`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    [[...alertKeys.sources(ws)]],
+  );
+
+export const useRotateAlertSource = (ws: string) =>
+  useWrite(
+    ws,
+    (id: string) =>
+      api<AlertSourceWithToken>(`/workspaces/${ws}/alert-sources/${id}/rotate-token`, {
+        method: 'POST',
+      }),
+    [[...alertKeys.sources(ws)]],
+  );
+
+export const useDeleteAlertSource = (ws: string) =>
+  useWrite(
+    ws,
+    (id: string) => api<void>(`/workspaces/${ws}/alert-sources/${id}`, { method: 'DELETE' }),
+    [[...alertKeys.sources(ws)]],
+  );
+
+export const useAlertRoutes = (ws: string) =>
+  useQuery({
+    queryKey: alertKeys.routes(ws),
+    queryFn: () => api<AlertRoute[]>(`/workspaces/${ws}/alert-routes`),
+  });
+
+export const useCreateAlertRoute = (ws: string) =>
+  useWrite(
+    ws,
+    (body: AlertRouteInput) =>
+      api<AlertRoute>(`/workspaces/${ws}/alert-routes`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    [[...alertKeys.routes(ws)]],
+  );
+
+export const useUpdateAlertRoute = (ws: string) =>
+  useWrite(
+    ws,
+    ({ id, ...body }: Partial<AlertRouteInput> & { id: string }) =>
+      api<AlertRoute>(`/workspaces/${ws}/alert-routes/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    [[...alertKeys.routes(ws)]],
+  );
+
+export const useDeleteAlertRoute = (ws: string) =>
+  useWrite(
+    ws,
+    (id: string) => api<void>(`/workspaces/${ws}/alert-routes/${id}`, { method: 'DELETE' }),
+    [[...alertKeys.routes(ws)]],
+  );
+
+export const useReorderAlertRoutes = (ws: string) =>
+  useWrite(
+    ws,
+    (ids: string[]) =>
+      api<AlertRoute[]>(`/workspaces/${ws}/alert-routes/order`, {
+        method: 'PUT',
+        body: JSON.stringify({ ids }),
+      }),
+    [[...alertKeys.routes(ws)]],
+  );
+
+export const usePreviewAlert = (ws: string) =>
+  useMutation({
+    mutationFn: (body: { sourceId: string; payload: unknown }) =>
+      api<AlertPreview>(`/workspaces/${ws}/alert-routes/preview`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+  });

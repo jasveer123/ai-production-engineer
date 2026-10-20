@@ -4,7 +4,7 @@ import { and, asc, desc, eq, lte } from 'drizzle-orm';
 import { ENV, type ApiEnv } from '../config/config.module';
 import { DB } from '../db/database.module';
 import type { Database } from '../db/client';
-import { deployments, incidentEvents, incidents, services } from '../db/schema';
+import { alerts, deployments, incidentEvents, incidents, services } from '../db/schema';
 import { GitHubService } from '../github/github.service';
 import { str, type JaegerTrace } from '../ingestion/jaeger';
 import { JaegerPoller } from '../ingestion/jaeger.poller';
@@ -14,6 +14,7 @@ import { redact } from './redact';
 /** Bounds keep the bundle small, cheap and well inside the model's input budget. */
 const LIMITS = {
   errorEvents: 4,
+  alerts: 5,
   traceSpans: 40,
   deploys: 3,
   codeFiles: 3,
@@ -23,7 +24,7 @@ const LIMITS = {
 };
 
 export interface DraftEvidence {
-  kind: 'error_event' | 'trace' | 'deploy' | 'code' | 'commit';
+  kind: 'error_event' | 'alert' | 'trace' | 'deploy' | 'code' | 'commit';
   title: string;
   source: string;
   sourceReference: string;
@@ -130,6 +131,35 @@ export class EvidenceCollector {
       });
     }
     coverage.error_events = errors.length;
+
+    // 1b. Alerts routed to this incident (Phase 10), most recent first.
+    const routed = await this.db
+      .select()
+      .from(alerts)
+      .where(eq(alerts.incidentId, incidentId))
+      .orderBy(desc(alerts.lastFiredAt))
+      .limit(LIMITS.alerts);
+    for (const a of routed) {
+      drafts.push({
+        kind: 'alert',
+        title: `Alert (${a.status}): ${a.title}`.slice(0, 200),
+        source: 'alert',
+        sourceReference: `alert:${a.id}`,
+        sourceUrl: a.sourceUrl,
+        content: [
+          a.title,
+          `status: ${a.status} severity: ${a.severity} occurrences: ${a.occurrences}`,
+          `first_fired: ${a.firstFiredAt.toISOString()} last_fired: ${a.lastFiredAt.toISOString()}${a.resolvedAt ? ` resolved: ${a.resolvedAt.toISOString()}` : ''}`,
+          `labels: ${
+            Object.entries(a.labels)
+              .map(([k, v]) => `${k}=${v}`)
+              .join(', ') || 'none'
+          }`,
+          a.description ? `description:\n${a.description}` : 'description: none',
+        ].join('\n'),
+      });
+    }
+    coverage.alerts = routed.length;
 
     // 2. One full trace of the most recent failure.
     const traceId = errors.find((e) => e.traceId)?.traceId;

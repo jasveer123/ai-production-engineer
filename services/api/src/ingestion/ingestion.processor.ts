@@ -16,6 +16,8 @@ import {
 } from '../db/schema';
 import { severityFor } from '../incidents/lifecycle';
 import { normalize, PermanentIngestError, type NormalizedEvent } from './normalize';
+import { openIncident } from './open-incident';
+import { ALERT_SOURCE_PREFIX, AlertProcessor } from '../alerts/alert-processor';
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 type InboundRow = typeof inboundEvents.$inferSelect;
@@ -41,6 +43,7 @@ export class IngestionProcessor {
     @Inject(DB) private readonly db: Database,
     @Inject(ENV) private readonly env: ApiEnv,
     private readonly audit: AuditService,
+    private readonly alertProcessor: AlertProcessor,
   ) {}
 
   // Due-time checks use the database clock: host and DB container clocks drift apart.
@@ -120,6 +123,7 @@ export class IngestionProcessor {
   }
 
   private async apply(tx: Tx, row: InboundRow): Promise<void> {
+    if (row.source.startsWith(ALERT_SOURCE_PREFIX)) return this.alertProcessor.apply(tx, row);
     const event = normalize(row.source, row.payload);
     const [service] = await tx
       .select({ id: services.id })
@@ -189,51 +193,21 @@ export class IngestionProcessor {
         .select({ settings: workspaces.settings })
         .from(workspaces)
         .where(eq(workspaces.id, row.workspaceId));
-      const [created] = await tx
-        .insert(incidents)
-        .values({
-          workspaceId: row.workspaceId,
-          serviceId,
-          serviceName: event.serviceName,
-          environment: event.environment,
-          source: row.source,
-          title: event.title,
-          fingerprint: event.fingerprint,
-          severity: severityFor(ws?.settings.severityRules, event),
-          firstSeenAt: event.occurredAt,
-          lastSeenAt: event.occurredAt,
-        })
-        .returning({ id: incidents.id });
-      incidentId = created!.id;
-      await tx.insert(incidentEvents).values({
+      incidentId = await openIncident(tx, this.audit, {
         workspaceId: row.workspaceId,
-        incidentId,
-        kind: 'created',
+        serviceId,
+        serviceName: event.serviceName,
+        environment: event.environment,
         source: row.source,
+        title: event.title,
+        fingerprint: event.fingerprint,
+        severity: severityFor(ws?.settings.severityRules, event),
         occurredAt: event.occurredAt,
         summary: serviceId
           ? 'Incident detected'
           : `Incident detected. Service "${event.serviceName}" (${event.environment}) is not mapped to a repository yet.`,
+        correlationId: `ingest-${row.id}`,
       });
-      // Same transaction as the incident: Phase 4's publisher starts the investigation workflow.
-      await tx.insert(outbox).values({
-        workspaceId: row.workspaceId,
-        topic: 'incident.detected',
-        payload: { incidentId, workspaceId: row.workspaceId },
-      });
-      await this.audit.record(
-        {
-          workspaceId: row.workspaceId,
-          actorType: 'system',
-          action: 'incident.created',
-          resourceType: 'incident',
-          resourceId: incidentId,
-          outcome: 'success',
-          correlationId: `ingest-${row.id}`,
-          metadata: { source: row.source, fingerprint: event.fingerprint },
-        },
-        tx,
-      );
     }
 
     const inserted = await tx

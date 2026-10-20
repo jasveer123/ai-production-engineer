@@ -78,6 +78,20 @@
       "when": 1792439349462,
       "tag": "0010_hypothesis_feedback",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792474724714,
+      "tag": "0011_alerts",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792475116314,
+      "tag": "0012_alerts_realtime",
+      "breakpoints": true
     }
   ]
 }

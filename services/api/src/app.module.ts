@@ -1,5 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
+import { AlertsModule } from './alerts/alerts.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { ApiErrorFilter } from './common/api-error.filter';
@@ -29,6 +30,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     ServiceMappingsModule,
     IncidentsModule,
     IngestionModule,
+    AlertsModule,
     InvestigationsModule,
     NotificationsModule,
     RealtimeModule,

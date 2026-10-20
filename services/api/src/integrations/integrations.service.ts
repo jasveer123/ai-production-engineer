@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, ne } from 'drizzle-orm';
 import type {
   CreateIntegrationInput,
   DeadLetter,
@@ -87,7 +87,13 @@ export class IntegrationsService {
     const rows = await this.db
       .select()
       .from(integrations)
-      .where(eq(integrations.workspaceId, actor.workspaceId))
+      .where(
+        and(
+          eq(integrations.workspaceId, actor.workspaceId),
+          // Alert sources have their own page (Phase 10).
+          ne(integrations.provider, 'alert_source'),
+        ),
+      )
       .orderBy(asc(integrations.createdAt));
     return rows.map((r) => this.toDto(r));
   }

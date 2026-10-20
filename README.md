@@ -68,6 +68,10 @@ See [ADR-020](docs/architecture/020-live-updates-and-notifications.md).
 
 See [ADR-021](docs/architecture/021-evaluation-and-model-comparison.md).
 
+### Alerts from any monitoring tool (Phase 10)
+
+**Alerts → Sources**: add Prometheus Alertmanager, Grafana, Sentry, Datadog, generic HTTP JSON, or a heartbeat monitor. Each source shows its URL and a token once, with a ready-to-paste setup snippet. **Alerts → Routes**: ordered rules (first match wins) that filter on title, severity or labels, group alerts into one incident by labels such as `service`, set the severity, or only record. *Test a payload* previews where alerts would go. Heartbeats raise an alert when a job stops pinging. See [ADR-022](docs/architecture/022-alert-sources-routes-and-heartbeats.md) and the product plan in [docs/research](docs/research/incident-io-feature-map.md).
+
 Other targets: `make test`, `make eval`, `make lint`, `make typecheck`, `make format`, `make down`, `make clean` (deletes local data volumes).
 
 ## Layout

@@ -75,6 +75,7 @@ export const apiEnvSchema = z
     VERIFY_MIN_ERRORS: z.coerce.number().int().positive().default(3),
     // Zero errors only proves recovery with enough traffic (or enough expected errors).
     VERIFY_MIN_REQUESTS: z.coerce.number().int().positive().default(20),
+    HEARTBEAT_CHECK_INTERVAL_MS: z.coerce.number().int().positive().default(15_000),
     // Live updates over SSE (Phase 8, ADR-020). Only the HTTP API process listens.
     REALTIME_ENABLED: booleanFlag.default('true'),
     REALTIME_BATCH_MS: z.coerce.number().int().positive().default(500),

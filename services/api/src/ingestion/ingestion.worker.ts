@@ -6,6 +6,7 @@ import {
   OnApplicationShutdown,
 } from '@nestjs/common';
 import { ENV, type ApiEnv } from '../config/config.module';
+import { AlertSourcesService } from '../alerts/alert-sources.service';
 import { GitHubService } from '../github/github.service';
 import { IngestionProcessor } from './ingestion.processor';
 import { JaegerPoller } from './jaeger.poller';
@@ -23,6 +24,7 @@ export class IngestionWorker implements OnApplicationBootstrap, OnApplicationShu
     private readonly processor: IngestionProcessor,
     private readonly poller: JaegerPoller,
     private readonly github: GitHubService,
+    private readonly alertSources: AlertSourcesService,
   ) {}
 
   onApplicationBootstrap() {
@@ -34,6 +36,15 @@ export class IngestionWorker implements OnApplicationBootstrap, OnApplicationShu
       setInterval(
         () => void this.github.checkAll().catch((e: unknown) => this.logger.error(e)),
         this.env.GITHUB_HEALTH_INTERVAL_MS,
+      ),
+      // Missed heartbeats become alerts through the same buffer and processor.
+      setInterval(
+        () =>
+          void this.alertSources
+            .checkHeartbeats()
+            .then((n) => n > 0 && this.logger.warn(`${n} heartbeat(s) missed`))
+            .catch((e: unknown) => this.logger.error(e)),
+        this.env.HEARTBEAT_CHECK_INTERVAL_MS,
       ),
     );
     this.logger.log('Ingestion worker started');

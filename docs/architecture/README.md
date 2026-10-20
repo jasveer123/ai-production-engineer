@@ -25,6 +25,7 @@ Format: **Context → Decision → Consequences**. Status is *Accepted* unless n
 | [ADR-019](019-recovery-verification.md) | Recovery verification after the fix is deployed |
 | [ADR-020](020-live-updates-and-notifications.md) | Live updates over SSE and outbox-driven notifications |
 | [ADR-021](021-evaluation-and-model-comparison.md) | Offline evaluation, model comparison and outcome-based quality |
+| [ADR-022](022-alert-sources-routes-and-heartbeats.md) | Alert sources, routes and heartbeats |
 
 ## Open decisions
 (make these during the build)

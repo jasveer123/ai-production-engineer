@@ -26,6 +26,7 @@ const KIND_STYLE: Record<TimelineEntry['kind'], { dot: string; name: string }> =
   investigation: { dot: 'bg-info', name: 'AI' },
   fix: { dot: 'bg-ok', name: 'Fix' },
   verification: { dot: 'bg-accent', name: 'Verification' },
+  alert: { dot: 'bg-warn', name: 'Alert' },
   status_change: { dot: 'bg-subtle', name: 'Status' },
 };
 
