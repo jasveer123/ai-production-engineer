@@ -29,3 +29,11 @@ __pycache__/
 .terraform/
 *.tfstate
 *.tfstate.*
+
+# Local Terraform variable values
+terraform.tfvars
+
+# Terraform plan files can contain secrets
+tfplan
+*.tfplan
+errored.tfstate

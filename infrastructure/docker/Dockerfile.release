@@ -1,0 +1,5 @@
+# The "release" image is the signal and the payload for pull-based deploys: it carries the host
+# files (compose, Caddyfile, scripts) and the sandbox worker bundle for one commit. The app host
+# polls ghcr.io/<owner>/ape-release:latest and deploys when its digest changes.
+FROM scratch
+COPY release/ /release/

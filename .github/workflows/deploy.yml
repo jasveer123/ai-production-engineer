@@ -1,0 +1,86 @@
+name: Deploy
+
+# Pull-based deploys (ADR-026). This workflow never talks to AWS: it builds arm64 images, pushes
+# them to GitHub Container Registry with the built-in token, and finishes by publishing the
+# `ape-release:latest` image. The app host checks that image every 3 minutes and deploys when it
+# changes. So no AWS credentials exist in GitHub, and nothing in AWS accepts inbound deploy calls.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  # Lower-case owner for image names.
+  OWNER: ${{ github.repository_owner }}
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Resolve tag
+        id: cfg
+        run: |
+          SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          echo "tag=${SHA::12}" >> "$GITHUB_OUTPUT"
+          echo "owner=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push images
+        env:
+          TAG: ${{ steps.cfg.outputs.tag }}
+          NS: ghcr.io/${{ steps.cfg.outputs.owner }}
+          PUBLIC_URL: ${{ vars.PUBLIC_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$PUBLIC_URL" || { echo "Set the repository variable PUBLIC_URL (the CloudFront address)"; exit 1; }
+          build() { # name dockerfile target [extra build args]
+            local name=$1 file=$2 target=$3; shift 3
+            docker buildx build --platform linux/arm64 -f "infrastructure/docker/$file" ${target:+--target "$target"} \
+              --cache-from "type=gha,scope=$name" --cache-to "type=gha,scope=$name,mode=max" \
+              "$@" -t "$NS/ape-$name:$TAG" --push .
+          }
+          build api Dockerfile.node api
+          build migrate Dockerfile.node migrate
+          build web Dockerfile.node web --build-arg "NEXT_PUBLIC_API_URL=$PUBLIC_URL/api"
+          build ai-worker Dockerfile.ai-worker ""
+
+      - name: Build the release image (host files + sandbox worker)
+        env:
+          TAG: ${{ steps.cfg.outputs.tag }}
+          NS: ghcr.io/${{ steps.cfg.outputs.owner }}
+        run: |
+          set -euo pipefail
+          mkdir -p release out/sandbox
+          docker buildx build --platform linux/arm64 -f infrastructure/docker/Dockerfile.node \
+            --target sandbox-bundle --output type=local,dest=out/sandbox .
+          tar -czf release/sandbox.tgz -C out/sandbox .
+          cp infrastructure/docker/{compose.prod.yml,Caddyfile,otel-collector.yaml} release/
+          cp infrastructure/deploy/{deploy.sh,pull-deploy.sh,pull-sandbox.sh,deploy-sandbox.sh,backup.sh} release/
+          echo "$TAG" > release/VERSION
+          # Pushed last: the host treats a new `latest` as "everything for this tag is ready".
+          docker buildx build --platform linux/arm64 -f infrastructure/docker/Dockerfile.release \
+            -t "$NS/ape-release:$TAG" -t "$NS/ape-release:latest" --push .

@@ -1,0 +1,19 @@
+.git
+**/node_modules
+**/dist
+**/.next
+**/.venv
+**/.venv 2
+**/__pycache__
+**/.mypy_cache
+**/.ruff_cache
+**/.pytest_cache
+**/*.tsbuildinfo
+.env
+**/.env
+**/.env.*
+!**/.env.example
+tests/evaluation/results
+business-ai
+infrastructure/terraform/**/.terraform
+*.tfstate*

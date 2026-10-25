@@ -1,0 +1,53 @@
+# syntax=docker/dockerfile:1.7
+# One build for every TypeScript service. Build a target with:
+#   docker build -f infrastructure/docker/Dockerfile.node --target api|web|migrate|sandbox-bundle .
+FROM node:22-slim AS base
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=true
+RUN corepack enable && corepack prepare pnpm@10.16.1 --activate
+WORKDIR /repo
+
+FROM base AS build
+COPY . .
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lockfile
+RUN pnpm --filter @ape/config --filter @ape/api-contracts --filter @ape/temporal-workflows build
+RUN pnpm --filter @ape/api build && pnpm --filter @ape/sandbox-manager build
+# The web app bakes the public API address in at build time.
+ARG NEXT_PUBLIC_API_URL=http://localhost:4000
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL NEXT_TELEMETRY_DISABLED=1
+RUN pnpm --filter @ape/web build
+RUN pnpm --filter @ape/api --prod deploy --legacy /out/api \
+ && pnpm --filter @ape/sandbox-manager --prod deploy --legacy /out/sandbox \
+ && pnpm --filter @ape/web --prod deploy --legacy /out/web \
+ && cp -r apps/web/.next /out/web/.next \
+ && if [ -d apps/web/public ]; then cp -r apps/web/public /out/web/public; fi
+
+# Runs Drizzle migrations once per release (needs dev dependencies, so it is the full build).
+FROM build AS migrate
+WORKDIR /repo/services/api
+USER node
+CMD ["pnpm", "db:migrate"]
+
+FROM node:22-slim AS runtime
+ENV NODE_ENV=production
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+
+FROM runtime AS api
+COPY --from=build --chown=node:node /out/api ./
+USER node
+EXPOSE 4000
+HEALTHCHECK --interval=15s --timeout=3s --start-period=30s CMD curl -fs http://localhost:4000/health || exit 1
+# The same image runs the Temporal worker with: node dist/worker.js
+CMD ["node", "dist/main"]
+
+FROM runtime AS web
+COPY --from=build --chown=node:node /out/web ./
+USER node
+EXPOSE 3000
+HEALTHCHECK --interval=15s --timeout=3s --start-period=30s CMD curl -fs http://localhost:3000/ -o /dev/null || exit 1
+CMD ["node_modules/.bin/next", "start", "-p", "3000"]
+
+# Not run in a container: the sandbox host runs this bundle directly so it can start Docker
+# containers with predictable host paths. CI exports it with --output type=local.
+FROM scratch AS sandbox-bundle
+COPY --from=build /out/sandbox /
