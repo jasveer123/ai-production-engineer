@@ -1,13 +1,14 @@
 'use client';
 
 import { loginSchema, type Me } from '@ape/api-contracts';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Field, FormError, Input } from '@/components/ui/form';
 import { api, apiUrl } from '@/lib/api';
 import { useZodForm } from '@/lib/use-zod-form';
+import { useAuthProviders } from '../queries';
 import { safeNext } from '../roles';
 import { ME_KEY } from '../session';
 import { useAuthAction } from '../use-auth-action';
@@ -20,11 +21,7 @@ export function LoginForm() {
   const qc = useQueryClient();
   const next = safeNext(params.get('next'));
   const { pending, error, fieldErrors, run } = useAuthAction();
-  const providers = useQuery({
-    queryKey: ['auth', 'providers'],
-    queryFn: () => api<Me['authProviders']>('/auth/providers'),
-    staleTime: Infinity,
-  });
+  const providers = useAuthProviders();
 
   const form = useZodForm(loginSchema, { defaultValues: { email: '', password: '' } });
   const errors = form.formState.errors;

@@ -1,14 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { createWorkspaceSchema, type Me, type Workspace } from '@ape/api-contracts';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { createWorkspaceSchema, type Workspace } from '@ape/api-contracts';
+import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Field, FormError, Input } from '@/components/ui/form';
 import { AuthHeading } from '@/features/auth/components/auth-heading';
-import { ME_KEY } from '@/features/auth/session';
+import { ME_KEY, useMe } from '@/features/auth/session';
 import { useAuthAction } from '@/features/auth/use-auth-action';
 import { api, ApiError } from '@/lib/api';
 import { useZodForm } from '@/lib/use-zod-form';
@@ -16,7 +16,7 @@ import { useZodForm } from '@/lib/use-zod-form';
 export default function OnboardingPage() {
   const router = useRouter();
   const qc = useQueryClient();
-  const me = useQuery({ queryKey: ME_KEY, queryFn: () => api<Me>('/auth/me') });
+  const me = useMe();
   const { pending, error, fieldErrors, run } = useAuthAction();
 
   useEffect(() => {

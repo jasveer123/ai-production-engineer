@@ -1,7 +1,7 @@
 'use client';
 
-import type { GitHubSelectView, Integration } from '@ape/api-contracts';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { Integration } from '@ape/api-contracts';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,7 @@ import { Icon } from '@/components/ui/icon';
 import { PageHeader } from '@/components/ui/page-header';
 import { useSession } from '@/features/auth/session';
 import { api, errorMessage } from '@/lib/api';
-import { startGitHubInstall } from '../queries';
+import { startGitHubInstall, useGitHubSelect } from '../queries';
 import { planRepoChanges } from '../repo-changes';
 
 /** After GitHub redirects back: pick which repositories this workspace may use. */
@@ -25,10 +25,7 @@ export function GitHubRepoSelect() {
   const [picked, setPicked] = useState<Record<number, string[]>>({});
   const [error, setError] = useState<string | null>(null);
 
-  const view = useQuery({
-    queryKey: ['ws', workspace.id, 'github-select'],
-    queryFn: () => api<GitHubSelectView>(`/workspaces/${workspace.id}/github/select`),
-  });
+  const view = useGitHubSelect();
 
   useEffect(() => {
     if (!view.data) return;

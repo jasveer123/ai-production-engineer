@@ -1,13 +1,14 @@
 'use client';
 
-import { registerSchema, type InvitationPreview, type Me } from '@ape/api-contracts';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { registerSchema, type Me } from '@ape/api-contracts';
+import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Field, FormError, Input } from '@/components/ui/form';
 import { api } from '@/lib/api';
 import { useZodForm } from '@/lib/use-zod-form';
+import { useInvitePreview } from '../queries';
 import { ROLE_LABEL, safeNext } from '../roles';
 import { ME_KEY } from '../session';
 import { useAuthAction } from '../use-auth-action';
@@ -21,12 +22,7 @@ export function RegisterForm() {
   const invite = params.get('invite');
   const next = safeNext(params.get('next'));
   const { pending, error, fieldErrors, run } = useAuthAction();
-  const preview = useQuery({
-    queryKey: ['invite', invite],
-    queryFn: () => api<InvitationPreview>(`/auth/invitations/${encodeURIComponent(invite!)}`),
-    enabled: Boolean(invite),
-    retry: false,
-  });
+  const preview = useInvitePreview(invite);
 
   const form = useZodForm(registerSchema, {
     defaultValues: { name: '', email: '', password: '' },
