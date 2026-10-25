@@ -27,6 +27,19 @@ export const ALERT_SOURCE_PREFIX = 'alert:';
  * Runs inside the ingestion processor's transaction, so it is atomic with marking the inbound
  * event processed, and safe to replay: alerts upsert on (source, dedup key).
  */
+interface AlertIntake {
+  row: InboundRow;
+  kind: string;
+  routes: RouteRow[];
+}
+
+interface IncidentGroup {
+  row: InboundRow;
+  kind: string;
+  route: RouteRow;
+  key: string;
+}
+
 @Injectable()
 export class AlertProcessor {
   constructor(private readonly audit: AuditService) {}
@@ -48,33 +61,40 @@ export class AlertProcessor {
       .where(and(eq(alerts.sourceId, row.integrationId), eq(alerts.dedupKey, a.dedupKey)))
       .for('update');
 
-    if (a.status === 'resolved') {
-      if (!existing || existing.status === 'resolved') return; // nothing open to resolve
-      await tx
-        .update(alerts)
-        .set({ status: 'resolved', resolvedAt: a.occurredAt })
-        .where(eq(alerts.id, existing.id));
-      if (existing.incidentId) await this.resolvedOnIncident(tx, existing, a);
-      return;
-    }
-
-    if (existing?.status === 'firing') {
-      // A repeat notification of an alert that is still firing: count it, no new timeline noise.
-      await tx
-        .update(alerts)
-        .set({
-          lastFiredAt: sql`greatest(${alerts.lastFiredAt}, ${a.occurredAt.toISOString()}::timestamptz)`,
-          occurrences: sql`${alerts.occurrences} + 1`,
-        })
-        .where(eq(alerts.id, existing.id));
-      return;
-    }
-
+    if (a.status === 'resolved') return this.resolve(tx, existing, a);
+    if (existing?.status === 'firing') return this.repeatFiring(tx, existing, a);
     // New alert, or one that fired again after resolving.
+    await this.fire(tx, { row, kind, routes }, a, existing);
+  }
+
+  private async resolve(tx: Tx, existing: AlertRow | undefined, a: ParsedAlert) {
+    if (!existing || existing.status === 'resolved') return; // nothing open to resolve
+    await tx
+      .update(alerts)
+      .set({ status: 'resolved', resolvedAt: a.occurredAt })
+      .where(eq(alerts.id, existing.id));
+    if (existing.incidentId) await this.resolvedOnIncident(tx, existing, a);
+  }
+
+  /** A repeat notification of an alert that is still firing: count it, no new timeline noise. */
+  private async repeatFiring(tx: Tx, existing: AlertRow, a: ParsedAlert) {
+    await tx
+      .update(alerts)
+      .set({
+        lastFiredAt: sql`greatest(${alerts.lastFiredAt}, ${a.occurredAt.toISOString()}::timestamptz)`,
+        occurrences: sql`${alerts.occurrences} + 1`,
+      })
+      .where(eq(alerts.id, existing.id));
+  }
+
+  private async fire(tx: Tx, intake: AlertIntake, a: ParsedAlert, existing: AlertRow | undefined) {
+    const { row, kind, routes } = intake;
     const route = matchRoute(routes, row.integrationId, a);
     const key = route ? groupKey(route, row.integrationId, a) : null;
     const incidentId =
-      route && route.createIncident ? await this.incidentFor(tx, row, kind, route, key!, a) : null;
+      route && route.createIncident
+        ? await this.incidentFor(tx, { row, kind, route, key: key! }, a)
+        : null;
     const values = {
       routeId: route?.id ?? null,
       incidentId,
@@ -126,14 +146,8 @@ export class AlertProcessor {
   }
 
   /** The open incident for this route and group, or a new one. */
-  private async incidentFor(
-    tx: Tx,
-    row: InboundRow,
-    kind: string,
-    route: RouteRow,
-    key: string,
-    a: ParsedAlert,
-  ): Promise<string> {
+  private async incidentFor(tx: Tx, group: IncidentGroup, a: ParsedAlert): Promise<string> {
+    const { row, kind, route, key } = group;
     const fingerprint = groupFingerprint(route.id, key);
     const [open] = await tx
       .select({ id: incidents.id })

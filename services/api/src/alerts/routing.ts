@@ -23,31 +23,30 @@ export function fieldValue(a: ParsedAlert, field: string): string | undefined {
   return undefined;
 }
 
-export function conditionMatches(a: ParsedAlert, c: AlertCondition): boolean {
-  const v = fieldValue(a, c.field);
-  const want = c.value ?? '';
-  switch (c.op) {
-    case 'exists':
-      return v !== undefined && v !== '';
-    case 'not_exists':
-      return v === undefined || v === '';
-    case 'eq':
-      return v?.toLowerCase() === want.toLowerCase();
-    case 'neq':
-      return v?.toLowerCase() !== want.toLowerCase();
-    case 'contains':
-      return !!v && v.toLowerCase().includes(want.toLowerCase());
-    case 'not_contains':
-      return !v || !v.toLowerCase().includes(want.toLowerCase());
-    case 'regex':
-      // Bounded patterns only (validated on save too); an invalid one never matches.
-      if (want.length > MAX_REGEX_LENGTH) return false;
-      try {
-        return v !== undefined && new RegExp(want, 'i').test(v);
-      } catch {
-        return false;
-      }
+const lower = (s: string | undefined) => s?.toLowerCase();
+
+// Bounded patterns only (validated on save too); an invalid one never matches.
+function regexMatches(v: string | undefined, pattern: string): boolean {
+  if (pattern.length > MAX_REGEX_LENGTH) return false;
+  try {
+    return v !== undefined && new RegExp(pattern, 'i').test(v);
+  } catch {
+    return false;
   }
+}
+
+const OPERATORS: Record<AlertCondition['op'], (v: string | undefined, want: string) => boolean> = {
+  exists: (v) => v !== undefined && v !== '',
+  not_exists: (v) => v === undefined || v === '',
+  eq: (v, want) => lower(v) === want.toLowerCase(),
+  neq: (v, want) => lower(v) !== want.toLowerCase(),
+  contains: (v, want) => !!v && v.toLowerCase().includes(want.toLowerCase()),
+  not_contains: (v, want) => !v || !v.toLowerCase().includes(want.toLowerCase()),
+  regex: regexMatches,
+};
+
+export function conditionMatches(a: ParsedAlert, c: AlertCondition): boolean {
+  return OPERATORS[c.op](fieldValue(a, c.field), c.value ?? '');
 }
 
 /** First enabled route (by position) whose sources and conditions all match. */
