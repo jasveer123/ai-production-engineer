@@ -1,6 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { and, asc, count, desc, eq, gte, inArray, lt, lte, ne } from 'drizzle-orm';
-import { TRAFFIC_COUNT_CAP } from '@ape/api-contracts';
+import { and, asc, desc, eq, gte, ne } from 'drizzle-orm';
 import type {
   EvaluateVerificationResult,
   FixDeployResult,
@@ -18,29 +17,20 @@ import {
   deployments,
   incidentEvents,
   incidents,
-  integrations,
   pullRequests,
-  services,
   verificationRuns,
   type IncidentStatus,
-  type VerificationBaseline,
   type VerificationObserved,
 } from '../db/schema';
 import { GitHubService } from '../github/github.service';
 import { canTransition } from '../incidents/lifecycle';
-import { JaegerPoller } from '../ingestion/jaeger.poller';
-import {
-  decideRecovery,
-  DEFAULT_MIN_EXPECTED_ERRORS,
-  expectedErrors,
-  sameCommit,
-} from './recovery';
+import { decideRecovery, DEFAULT_MIN_EXPECTED_ERRORS, sameCommit } from './recovery';
+import { VerificationMetrics } from './verification-metrics.service';
 
 type IncidentRow = typeof incidents.$inferSelect;
 
 /** Statuses verification may act on. Anything else means a human (or a recurrence) took over. */
 const VERIFYING: IncidentStatus[] = ['monitoring', 'verification_inconclusive'];
-const BASELINE_LOOKBACK_MS = 24 * 60 * 60_000;
 /** Deploy timestamps come from the sender's clock; tolerate some skew around the merge time. */
 const MERGE_SKEW_MS = 10 * 60_000;
 const MAX_DEPLOY_CANDIDATES = 10;
@@ -66,7 +56,7 @@ export class VerifyActivitiesService implements VerifyActivities {
     @Inject(DB) private readonly db: Database,
     @Inject(ENV) private readonly env: ApiEnv,
     private readonly github: GitHubService,
-    private readonly jaeger: JaegerPoller,
+    private readonly metrics: VerificationMetrics,
     private readonly audit: AuditService,
   ) {}
 
@@ -91,7 +81,7 @@ export class VerifyActivitiesService implements VerifyActivities {
   async findFixDeploy(
     input: IncidentWorkflowInput & { mergeCommitSha: string | null },
   ): Promise<FixDeployResult> {
-    const incident = await this.incident(input.incidentId);
+    const incident = await this.metrics.incident(input.incidentId, input.workspaceId);
     if (!incident || !VERIFYING.includes(incident.status)) return { status: 'superseded' };
     if (!incident.serviceName || !incident.environment) return { status: 'not_yet' };
 
@@ -118,20 +108,16 @@ export class VerifyActivitiesService implements VerifyActivities {
       .limit(MAX_DEPLOY_CANDIDATES);
 
     const merge = input.mergeCommitSha;
-    const repo = pr?.repo ?? (await this.repositoryOf(incident));
+    const repo = pr?.repo ?? (await this.metrics.repositoryOf(incident));
     const installationId = repo ? await this.github.installationFor(input.workspaceId, repo) : null;
     for (const d of candidates) {
-      // Without a merge sha (should not happen for merged PRs) the first later deploy counts.
-      let contains = !merge || sameCommit(d.commitSha, merge);
-      if (!contains && merge && repo && installationId) {
-        try {
-          contains = await this.github.gh().contains(installationId, repo, d.commitSha, merge);
-        } catch (err) {
-          // GitHub down or the deployed commit is unknown to it: try again on the next poll.
-          this.logger.warn(`Compare ${merge}...${d.commitSha} failed: ${(err as Error).message}`);
-        }
-      }
-      if (contains) {
+      if (
+        await this.containsFix(
+          d.commitSha,
+          merge,
+          repo && installationId ? { repo, installationId } : null,
+        )
+      ) {
         return {
           status: 'found',
           deploymentId: d.id,
@@ -143,10 +129,28 @@ export class VerifyActivitiesService implements VerifyActivities {
     return { status: 'not_yet' };
   }
 
+  /** Whether the deployed commit contains the merge commit of the fix. */
+  private async containsFix(
+    deployed: string,
+    merge: string | null,
+    repo: { repo: string; installationId: number } | null,
+  ): Promise<boolean> {
+    // Without a merge sha (should not happen for merged PRs) the first later deploy counts.
+    if (!merge || sameCommit(deployed, merge)) return true;
+    if (!repo) return false;
+    try {
+      return await this.github.gh().contains(repo.installationId, repo.repo, deployed, merge);
+    } catch (err) {
+      // GitHub down or the deployed commit is unknown to it: try again on the next poll.
+      this.logger.warn(`Compare ${merge}...${deployed} failed: ${(err as Error).message}`);
+      return false;
+    }
+  }
+
   async startVerification(
     input: IncidentWorkflowInput & { deploymentId: string; window: number },
   ): Promise<StartVerificationResult> {
-    const incident = (await this.incident(input.incidentId))!;
+    const incident = (await this.metrics.incident(input.incidentId, input.workspaceId))!;
     const [deploy] = await this.db
       .select()
       .from(deployments)
@@ -163,7 +167,7 @@ export class VerifyActivitiesService implements VerifyActivities {
         deploymentId: deploy!.id,
         window: input.window,
         deployCommitSha: deploy!.commitSha,
-        baseline: await this.baseline(incident, deploy!.deployedAt),
+        baseline: await this.metrics.baseline(incident, deploy!.deployedAt),
         windowStartedAt: windowStart,
         windowEndedAt: windowEnd,
       })
@@ -216,7 +220,7 @@ export class VerifyActivitiesService implements VerifyActivities {
         superseded: run.reason?.startsWith('Superseded') ?? false,
       };
     }
-    const incident = (await this.incident(run.incidentId))!;
+    const incident = (await this.metrics.incident(run.incidentId, run.workspaceId))!;
     if (!VERIFYING.includes(incident.status)) {
       const reason = `Superseded: the incident was moved to ${incident.status.replace(/_/g, ' ')}`;
       await this.db
@@ -230,7 +234,13 @@ export class VerifyActivitiesService implements VerifyActivities {
     const end = input.interim
       ? new Date(Math.min(Date.now(), run.windowEndedAt!.getTime()))
       : run.windowEndedAt!;
-    const observed = await this.observe(incident, start, end, run.baseline!, !input.interim);
+    const observed = await this.metrics.observe(
+      incident,
+      start,
+      end,
+      run.baseline!,
+      !input.interim,
+    );
     const decision = decideRecovery(
       {
         errors: observed.errors,
@@ -255,38 +265,53 @@ export class VerifyActivitiesService implements VerifyActivities {
     const outcome = decision.outcome;
     const concludes = outcome !== 'inconclusive' || input.finalWindow;
     let reason = decision.reason;
-    if (outcome === 'not_recovered') reason += await this.rollbackHint(run.deploymentId);
+    if (outcome === 'not_recovered') reason += await this.metrics.rollbackHint(run.deploymentId);
 
-    const superseded = await this.db.transaction(async (tx) => {
-      const [inc] = await tx
-        .select()
-        .from(incidents)
-        .where(eq(incidents.id, incident.id))
-        .for('update');
-      if (!inc || !VERIFYING.includes(inc.status)) return true;
-      await tx
-        .update(verificationRuns)
-        .set({ status: 'completed', outcome, reason, observed })
-        .where(eq(verificationRuns.id, run.id));
-      if (!concludes) return false; // the workflow opens the next, longer window
-      const to = RESULT_STATUS[outcome];
-      await this.move(tx, inc, to, reason);
-      await this.audit.record(
-        {
-          workspaceId: inc.workspaceId,
-          actorType: 'system',
-          action: `verification.${outcome}`,
-          resourceType: 'incident',
-          resourceId: inc.id,
-          outcome: 'success',
-          correlationId: `verify-${run.id}`,
-          metadata: { verificationRunId: run.id, window: run.window, observed },
-        },
-        tx,
-      );
-      return false;
-    });
+    const superseded = await this.db.transaction((tx) =>
+      this.storeOutcome(tx, { run, incident, outcome, reason, observed, concludes }),
+    );
     return { outcome, reason, superseded };
+  }
+
+  /** Stores the result unless a human or a recurrence moved the incident meanwhile. */
+  private async storeOutcome(
+    tx: Tx,
+    r: {
+      run: typeof verificationRuns.$inferSelect;
+      incident: IncidentRow;
+      outcome: RecoveryOutcome;
+      reason: string;
+      observed: VerificationObserved;
+      concludes: boolean;
+    },
+  ): Promise<boolean> {
+    const { run, outcome, reason, observed } = r;
+    const [inc] = await tx
+      .select()
+      .from(incidents)
+      .where(eq(incidents.id, r.incident.id))
+      .for('update');
+    if (!inc || !VERIFYING.includes(inc.status)) return true;
+    await tx
+      .update(verificationRuns)
+      .set({ status: 'completed', outcome, reason, observed })
+      .where(eq(verificationRuns.id, run.id));
+    if (!r.concludes) return false; // the workflow opens the next, longer window
+    await this.move(tx, inc, RESULT_STATUS[outcome], reason);
+    await this.audit.record(
+      {
+        workspaceId: inc.workspaceId,
+        actorType: 'system',
+        action: `verification.${outcome}`,
+        resourceType: 'incident',
+        resourceId: inc.id,
+        outcome: 'success',
+        correlationId: `verify-${run.id}`,
+        metadata: { verificationRunId: run.id, window: run.window, observed },
+      },
+      tx,
+    );
+    return false;
   }
 
   async noFixDeploy(input: IncidentWorkflowInput & { waitedMs: number }): Promise<void> {
@@ -304,139 +329,6 @@ export class VerifyActivitiesService implements VerifyActivities {
   }
 
   // ----- helpers -----
-
-  private async incident(id: string): Promise<IncidentRow | undefined> {
-    const [row] = await this.db.select().from(incidents).where(eq(incidents.id, id));
-    return row;
-  }
-
-  private async repositoryOf(incident: IncidentRow): Promise<string | null> {
-    if (!incident.serviceId) return null;
-    const [svc] = await this.db
-      .select({ repo: services.repositoryFullName })
-      .from(services)
-      .where(eq(services.id, incident.serviceId));
-    return svc?.repo ?? null;
-  }
-
-  private async errorCount(incidentId: string, from: Date, to: Date): Promise<number> {
-    const [row] = await this.db
-      .select({ n: count() })
-      .from(incidentEvents)
-      .where(
-        and(
-          eq(incidentEvents.incidentId, incidentId),
-          eq(incidentEvents.kind, 'error'),
-          gte(incidentEvents.occurredAt, from),
-          lt(incidentEvents.occurredAt, to),
-        ),
-      );
-    return Number(row?.n ?? 0);
-  }
-
-  /** Error rate of the incident's fingerprint before the fix (up to 24 h back). */
-  private async baseline(incident: IncidentRow, deployedAt: Date): Promise<VerificationBaseline> {
-    const from = new Date(
-      Math.max(incident.firstSeenAt.getTime(), deployedAt.getTime() - BASELINE_LOOKBACK_MS),
-    );
-    const durationMs = Math.max(60_000, deployedAt.getTime() - from.getTime());
-    const errors = await this.errorCount(incident.id, from, deployedAt);
-    return {
-      errors,
-      durationMs,
-      errorsPerHour: Math.round((errors / durationMs) * 3_600_000 * 100) / 100,
-    };
-  }
-
-  private async observe(
-    incident: IncidentRow,
-    start: Date,
-    end: Date,
-    baseline: VerificationBaseline,
-    withTraffic: boolean,
-  ): Promise<VerificationObserved> {
-    const durationMs = Math.max(0, end.getTime() - start.getTime());
-    const errors = await this.errorCount(incident.id, start, end);
-    const operation = await this.failingOperation(incident.id);
-    const requests =
-      withTraffic && operation ? await this.traffic(incident, operation, start, end) : null;
-    return {
-      errors,
-      durationMs,
-      requests,
-      operation,
-      expectedErrors: expectedErrors(baseline.errorsPerHour, durationMs),
-    };
-  }
-
-  /** The server operation the errors came from, e.g. "POST /checkout". */
-  private async failingOperation(incidentId: string): Promise<string | null> {
-    const [e] = await this.db
-      .select({ attributes: incidentEvents.attributes })
-      .from(incidentEvents)
-      .where(and(eq(incidentEvents.incidentId, incidentId), eq(incidentEvents.kind, 'error')))
-      .orderBy(desc(incidentEvents.occurredAt))
-      .limit(1);
-    const op = e?.attributes.operation;
-    return typeof op === 'string' && op ? op : null;
-  }
-
-  /** Request count from Jaeger, or null when no Jaeger integration is connected or it fails. */
-  private async traffic(
-    incident: IncidentRow,
-    operation: string,
-    start: Date,
-    end: Date,
-  ): Promise<number | null> {
-    const [jaeger] = await this.db
-      .select({ id: integrations.id })
-      .from(integrations)
-      .where(
-        and(
-          eq(integrations.workspaceId, incident.workspaceId),
-          eq(integrations.provider, 'otel_jaeger'),
-          inArray(integrations.status, ['connected', 'error']),
-        ),
-      )
-      .limit(1);
-    if (!jaeger || !incident.serviceName) return null;
-    try {
-      return await this.jaeger.client.traceCount(
-        incident.serviceName,
-        operation,
-        start.getTime() * 1000,
-        end.getTime() * 1000,
-        TRAFFIC_COUNT_CAP,
-      );
-    } catch (err) {
-      this.logger.warn(`Traffic count for ${operation} failed: ${(err as Error).message}`);
-      return null;
-    }
-  }
-
-  /** Names the deploy before the fix as a rollback candidate. A human decides (ADR-008). */
-  private async rollbackHint(deploymentId: string | null): Promise<string> {
-    if (!deploymentId) return '';
-    const [fix] = await this.db.select().from(deployments).where(eq(deployments.id, deploymentId));
-    if (!fix) return '';
-    const [prev] = await this.db
-      .select()
-      .from(deployments)
-      .where(
-        and(
-          eq(deployments.workspaceId, fix.workspaceId),
-          eq(deployments.serviceName, fix.serviceName),
-          eq(deployments.environment, fix.environment),
-          lte(deployments.deployedAt, fix.deployedAt),
-          ne(deployments.id, fix.id),
-        ),
-      )
-      .orderBy(desc(deployments.deployedAt))
-      .limit(1);
-    return prev
-      ? `. The previous deploy was ${prev.version ?? prev.commitSha.slice(0, 7)} (${prev.commitSha.slice(0, 7)}); consider rolling back or investigating again.`
-      : '. Consider investigating again.';
-  }
 
   private async move(tx: Tx, inc: IncidentRow, to: IncidentStatus, reason: string) {
     if (inc.status === to || !canTransition(inc.status, to)) return;

@@ -22,6 +22,7 @@ import { InvestigationsController } from './investigations.controller';
 import { InvestigationsService } from './investigations.service';
 import { VerificationController } from '../verification/verification.controller';
 import { VerificationService } from '../verification/verification.service';
+import { VerificationMetrics } from '../verification/verification-metrics.service';
 import { VerifyActivitiesService } from '../verification/verify-activities.service';
 
 @Module({
@@ -47,6 +48,7 @@ import { VerifyActivitiesService } from '../verification/verify-activities.servi
     PullSyncService,
     PullsService,
     VerificationService,
+    VerificationMetrics,
     VerifyActivitiesService,
   ],
   exports: [
