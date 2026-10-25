@@ -11,7 +11,7 @@
     "test": "echo \"no config tests yet\""
   },
   "dependencies": {
-    "zod": "^3.25.0"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "typescript": "^5.7.0",
