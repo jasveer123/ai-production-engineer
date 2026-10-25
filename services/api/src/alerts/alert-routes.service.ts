@@ -126,7 +126,10 @@ export class AlertRoutesService {
     const order = [...ids, ...current.map((r) => r.id).filter((id) => !ids.includes(id))];
     await this.db.transaction(async (tx) => {
       for (const [position, id] of order.entries())
-        await tx.update(alertRoutes).set({ position }).where(eq(alertRoutes.id, id));
+        await tx
+          .update(alertRoutes)
+          .set({ position })
+          .where(and(eq(alertRoutes.id, id), eq(alertRoutes.workspaceId, actor.workspaceId)));
     });
     await this.record(actor, 'alert_route.reordered', actor.workspaceId, { order });
     return this.list(actor);

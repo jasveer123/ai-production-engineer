@@ -54,7 +54,12 @@ export class FixesService {
     const [{ n } = { n: 0 }] = await this.db
       .select({ n: count() })
       .from(fixProposals)
-      .where(eq(fixProposals.incidentId, incidentId));
+      .where(
+        and(
+          eq(fixProposals.incidentId, incidentId),
+          eq(fixProposals.workspaceId, actor.workspaceId),
+        ),
+      );
     const state = await this.temporal.state(incidentId).catch(() => null);
     return {
       latest: latest ? await this.view(latest) : null,
@@ -68,7 +73,12 @@ export class FixesService {
     const runs = await this.db
       .select()
       .from(validationRuns)
-      .where(eq(validationRuns.fixProposalId, fix.id))
+      .where(
+        and(
+          eq(validationRuns.fixProposalId, fix.id),
+          eq(validationRuns.workspaceId, fix.workspaceId),
+        ),
+      )
       .orderBy(asc(validationRuns.createdAt));
     const safe = async <T>(fn: () => Promise<T>): Promise<T | null> => fn().catch(() => null);
     const test = fix.testReference
@@ -179,7 +189,10 @@ export class FixesService {
         `Approving a pull request needs the ${minRole} role or higher`,
       );
     }
-    const [fix] = await this.db.select().from(fixProposals).where(eq(fixProposals.id, fixId));
+    const [fix] = await this.db
+      .select()
+      .from(fixProposals)
+      .where(and(eq(fixProposals.id, fixId), eq(fixProposals.workspaceId, actor.workspaceId)));
     if (!fix?.patchHash) {
       throw new ApiException(HttpStatus.CONFLICT, 'fix_not_validated', 'The fix has no patch');
     }

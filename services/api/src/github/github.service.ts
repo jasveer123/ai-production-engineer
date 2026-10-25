@@ -232,7 +232,7 @@ export class GitHubService {
       const [current] = await this.db
         .select()
         .from(integrations)
-        .where(eq(integrations.id, row.id));
+        .where(and(eq(integrations.id, row.id), eq(integrations.workspaceId, row.workspaceId)));
       return current!;
     }
     if (updated.status === 'disconnected') {

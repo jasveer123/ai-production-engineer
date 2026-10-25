@@ -46,7 +46,15 @@ export class MembersService {
       await this.assertCanManage(actor, member.role, role, 'member.role_changed', memberId);
       if (member.role === 'owner' && role !== 'owner') await this.assertNotLastOwner(tx, actor);
 
-      await tx.update(workspaceMembers).set({ role }).where(eq(workspaceMembers.id, memberId));
+      await tx
+        .update(workspaceMembers)
+        .set({ role })
+        .where(
+          and(
+            eq(workspaceMembers.id, memberId),
+            eq(workspaceMembers.workspaceId, actor.workspaceId),
+          ),
+        );
       await this.audit.record(
         {
           workspaceId: actor.workspaceId,
@@ -72,7 +80,14 @@ export class MembersService {
       await this.assertCanManage(actor, member.role, member.role, 'member.removed', memberId);
       if (member.role === 'owner') await this.assertNotLastOwner(tx, actor);
 
-      await tx.delete(workspaceMembers).where(eq(workspaceMembers.id, memberId));
+      await tx
+        .delete(workspaceMembers)
+        .where(
+          and(
+            eq(workspaceMembers.id, memberId),
+            eq(workspaceMembers.workspaceId, actor.workspaceId),
+          ),
+        );
       await this.audit.record(
         {
           workspaceId: actor.workspaceId,

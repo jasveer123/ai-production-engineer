@@ -214,7 +214,12 @@ export class ToolsService {
             status: 'pending',
             lastError: null,
           })
-          .where(eq(integrations.id, existing.id));
+          .where(
+            and(
+              eq(integrations.id, existing.id),
+              eq(integrations.workspaceId, existing.workspaceId),
+            ),
+          );
       } else {
         await tx.insert(integrations).values({
           workspaceId: actor.workspaceId,
@@ -251,7 +256,10 @@ export class ToolsService {
           err instanceof ReaderError ? err.message : `Test failed: ${(err as Error).message}`,
       };
     }
-    await this.db.update(integrations).set(patch).where(eq(integrations.id, row.id));
+    await this.db
+      .update(integrations)
+      .set(patch)
+      .where(and(eq(integrations.id, row.id), eq(integrations.workspaceId, row.workspaceId)));
     await this.record(actor, 'log_reader.tested', id, { status: patch.status });
     return this.get(actor, id);
   }
@@ -265,7 +273,7 @@ export class ToolsService {
         await tx
           .update(integrations)
           .set({ status: 'disconnected', secretReference: null })
-          .where(eq(integrations.id, row.id));
+          .where(and(eq(integrations.id, row.id), eq(integrations.workspaceId, row.workspaceId)));
       });
       await this.record(actor, 'log_reader.disconnected', id);
     }
@@ -328,7 +336,7 @@ export class ToolsService {
             .set({
               config: sql`${integrations.config} || jsonb_build_object('lastUsedAt', ${new Date().toISOString()}::text)`,
             })
-            .where(eq(integrations.id, row.id));
+            .where(and(eq(integrations.id, row.id), eq(integrations.workspaceId, row.workspaceId)));
           return { tool, name: TOOL_CATALOG[tool].name, lines, error: null };
         } catch (err) {
           this.logger.warn(`Reader ${tool} failed during investigation: ${(err as Error).message}`);

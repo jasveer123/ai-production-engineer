@@ -171,7 +171,7 @@ export class IntegrationsService {
       const [r] = await tx
         .update(integrations)
         .set({ secretReference })
-        .where(eq(integrations.id, id))
+        .where(and(eq(integrations.id, id), eq(integrations.workspaceId, actor.workspaceId)))
         .returning();
       return r!;
     });
@@ -188,7 +188,7 @@ export class IntegrationsService {
       await tx
         .update(integrations)
         .set({ status: 'disconnected', secretReference: null, lastError: null })
-        .where(eq(integrations.id, id));
+        .where(and(eq(integrations.id, id), eq(integrations.workspaceId, actor.workspaceId)));
     });
     await this.record(actor, 'integration.disconnected', id, { provider: row.provider });
   }

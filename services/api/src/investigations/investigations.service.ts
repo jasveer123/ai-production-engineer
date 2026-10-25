@@ -24,6 +24,24 @@ import {
 import { TemporalService } from '../temporal/temporal.service';
 import { UsageService } from '../usage/usage.service';
 
+type Vote = { hypothesisId: string; userId: string; verdict: string };
+
+/** How engineers rated one hypothesis, and what this user said. */
+function feedbackOf(
+  votes: Vote[],
+  hypothesisId: string,
+  userId: string,
+): InvestigationView['hypotheses'][number]['feedback'] {
+  const mine = votes.filter((v) => v.hypothesisId === hypothesisId);
+  const n = (v: HypothesisVerdict) => mine.filter((x) => x.verdict === v).length;
+  return {
+    correct: n('correct'),
+    partly: n('partly'),
+    wrong: n('wrong'),
+    mine: (mine.find((x) => x.userId === userId)?.verdict as HypothesisVerdict) ?? null,
+  };
+}
+
 @Injectable()
 export class InvestigationsService {
   constructor(
@@ -59,11 +77,22 @@ export class InvestigationsService {
     const [{ n } = { n: 0 }] = await this.db
       .select({ n: count() })
       .from(investigations)
-      .where(eq(investigations.incidentId, incidentId));
+      .where(
+        and(
+          eq(investigations.incidentId, incidentId),
+          eq(investigations.workspaceId, actor.workspaceId),
+        ),
+      );
     const approved = await this.db
       .select({ id: approvals.id })
       .from(approvals)
-      .where(and(eq(approvals.resourceType, 'reproduction'), eq(approvals.resourceId, incidentId)));
+      .where(
+        and(
+          eq(approvals.workspaceId, actor.workspaceId),
+          eq(approvals.resourceType, 'reproduction'),
+          eq(approvals.resourceId, incidentId),
+        ),
+      );
     let workflow: IncidentInvestigation['workflow'] = null;
     try {
       const s = await this.temporal.state(incidentId);
@@ -86,40 +115,24 @@ export class InvestigationsService {
     const ev = await this.db
       .select()
       .from(evidenceItems)
-      .where(eq(evidenceItems.investigationId, inv.id))
+      .where(
+        and(
+          eq(evidenceItems.investigationId, inv.id),
+          eq(evidenceItems.workspaceId, inv.workspaceId),
+        ),
+      )
       .orderBy(asc(evidenceItems.createdAt));
     ev.sort((a, b) => Number(a.ref.slice(1)) - Number(b.ref.slice(1)));
     const refById = new Map(ev.map((e) => [e.id, e.ref]));
     const hs = await this.db
       .select()
       .from(hypotheses)
-      .where(eq(hypotheses.investigationId, inv.id))
+      .where(
+        and(eq(hypotheses.investigationId, inv.id), eq(hypotheses.workspaceId, inv.workspaceId)),
+      )
       .orderBy(asc(hypotheses.rank));
-    const votes = hs.length
-      ? await this.db
-          .select({
-            hypothesisId: hypothesisFeedback.hypothesisId,
-            userId: hypothesisFeedback.userId,
-            verdict: hypothesisFeedback.verdict,
-          })
-          .from(hypothesisFeedback)
-          .where(
-            inArray(
-              hypothesisFeedback.hypothesisId,
-              hs.map((h) => h.id),
-            ),
-          )
-      : [];
-    const feedbackFor = (id: string): InvestigationView['hypotheses'][number]['feedback'] => {
-      const mine = votes.filter((v) => v.hypothesisId === id);
-      const n = (v: HypothesisVerdict) => mine.filter((x) => x.verdict === v).length;
-      return {
-        correct: n('correct'),
-        partly: n('partly'),
-        wrong: n('wrong'),
-        mine: (mine.find((x) => x.userId === userId)?.verdict as HypothesisVerdict) ?? null,
-      };
-    };
+    const votes = await this.votesFor(inv.workspaceId, hs);
+    const feedbackFor = (id: string) => feedbackOf(votes, id, userId);
     return {
       id: inv.id,
       attempt: inv.attempt,
@@ -157,6 +170,26 @@ export class InvestigationsService {
         feedback: feedbackFor(h.id),
       })),
     };
+  }
+
+  private async votesFor(workspaceId: string, hs: { id: string }[]) {
+    if (!hs.length) return [];
+    return this.db
+      .select({
+        hypothesisId: hypothesisFeedback.hypothesisId,
+        userId: hypothesisFeedback.userId,
+        verdict: hypothesisFeedback.verdict,
+      })
+      .from(hypothesisFeedback)
+      .where(
+        and(
+          eq(hypothesisFeedback.workspaceId, workspaceId),
+          inArray(
+            hypothesisFeedback.hypothesisId,
+            hs.map((h) => h.id),
+          ),
+        ),
+      );
   }
 
   /** The exact (redacted) evidence text an item holds, read from the stored bundle. */
