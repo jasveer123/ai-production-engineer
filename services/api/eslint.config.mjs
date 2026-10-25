@@ -46,8 +46,8 @@ export default tseslint.config(
     },
   },
   {
-    // A describe() block is a container for many small tests, not one long function.
+    // Tests group many small cases in one describe() and one file; length there is not a smell.
     files: ['**/*.spec.ts', 'test/**/*.ts'],
-    rules: { 'max-lines-per-function': 'off' },
+    rules: { 'max-lines-per-function': 'off', 'max-lines': 'off' },
   },
 );
