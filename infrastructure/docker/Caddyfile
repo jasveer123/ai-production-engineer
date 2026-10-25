@@ -1,0 +1,15 @@
+# Only CloudFront may reach this host (security group) and it must send the shared header,
+# so a request that skips CloudFront gets nothing.
+:80 {
+	@unverified not header X-Origin-Verify {$ORIGIN_VERIFY}
+	respond @unverified 403
+
+	handle_path /api/* {
+		reverse_proxy api:4000 {
+			flush_interval -1
+		}
+	}
+	handle {
+		reverse_proxy web:3000
+	}
+}

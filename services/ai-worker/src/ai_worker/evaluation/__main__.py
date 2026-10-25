@@ -34,7 +34,7 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--key", type=Path, default=EVAL_DIR / "answer-key.json")
     run.add_argument("--only", nargs="+", help="case ids to run")
     run.add_argument("--repeat", type=int, default=1)
-    run.add_argument("--prompt-version", default="investigate_v1")
+    run.add_argument("--prompt-version", default="investigate_v2")
     run.add_argument(
         "--out", type=Path, help="write results JSON (default: tests/evaluation/results/)"
     )

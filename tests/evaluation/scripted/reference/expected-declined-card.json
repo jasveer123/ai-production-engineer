@@ -1,0 +1,12 @@
+{
+  "observations": [
+    {
+      "statement": "POST /checkout returned HTTP 402 for declined cards 14 times",
+      "evidence": ["E1", "E2"]
+    }
+  ],
+  "hypotheses": [],
+  "data_gaps": [
+    "Card declines are expected customer behaviour; nothing here shows a software defect."
+  ]
+}

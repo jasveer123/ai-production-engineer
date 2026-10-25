@@ -1,0 +1,55 @@
+{
+  "id": "s4-unhandled-rejection",
+  "scenario": "S4",
+  "description": "A background payment capture rejects with nobody awaiting it; the order was already reported paid.",
+  "expect": {
+    "mode": "diagnose"
+  },
+  "bundle": {
+    "version": 1,
+    "investigationId": "s4-unhandled-rejection",
+    "incident": {
+      "id": "s4-unhandled-rejection-incident",
+      "severity": "high",
+      "serviceName": "demo-shop-api",
+      "environment": "production",
+      "repositoryFullName": "jasveer123/demo-shop",
+      "title": "UnhandledPromiseRejection: Payment gateway timed out (/checkout)",
+      "firstSeenAt": "2026-10-20T18:00:10.000Z",
+      "lastSeenAt": "2026-10-20T18:20:44.000Z",
+      "eventCount": 9
+    },
+    "note": null,
+    "coverage": {
+      "error_events": 9,
+      "traces": "ok",
+      "deploys": 0,
+      "code": 1,
+      "code_ref": "4f6c2a9e1b7d3c5a8e0f2b4d6a8c0e2f4a6b8d0c",
+      "commits": 0,
+      "logs": "not_supported",
+      "metrics": "not_supported",
+      "redactions": 0
+    },
+    "items": [
+      {
+        "ref": "E1",
+        "id": "s4-unhandled-rejection-e1",
+        "sourceUrl": null,
+        "kind": "error_event",
+        "title": "Recent occurrence at 2026-10-20T18:20:44.000Z",
+        "source": "otel_jaeger",
+        "content": "UnhandledPromiseRejection: Payment gateway timed out (/checkout)\noccurred_at: 2026-10-20T18:20:44.000Z\noperation: process unhandledRejection route: unhandledRejection status: 500\ntrace_id: none\nstack:\nat Timeout._onTimeout (/app/api/src/services/payment-gateway.ts:40:20)\nat CheckoutService.captureAsync (/app/api/src/services/checkout.ts:122:10)"
+      },
+      {
+        "ref": "E2",
+        "id": "s4-unhandled-rejection-e2",
+        "sourceUrl": null,
+        "kind": "code",
+        "title": "api/src/services/checkout.ts:122 (CheckoutService.captureAsync)",
+        "source": "github",
+        "content": "jasveer123/demo-shop @ 4f6c2a9e1b7d3c5a8e0f2b4d6a8c0e2f4a6b8d0c\napi/src/services/checkout.ts lines 92-128 (>> marks the failing line)\n    92 |       reserved.push(item);\n    93 |     }\n    94 |   }\n    95 | \n    96 |   /** V2 reservation: checks availability, holds with the warehouse, then writes the new level. */\n    97 |   private async reserveStockV2(items: OrderItem[]): Promise<void> {\n    98 |     for (const item of items) {\n    99 |       const stock = await this.store.getStock(item.productId);\n   100 |       if (stock < item.quantity) {\n   101 |         throw new AppError(409, 'out_of_stock', `Product ${item.productId} is out of stock`);\n   102 |       }\n   103 |       await sleep(20); // warehouse hold round trip\n   104 |       await this.store.setStock(item.productId, stock - item.quantity);\n   105 |     }\n   106 |   }\n   107 | \n   108 |   private async capture(order: Order, items: OrderItem[]): Promise<Order> {\n   109 |     try {\n   110 |       await this.payments.capture(order.id, order.totalCents);\n   111 |     } catch (err) {\n   112 |       await this.store.updateOrderStatus(order.id, 'payment_failed');\n   113 |       for (const i of items) await this.store.incrementStock(i.productId, i.quantity);\n   114 |       throw err;\n   115 |     }\n   116 |     await this.store.updateOrderStatus(order.id, 'paid');\n   117 |     return { ...order, status: 'paid' };\n   118 |   }\n   119 | \n   120 |   /** Responds immediately and captures payment in the background to cut checkout latency. */\n   121 |   private captureAsync(order: Order): Order {\n>> 122 |     void this.payments.capture(order.id, order.totalCents).then(() =>\n   123 |       this.store.updateOrderStatus(order.id, 'paid'),\n   124 |     );\n   125 |     return { ...order, status: 'paid' };\n   126 |   }\n   127 | }\n   128 | "
+      }
+    ]
+  }
+}

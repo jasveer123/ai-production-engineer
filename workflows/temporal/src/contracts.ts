@@ -15,12 +15,12 @@ export const TASK_QUEUES = {
   sandbox: 'sandbox',
 } as const;
 
-export const TEST_PROMPT_VERSION = 'reproduce_v1';
-export const PATCH_PROMPT_VERSION = 'patch_v1';
+export const TEST_PROMPT_VERSION = 'reproduce_v2';
+export const PATCH_PROMPT_VERSION = 'patch_v2';
 /** Patch attempts per fix version before giving up (Phase 5: bounded retries). */
 export const MAX_PATCH_ATTEMPTS = 3;
 
-export const PROMPT_VERSION = 'investigate_v1';
+export const PROMPT_VERSION = 'investigate_v2';
 
 export const incidentWorkflowId = (incidentId: string) => `incident-${incidentId}`;
 

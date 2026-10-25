@@ -1,0 +1,17 @@
+[Unit]
+Description=AI Production Engineer sandbox worker
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+User=sandbox
+Group=docker
+EnvironmentFile=/etc/ape/sandbox.env
+WorkingDirectory=/opt/ape/sandbox/current
+ExecStart=/opt/node/bin/node dist/worker.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

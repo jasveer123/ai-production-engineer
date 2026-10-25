@@ -35,7 +35,9 @@ CTX = FixContext.model_validate(
 GOOD_TEST = (
     "import { describe, it, expect } from 'vitest';\n"
     "import { CheckoutService } from '../src/services/checkout.js';\n"
-    "it('checks out without a coupon', async () => { expect(1).toBe(1); });\n"
+    "it('checks out without a coupon', async () => {\n"
+    "  expect(new CheckoutService().total(100)).toBe(100);\n"
+    "});\n"
 )
 
 

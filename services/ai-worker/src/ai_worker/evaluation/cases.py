@@ -26,6 +26,11 @@ class Expect(BaseModel):
     forbidden: list[str] = Field(default_factory=list)
     # Regexes that must not appear in what hypothesis 1 blames: its summary and suspected file.
     forbidden_top1: list[str] = Field(default_factory=list)
+    # The most confident rating a good answer may claim: some evidence cannot carry "high"
+    # (no code, code from another version, a minified stack).
+    max_confidence: Literal["low", "medium", "high"] | None = None
+    # Regexes that must appear nowhere in the report: a secret from the evidence echoed back.
+    forbidden_anywhere: list[str] = Field(default_factory=list)
 
 
 class Case(BaseModel):

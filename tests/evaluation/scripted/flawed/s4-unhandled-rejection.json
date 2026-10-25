@@ -1,0 +1,16 @@
+{
+  "observations": [],
+  "hypotheses": [
+    {
+      "rank": 1,
+      "summary": "The payment gateway is unreliable and should be replaced.",
+      "confidence": "medium",
+      "confidence_rationale": "Common cause.",
+      "supporting_evidence": ["E1"],
+      "contradicting_evidence": [],
+      "missing_information": [],
+      "suspected_location": null
+    }
+  ],
+  "data_gaps": []
+}

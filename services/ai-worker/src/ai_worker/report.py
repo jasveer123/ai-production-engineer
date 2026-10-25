@@ -62,6 +62,10 @@ class StoredReport(BaseModel):
     hypotheses: list[Hypothesis] = []
     data_gaps: list[str] = []
     rejected: list[Rejected] = []
+    # What the guardrails changed (ADR-024): weakened confidence, removed paths, scrubbed secrets.
+    adjustments: list[str] = []
+    # What was done to the evidence before the model saw it: redactions, injection flags, caps.
+    input_notes: list[str] = []
     usage: Usage = Usage()
 
 

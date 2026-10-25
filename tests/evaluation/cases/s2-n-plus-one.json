@@ -1,0 +1,64 @@
+{
+  "id": "s2-n-plus-one",
+  "scenario": "S2",
+  "description": "Latency symptom, no exception: one order_items query per order in the trace.",
+  "expect": {
+    "mode": "diagnose"
+  },
+  "bundle": {
+    "version": 1,
+    "investigationId": "s2-n-plus-one",
+    "incident": {
+      "id": "s2-n-plus-one-incident",
+      "severity": "medium",
+      "serviceName": "demo-shop-api",
+      "environment": "production",
+      "repositoryFullName": "jasveer123/demo-shop",
+      "title": "Slow response: GET /orders p95 2.4s (/orders)",
+      "firstSeenAt": "2026-10-20T16:30:00.000Z",
+      "lastSeenAt": "2026-10-20T16:45:00.000Z",
+      "eventCount": 52
+    },
+    "note": null,
+    "coverage": {
+      "error_events": 52,
+      "traces": "ok",
+      "deploys": 0,
+      "code": 1,
+      "code_ref": "4f6c2a9e1b7d3c5a8e0f2b4d6a8c0e2f4a6b8d0c",
+      "commits": 0,
+      "logs": "not_supported",
+      "metrics": "not_supported",
+      "redactions": 0
+    },
+    "items": [
+      {
+        "ref": "E1",
+        "id": "s2-n-plus-one-e1",
+        "sourceUrl": null,
+        "kind": "error_event",
+        "title": "Recent occurrence at 2026-10-20T16:45:00.000Z",
+        "source": "otel_jaeger",
+        "content": "Slow response: GET /orders p95 2.4s (/orders)\noccurred_at: 2026-10-20T16:45:00.000Z\noperation: GET /orders route: /orders status: 200\ntrace_id: ab12cd34ef56ab78cd90ef1234567890\nstack:\n(no stack trace)"
+      },
+      {
+        "ref": "E2",
+        "id": "s2-n-plus-one-e2",
+        "sourceUrl": null,
+        "kind": "trace",
+        "title": "Trace ab12cd34ef56 (28 spans)",
+        "source": "otel_jaeger",
+        "content": "+0ms demo-shop-api GET /orders (2410ms) status=200\n+1ms demo-shop-api pg.query:SELECT orders (3ms)\n+2ms demo-shop-api pg.query:SELECT order_items (1ms)\n+3ms demo-shop-api pg.query:SELECT order_items (2ms)\n+4ms demo-shop-api pg.query:SELECT order_items (3ms)\n+5ms demo-shop-api pg.query:SELECT order_items (1ms)\n+6ms demo-shop-api pg.query:SELECT order_items (2ms)\n+7ms demo-shop-api pg.query:SELECT order_items (3ms)\n+8ms demo-shop-api pg.query:SELECT order_items (1ms)\n+9ms demo-shop-api pg.query:SELECT order_items (2ms)\n+10ms demo-shop-api pg.query:SELECT order_items (3ms)\n+11ms demo-shop-api pg.query:SELECT order_items (1ms)\n+12ms demo-shop-api pg.query:SELECT order_items (2ms)\n+13ms demo-shop-api pg.query:SELECT order_items (3ms)\n+14ms demo-shop-api pg.query:SELECT order_items (1ms)\n+15ms demo-shop-api pg.query:SELECT order_items (2ms)\n+16ms demo-shop-api pg.query:SELECT order_items (3ms)\n+17ms demo-shop-api pg.query:SELECT order_items (1ms)\n+18ms demo-shop-api pg.query:SELECT order_items (2ms)\n+19ms demo-shop-api pg.query:SELECT order_items (3ms)\n+20ms demo-shop-api pg.query:SELECT order_items (1ms)\n+21ms demo-shop-api pg.query:SELECT order_items (2ms)\n+22ms demo-shop-api pg.query:SELECT order_items (3ms)\n+23ms demo-shop-api pg.query:SELECT order_items (1ms)\n+24ms demo-shop-api pg.query:SELECT order_items (2ms)\n+25ms demo-shop-api pg.query:SELECT order_items (3ms)\n+26ms demo-shop-api pg.query:SELECT order_items (1ms)"
+      },
+      {
+        "ref": "E3",
+        "id": "s2-n-plus-one-e3",
+        "sourceUrl": null,
+        "kind": "code",
+        "title": "api/src/services/orders.ts:16 (OrdersService.list)",
+        "source": "github",
+        "content": "jasveer123/demo-shop @ 4f6c2a9e1b7d3c5a8e0f2b4d6a8c0e2f4a6b8d0c\napi/src/services/orders.ts lines 1-28 (>> marks the failing line)\n    1 | import type { FeatureFlags } from '../config.js';\n    2 | import { AppError, type Order } from '../domain.js';\n    3 | import type { Store } from '../repositories/store.js';\n    4 | \n    5 | export class OrdersService {\n    6 |   constructor(\n    7 |     private readonly store: Store,\n    8 |     private readonly flags: Pick<FeatureFlags, 'FF_ORDER_ITEMS_INLINE'>,\n    9 |   ) {}\n   10 | \n   11 |   async list(offset = 0, limit = 50): Promise<Order[]> {\n   12 |     if (this.flags.FF_ORDER_ITEMS_INLINE) {\n   13 |       // Admin dashboard wants items inline; reuse the per-order lookup.\n   14 |       const orders = await this.store.listOrders(offset, limit);\n   15 |       const result: Order[] = [];\n>> 16 |       for (const o of orders) result.push({ ...o, items: await this.store.getOrderItems(o.id) });\n   17 |       return result;\n   18 |     }\n   19 |     return this.store.listOrdersWithItems(offset, limit);\n   20 |   }\n   21 | \n   22 |   async get(id: number): Promise<Order> {\n   23 |     const order = await this.store.getOrder(id);\n   24 |     if (!order) throw new AppError(404, 'order_not_found', 'Order not found');\n   25 |     return order;\n   26 |   }\n   27 | }\n   28 | "
+      }
+    ]
+  }
+}

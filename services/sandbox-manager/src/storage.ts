@@ -7,14 +7,21 @@ import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3
 import * as tar from 'tar';
 import { workRoot } from './runner';
 
+// Local: RustFS with static keys (defaults below). AWS: set S3_USE_AWS=true and the instance role
+// supplies credentials.
+const useAws = process.env.S3_USE_AWS === 'true';
 const s3 = new S3Client({
-  endpoint: process.env.S3_ENDPOINT ?? 'http://localhost:9000',
-  region: 'us-east-1',
-  forcePathStyle: true,
-  credentials: {
-    accessKeyId: process.env.S3_ACCESS_KEY ?? 'ape-minio',
-    secretAccessKey: process.env.S3_SECRET_KEY ?? 'ape-minio-secret',
-  },
+  region: process.env.S3_REGION ?? 'us-east-1',
+  ...(useAws
+    ? {}
+    : {
+        endpoint: process.env.S3_ENDPOINT ?? 'http://localhost:9000',
+        forcePathStyle: true,
+        credentials: {
+          accessKeyId: process.env.S3_ACCESS_KEY ?? 'ape-minio',
+          secretAccessKey: process.env.S3_SECRET_KEY ?? 'ape-minio-secret',
+        },
+      }),
 });
 const bucket = () => process.env.S3_BUCKET ?? 'ape-artifacts';
 

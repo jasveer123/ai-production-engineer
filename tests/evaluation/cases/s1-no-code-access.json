@@ -1,0 +1,74 @@
+{
+  "id": "s1-no-code-access",
+  "scenario": "S1",
+  "description": "The stack names the file and function but the repository is not connected: cap at medium.",
+  "expect": {
+    "mode": "diagnose",
+    "max_confidence": "medium"
+  },
+  "bundle": {
+    "version": 1,
+    "investigationId": "s1-no-code-access",
+    "incident": {
+      "id": "s1-no-code-access-incident",
+      "severity": "high",
+      "serviceName": "demo-shop-api",
+      "environment": "production",
+      "repositoryFullName": "jasveer123/demo-shop",
+      "title": "TypeError: Cannot read properties of undefined (reading 'percentOff') (/checkout)",
+      "firstSeenAt": "2026-10-18T20:25:05.431Z",
+      "lastSeenAt": "2026-10-18T20:25:35.120Z",
+      "eventCount": 210
+    },
+    "note": null,
+    "coverage": {
+      "error_events": 210,
+      "traces": "ok",
+      "deploys": 1,
+      "code": "unavailable: repository not connected",
+      "code_ref": "4f6c2a9e1b7d3c5a8e0f2b4d6a8c0e2f4a6b8d0c",
+      "commits": "unavailable",
+      "logs": "not_supported",
+      "metrics": "not_supported",
+      "redactions": 0
+    },
+    "items": [
+      {
+        "ref": "E1",
+        "id": "s1-no-code-access-e1",
+        "sourceUrl": null,
+        "kind": "error_event",
+        "title": "Recent occurrence at 2026-10-18T20:25:35.120Z",
+        "source": "otel_jaeger",
+        "content": "TypeError: Cannot read properties of undefined (reading 'percentOff') (/checkout)\noccurred_at: 2026-10-18T20:25:35.120Z\noperation: POST /checkout route: /checkout status: 500\ntrace_id: 7d1e0c6b2a9f4e3d8c7b6a5f4e3d2c1b\nstack:\nat CheckoutService.discountV2 (/app/api/src/services/checkout.ts:81:46)\nat async CheckoutService.checkout (/app/api/src/services/checkout.ts:45:9)\nat async /app/api/src/app.ts:97:19"
+      },
+      {
+        "ref": "E2",
+        "id": "s1-no-code-access-e2",
+        "sourceUrl": null,
+        "kind": "error_event",
+        "title": "First occurrence at 2026-10-18T20:25:05.431Z",
+        "source": "otel_jaeger",
+        "content": "TypeError: Cannot read properties of undefined (reading 'percentOff') (/checkout)\noccurred_at: 2026-10-18T20:25:05.431Z\noperation: POST /checkout route: /checkout status: 500\ntrace_id: 1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d\nstack:\nat CheckoutService.discountV2 (/app/api/src/services/checkout.ts:81:46)\nat async CheckoutService.checkout (/app/api/src/services/checkout.ts:45:9)\nat async /app/api/src/app.ts:97:19"
+      },
+      {
+        "ref": "E3",
+        "id": "s1-no-code-access-e3",
+        "sourceUrl": null,
+        "kind": "trace",
+        "title": "Trace 7d1e0c6b2a9f (3 spans)",
+        "source": "otel_jaeger",
+        "content": "+0ms demo-shop-api POST /checkout (4ms) status=500 ERROR exception=\"Cannot read properties of undefined (reading 'percentOff')\"\n+1ms demo-shop-api pg.query:SELECT shop (1ms)\n+3ms demo-shop-api pg.query:SELECT shop (1ms)"
+      },
+      {
+        "ref": "E4",
+        "id": "s1-no-code-access-e4",
+        "sourceUrl": null,
+        "kind": "deploy",
+        "title": "Deploy v1.1.0 at 2026-10-18T20:22:11.000Z",
+        "source": "deploy_webhook",
+        "content": "service: demo-shop-api environment: production\nversion: v1.1.0 commit: 4f6c2a9e1b7d3c5a8e0f2b4d6a8c0e2f4a6b8d0c\ndeployed_at: 2026-10-18T20:22:11.000Z\nThe first error of this incident happened 2 minute(s) after this deploy."
+      }
+    ]
+  }
+}

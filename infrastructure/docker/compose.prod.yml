@@ -1,0 +1,119 @@
+# Stage 1 runtime (ADR-026): everything on one app host. Written to /srv/ape/ by deploy.sh.
+# Image names and secrets come from /srv/ape/.env, which deploy.sh builds from SSM.
+name: ape
+
+x-restart: &restart
+  restart: unless-stopped
+x-logging: &logging
+  logging:
+    driver: json-file
+    options: { max-size: 10m, max-file: '3' }
+
+services:
+  caddy:
+    <<: [*restart, *logging]
+    image: caddy:2.11.7
+    ports: ['80:80']
+    environment:
+      ORIGIN_VERIFY: ${ORIGIN_VERIFY}
+    volumes: [./Caddyfile:/etc/caddy/Caddyfile:ro]
+    depends_on: [web, api]
+
+  web:
+    <<: [*restart, *logging]
+    image: ${REGISTRY}/ape-web:${TAG}
+    mem_limit: 384m
+
+  api:
+    <<: [*restart, *logging]
+    image: ${REGISTRY}/ape-api:${TAG}
+    env_file: [.env]
+    volumes: [/srv/ape/secrets:/run/secrets:ro]
+    mem_limit: 640m
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  api-worker:
+    <<: [*restart, *logging]
+    image: ${REGISTRY}/ape-api:${TAG}
+    command: ['node', 'dist/worker.js']
+    env_file: [.env]
+    volumes: [/srv/ape/secrets:/run/secrets:ro]
+    mem_limit: 384m
+    depends_on: [api, temporal]
+    healthcheck: { disable: true }
+
+  ai-worker:
+    <<: [*restart, *logging]
+    image: ${REGISTRY}/ape-ai-worker:${TAG}
+    env_file: [.env]
+    mem_limit: 256m
+
+  ai-temporal-worker:
+    <<: [*restart, *logging]
+    image: ${REGISTRY}/ape-ai-worker:${TAG}
+    command: ['python', '-m', 'ai_worker.temporal_worker']
+    env_file: [.env]
+    mem_limit: 384m
+    depends_on: [temporal]
+    healthcheck: { disable: true }
+
+  # One-off, run by deploy.sh before the new version starts: `compose run --rm migrate`.
+  migrate:
+    image: ${REGISTRY}/ape-migrate:${TAG}
+    profiles: [tools]
+    env_file: [.env]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  postgres:
+    <<: [*restart, *logging]
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ape
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ape
+    volumes: [/srv/ape/data/postgres:/var/lib/postgresql/data]
+    mem_limit: 512m
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ape -d ape']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    <<: [*restart, *logging]
+    image: redis:7
+    command: ['redis-server', '--appendonly', 'yes', '--maxmemory', '128mb']
+    volumes: [/srv/ape/data/redis:/data]
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Stage 1 uses the single-node dev server persisted on the data volume. Stage 2 moves
+  # Temporal to a Postgres-backed deployment (see ADR-026).
+  temporal:
+    <<: [*restart, *logging]
+    image: temporalio/temporal:1.9.1
+    user: root
+    command: ['server', 'start-dev', '--ip', '0.0.0.0', '--db-filename', '/data/temporal.db']
+    ports: ['${PRIVATE_IP}:7233:7233']
+    volumes: [/srv/ape/data/temporal:/data]
+    mem_limit: 384m
+
+  jaeger:
+    <<: [*restart, *logging]
+    image: jaegertracing/all-in-one:1.76.0
+    environment: { COLLECTOR_OTLP_ENABLED: 'true' }
+    mem_limit: 192m
+
+  otel-collector:
+    <<: [*restart, *logging]
+    image: otel/opentelemetry-collector-contrib:0.163.2
+    command: ['--config=/etc/otelcol/config.yaml']
+    volumes: [./otel-collector.yaml:/etc/otelcol/config.yaml:ro]
+    depends_on: [jaeger]
+    mem_limit: 128m

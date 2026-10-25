@@ -1,0 +1,54 @@
+{
+  "id": "expected-declined-card",
+  "scenario": null,
+  "description": "HTTP 402 card declines are normal customer behaviour, not a defect: abstain.",
+  "expect": {
+    "mode": "abstain"
+  },
+  "bundle": {
+    "version": 1,
+    "investigationId": "expected-declined-card",
+    "incident": {
+      "id": "expected-declined-card-incident",
+      "severity": "high",
+      "serviceName": "demo-shop-api",
+      "environment": "production",
+      "repositoryFullName": "jasveer123/demo-shop",
+      "title": "AppError: Card declined (/checkout)",
+      "firstSeenAt": "2026-10-20T10:05:02.000Z",
+      "lastSeenAt": "2026-10-20T10:05:30.000Z",
+      "eventCount": 14
+    },
+    "note": null,
+    "coverage": {
+      "error_events": 14,
+      "traces": "ok",
+      "deploys": 0,
+      "code": 0,
+      "commits": 0,
+      "logs": "not_supported",
+      "metrics": "not_supported",
+      "redactions": 0
+    },
+    "items": [
+      {
+        "ref": "E1",
+        "id": "expected-declined-card-e1",
+        "sourceUrl": null,
+        "kind": "error_event",
+        "title": "Recent occurrence at 2026-10-20T10:05:30.000Z",
+        "source": "otel_jaeger",
+        "content": "AppError: Card declined (/checkout)\noccurred_at: 2026-10-20T10:05:30.000Z\noperation: POST /checkout route: /checkout status: 402\ntrace_id: dd11ee22ff33aa44bb55cc6600112233\nstack:\n(no stack trace)"
+      },
+      {
+        "ref": "E2",
+        "id": "expected-declined-card-e2",
+        "sourceUrl": null,
+        "kind": "error_event",
+        "title": "First occurrence at 2026-10-20T10:05:02.000Z",
+        "source": "otel_jaeger",
+        "content": "AppError: Card declined (/checkout)\noccurred_at: 2026-10-20T10:05:02.000Z\noperation: POST /checkout route: /checkout status: 402\ntrace_id: cc00dd11ee22ff33aa44bb5500112233\nstack:\n(no stack trace)"
+      }
+    ]
+  }
+}
