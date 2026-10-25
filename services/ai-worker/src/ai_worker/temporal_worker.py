@@ -18,6 +18,14 @@ from ai_worker.telemetry import setup_tracing
 
 log = logging.getLogger("ai_worker")
 
+# The workflow gives every AI activity this many tries (workflows/temporal/src/workflows.ts).
+# On the last one a model outage ends the step with a reason a person can read.
+MAX_ACTIVITY_ATTEMPTS = 3
+
+
+def _final_attempt() -> bool:
+    return activity.info().attempt >= MAX_ACTIVITY_ATTEMPTS
+
 
 class InvestigateActivities:
     def __init__(self, store: ArtifactStore, provider: ModelProvider) -> None:
@@ -28,7 +36,9 @@ class InvestigateActivities:
     async def investigate(self, raw: dict[str, Any]) -> dict[str, Any]:
         inp = InvestigateInput.model_validate(raw)
         bundle = EvidenceBundle.model_validate(await self.store.get_json(inp.bundle_ref))
-        report = await run_investigation(bundle, self.provider, inp.prompt_version)
+        report = await run_investigation(
+            bundle, self.provider, inp.prompt_version, final_attempt=_final_attempt()
+        )
         ref = await self.store.put_json(
             f"reports/{inp.workspace_id}/{inp.investigation_id}/report.json",
             report.model_dump(mode="json"),
@@ -48,7 +58,9 @@ class InvestigateActivities:
     @activity.defn(name="generateTest")
     async def generate_test(self, raw: dict[str, Any]) -> dict[str, Any]:
         ctx = FixContext.model_validate(await self.store.get_json(raw["contextRef"]))
-        out, problem, usage = await generate_test(ctx, self.provider, raw["promptVersion"])
+        out, problem, usage = await generate_test(
+            ctx, self.provider, raw["promptVersion"], final_attempt=_final_attempt()
+        )
         if out is None:
             log.warning("generateTest %s failed: %s", raw["fixProposalId"], problem)
             return {"status": "failed", "reason": problem, "testRef": None, "rationale": None}
@@ -70,7 +82,13 @@ class InvestigateActivities:
         run = await self.store.get_json(raw["failureRef"])
         failure = f"{run.get('stdout', '')}\n{run.get('stderr', '')}"
         out, problem, usage = await generate_patch(
-            ctx, test, failure, raw.get("feedback"), self.provider, raw["promptVersion"]
+            ctx,
+            test,
+            failure,
+            raw.get("feedback"),
+            self.provider,
+            raw["promptVersion"],
+            final_attempt=_final_attempt(),
         )
         if out is None:
             log.warning("generatePatch %s failed: %s", raw["fixProposalId"], problem)
@@ -103,6 +121,14 @@ async def main() -> None:
         provider.name,
         settings.gemini_model if provider.name == "gemini" else settings.ai_model,
     )
+    if provider.name == "anthropic":
+        log.info(
+            "fix steps use %s (effort %s); investigations use %s (effort %s)",
+            settings.ai_fix_model or settings.ai_model,
+            settings.ai_fix_effort or settings.ai_effort,
+            settings.ai_model,
+            settings.ai_effort,
+        )
     await worker.run()
 
 

@@ -1,0 +1,29 @@
+{
+  "observations": [
+    {
+      "statement": "GET /orders took about 2.4 seconds and the trace shows one order_items query per order",
+      "evidence": ["E1", "E2"]
+    },
+    {
+      "statement": "OrdersService.list calls getOrderItems inside a loop over orders",
+      "evidence": ["E3"]
+    }
+  ],
+  "hypotheses": [
+    {
+      "rank": 1,
+      "summary": "OrdersService.list runs an N+1 query: it calls getOrderItems once per order inside a loop, so latency grows with the page size.",
+      "confidence": "high",
+      "confidence_rationale": "The trace shows many repeated order_items queries and the code shows the per-order call in a loop.",
+      "supporting_evidence": ["E2", "E3"],
+      "contradicting_evidence": [],
+      "missing_information": [],
+      "suspected_location": {
+        "file": "api/src/services/orders.ts",
+        "line": null,
+        "symbol": "list"
+      }
+    }
+  ],
+  "data_gaps": ["No query timing from the database was collected."]
+}

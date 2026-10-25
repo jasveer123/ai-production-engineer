@@ -1,0 +1,45 @@
+{
+  "id": "alert-only",
+  "scenario": null,
+  "description": "Only a threshold alert arrived: no stack, trace or code. Abstain and list what is missing.",
+  "expect": {
+    "mode": "abstain"
+  },
+  "bundle": {
+    "version": 1,
+    "investigationId": "alert-only",
+    "incident": {
+      "id": "alert-only-incident",
+      "severity": "high",
+      "serviceName": "demo-shop-api",
+      "environment": "production",
+      "repositoryFullName": null,
+      "title": "5xx rate above 5% on demo-shop-api",
+      "firstSeenAt": "2026-10-20T14:00:00.000Z",
+      "lastSeenAt": "2026-10-20T14:10:00.000Z",
+      "eventCount": 1
+    },
+    "note": null,
+    "coverage": {
+      "error_events": 0,
+      "traces": "empty",
+      "deploys": 0,
+      "code": "unavailable",
+      "commits": "unavailable",
+      "logs": "not_supported",
+      "metrics": "not_supported",
+      "redactions": 0
+    },
+    "items": [
+      {
+        "ref": "E1",
+        "id": "alert-only-e1",
+        "sourceUrl": null,
+        "kind": "alert",
+        "title": "5xx rate above 5% on demo-shop-api",
+        "source": "alertmanager",
+        "content": "alert: HighErrorRate\nseverity: critical\nvalue: 7.4% over 10m\nthreshold: 5%"
+      }
+    ]
+  }
+}

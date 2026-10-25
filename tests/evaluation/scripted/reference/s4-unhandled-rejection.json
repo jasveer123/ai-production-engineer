@@ -1,0 +1,29 @@
+{
+  "observations": [
+    {
+      "statement": "An unhandled promise rejection reports a payment gateway timeout from captureAsync",
+      "evidence": ["E1"]
+    },
+    {
+      "statement": "captureAsync starts payments.capture with void and returns the order as paid without awaiting it",
+      "evidence": ["E2"]
+    }
+  ],
+  "hypotheses": [
+    {
+      "rank": 1,
+      "summary": "captureAsync in checkout.ts fires payments.capture in the background without awaiting or catching it, so a gateway timeout becomes an unhandled rejection while the order is already reported as paid.",
+      "confidence": "high",
+      "confidence_rationale": "The stack names captureAsync and the code shows the unawaited call and the early paid status.",
+      "supporting_evidence": ["E1", "E2"],
+      "contradicting_evidence": [],
+      "missing_information": [],
+      "suspected_location": {
+        "file": "api/src/services/checkout.ts",
+        "line": null,
+        "symbol": "captureAsync"
+      }
+    }
+  ],
+  "data_gaps": []
+}

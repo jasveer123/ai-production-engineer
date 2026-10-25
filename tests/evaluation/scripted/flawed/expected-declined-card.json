@@ -1,0 +1,20 @@
+{
+  "observations": [],
+  "hypotheses": [
+    {
+      "rank": 1,
+      "summary": "The payment service has a bug that returns 402 on checkout.",
+      "confidence": "high",
+      "confidence_rationale": "Common cause.",
+      "supporting_evidence": ["E1"],
+      "contradicting_evidence": [],
+      "missing_information": [],
+      "suspected_location": {
+        "file": "api/src/services/payment-gateway.ts",
+        "line": null,
+        "symbol": "capture"
+      }
+    }
+  ],
+  "data_gaps": []
+}

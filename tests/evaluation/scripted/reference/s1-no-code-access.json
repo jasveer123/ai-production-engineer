@@ -1,0 +1,31 @@
+{
+  "observations": [
+    {
+      "statement": "POST /checkout fails with a TypeError reading percentOff of undefined in discountV2 in checkout.ts",
+      "evidence": ["E1", "E2"]
+    },
+    {
+      "statement": "Errors began two minutes after deploy v1.1.0",
+      "evidence": ["E4"]
+    }
+  ],
+  "hypotheses": [
+    {
+      "rank": 1,
+      "summary": "discountV2 in checkout.ts reads percentOff from an undefined coupon, most likely a promotion lookup that returns nothing when no coupon code is sent.",
+      "confidence": "medium",
+      "confidence_rationale": "The stack trace names the function and property but the code was not available to confirm the lookup.",
+      "supporting_evidence": ["E1", "E3", "E4"],
+      "contradicting_evidence": [],
+      "missing_information": ["The source of discountV2"],
+      "suspected_location": {
+        "file": "/app/api/src/services/checkout.ts",
+        "line": null,
+        "symbol": "discountV2"
+      }
+    }
+  ],
+  "data_gaps": [
+    "Code evidence is unavailable because the repository is not connected, so the exact cause in discountV2 is not confirmed."
+  ]
+}

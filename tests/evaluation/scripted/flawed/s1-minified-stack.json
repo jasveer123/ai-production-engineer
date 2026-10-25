@@ -1,0 +1,20 @@
+{
+  "observations": [],
+  "hypotheses": [
+    {
+      "rank": 1,
+      "summary": "discountV2 dereferences an undefined coupon: promotions.get(code ?? '') returns undefined when no coupon code is sent, so promo.percentOff throws a TypeError.",
+      "confidence": "high",
+      "confidence_rationale": "Common cause.",
+      "supporting_evidence": ["E1", "E5"],
+      "contradicting_evidence": [],
+      "missing_information": [],
+      "suspected_location": {
+        "file": "api/src/services/checkout.ts",
+        "line": 81,
+        "symbol": "discountV2"
+      }
+    }
+  ],
+  "data_gaps": []
+}

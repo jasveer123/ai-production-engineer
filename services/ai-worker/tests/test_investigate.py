@@ -201,3 +201,53 @@ def test_schema_closes_every_object() -> None:
                 walk(v)
 
     walk(OUTPUT_SCHEMA)
+
+
+class Recorder:
+    """Returns queued texts and records what it was asked."""
+
+    name = "recorder"
+
+    def __init__(self, *texts: str) -> None:
+        self.texts = list(texts)
+        self.users: list[str] = []
+
+    async def structured(self, **kw: Any) -> ModelCall:
+        self.users.append(kw["user"])
+        return ModelCall(
+            text=self.texts.pop(0),
+            model="m",
+            input_tokens=1,
+            output_tokens=1,
+            cost_usd=0.0,
+            latency_ms=1,
+        )
+
+
+async def test_empty_evidence_does_not_call_the_model() -> None:
+    empty = BUNDLE.model_copy(update={"items": []})
+    rec = Recorder()
+    report = await run_investigation(empty, rec, "investigate_v2")
+    assert report.status == "needs_review" and report.reason == "no_evidence"
+    assert rec.users == []
+
+
+async def test_retry_tells_the_model_why_the_first_answer_was_rejected() -> None:
+    rec = Recorder("not json", json.dumps({"observations": [], "hypotheses": [], "data_gaps": []}))
+    report = await run_investigation(BUNDLE, rec, "investigate_v2")
+    assert len(rec.users) == 2 and "previous answer was rejected" in rec.users[1]
+    assert "previous answer was rejected" not in rec.users[0]
+    assert report.reason == "no_supported_hypotheses"
+
+
+async def test_final_attempt_turns_a_transient_outage_into_a_clear_result() -> None:
+    class Down:
+        name = "down"
+
+        async def structured(self, **kw: Any) -> ModelCall:
+            raise ModelUnavailable("503")
+
+    with pytest.raises(ModelUnavailable):
+        await run_investigation(BUNDLE, Down(), "investigate_v2")
+    report = await run_investigation(BUNDLE, Down(), "investigate_v2", final_attempt=True)
+    assert report.status == "needs_review" and report.reason == "model_unavailable"

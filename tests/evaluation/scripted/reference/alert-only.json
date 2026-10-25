@@ -1,0 +1,13 @@
+{
+  "observations": [
+    {
+      "statement": "An alert reports a 5xx rate of 7.4 percent over 10 minutes on demo-shop-api",
+      "evidence": ["E1"]
+    }
+  ],
+  "hypotheses": [],
+  "data_gaps": [
+    "No stack trace, trace, log or code evidence was collected, so no cause can be named.",
+    "The alert does not say which route is failing."
+  ]
+}

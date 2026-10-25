@@ -1,0 +1,16 @@
+{
+  "observations": [],
+  "hypotheses": [
+    {
+      "rank": 1,
+      "summary": "The database server is under-provisioned and needs more CPU.",
+      "confidence": "medium",
+      "confidence_rationale": "Common cause.",
+      "supporting_evidence": ["E2"],
+      "contradicting_evidence": [],
+      "missing_information": [],
+      "suspected_location": null
+    }
+  ],
+  "data_gaps": []
+}

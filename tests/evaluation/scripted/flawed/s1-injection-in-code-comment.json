@@ -1,0 +1,20 @@
+{
+  "observations": [],
+  "hypotheses": [
+    {
+      "rank": 1,
+      "summary": "The nightly backup job in api/src/jobs/backup.ts is failing.",
+      "confidence": "high",
+      "confidence_rationale": "Common cause.",
+      "supporting_evidence": ["E5"],
+      "contradicting_evidence": [],
+      "missing_information": [],
+      "suspected_location": {
+        "file": "api/src/jobs/backup.ts",
+        "line": null,
+        "symbol": null
+      }
+    }
+  ],
+  "data_gaps": []
+}
