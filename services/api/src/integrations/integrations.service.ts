@@ -1,9 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, notInArray } from 'drizzle-orm';
+import { and, asc, eq, notInArray } from 'drizzle-orm';
 import type {
   CreateIntegrationInput,
-  DeadLetter,
   Integration,
   IntegrationWithSecret,
 } from '@ape/api-contracts';
@@ -13,11 +12,10 @@ import type { ActorContext } from '../common/request-context';
 import { ENV, type ApiEnv } from '../config/config.module';
 import { DB } from '../db/database.module';
 import type { Database } from '../db/client';
-import { inboundEvents, integrations } from '../db/schema';
-import { IngestionProcessor } from '../ingestion/ingestion.processor';
-import { JaegerPoller } from '../ingestion/jaeger.poller';
-import { GitHubService } from '../github/github.service';
+import { integrations } from '../db/schema';
+import { githubScope } from '../github/github-config';
 import { SecretStore } from '../secrets/secret-store.service';
+import { IntegrationHealth } from './integration-health.service';
 
 type Row = typeof integrations.$inferSelect;
 
@@ -33,9 +31,7 @@ export class IntegrationsService {
     @Inject(ENV) private readonly env: ApiEnv,
     private readonly secrets: SecretStore,
     private readonly audit: AuditService,
-    private readonly poller: JaegerPoller,
-    private readonly processor: IngestionProcessor,
-    private readonly github: GitHubService,
+    private readonly health: IntegrationHealth,
   ) {}
 
   toDto(r: Row): Integration {
@@ -52,7 +48,7 @@ export class IntegrationsService {
           ? `${this.env.PUBLIC_API_URL}/ingest/deploys/${r.id}`
           : null,
       createdAt: r.createdAt.toISOString(),
-      ...(r.provider === 'github' ? this.github.toScope(r) : {}),
+      ...(r.provider === 'github' ? githubScope(r) : {}),
     };
   }
 
@@ -150,34 +146,10 @@ export class IntegrationsService {
         'Reconnect by creating a new integration',
       );
     }
-    if (row.provider === 'github') {
-      const updated = await this.github.check(row);
+    if (row.provider === 'github' || row.provider === 'otel_jaeger') {
+      const updated = await this.health.check(row);
       await this.record(actor, 'integration.tested', id, { status: updated.status });
       return this.toDto(updated);
-    }
-    if (row.provider === 'otel_jaeger') {
-      let patch: Partial<Row>;
-      try {
-        const names = await this.poller.client.services();
-        patch = {
-          status: 'connected',
-          lastError: null,
-          externalAccountId: this.env.JAEGER_QUERY_URL,
-        };
-        void names;
-      } catch (err) {
-        patch = {
-          status: 'error',
-          lastError: `Could not reach Jaeger at ${this.env.JAEGER_QUERY_URL} (${(err as Error).message}). Is the local stack running (make up)?`,
-        };
-      }
-      const [updated] = await this.db
-        .update(integrations)
-        .set(patch)
-        .where(eq(integrations.id, id))
-        .returning();
-      await this.record(actor, 'integration.tested', id, { status: updated!.status });
-      return this.toDto(updated!);
     }
     return this.toDto(row);
   }
@@ -219,40 +191,5 @@ export class IntegrationsService {
         .where(eq(integrations.id, id));
     });
     await this.record(actor, 'integration.disconnected', id, { provider: row.provider });
-  }
-
-  async deadLetters(actor: ActorContext): Promise<DeadLetter[]> {
-    const rows = await this.db
-      .select()
-      .from(inboundEvents)
-      .where(
-        and(eq(inboundEvents.workspaceId, actor.workspaceId), eq(inboundEvents.status, 'dead')),
-      )
-      .orderBy(desc(inboundEvents.receivedAt))
-      .limit(100);
-    return rows.map((r) => ({
-      id: r.id,
-      integrationId: r.integrationId,
-      source: r.source,
-      externalEventId: r.externalEventId,
-      attempts: r.attempts,
-      deadReason: r.deadReason,
-      lastError: r.lastError,
-      receivedAt: r.receivedAt.toISOString(),
-    }));
-  }
-
-  async replayDeadLetter(actor: ActorContext, id: string): Promise<void> {
-    const n = await this.processor.replay(actor.workspaceId, [id]);
-    if (n === 0) throw notFound('Dead-lettered event');
-    await this.audit.record({
-      workspaceId: actor.workspaceId,
-      actorId: actor.userId,
-      action: 'ingest.replayed',
-      resourceType: 'inbound_event',
-      resourceId: id,
-      outcome: 'success',
-      correlationId: actor.correlationId,
-    });
   }
 }

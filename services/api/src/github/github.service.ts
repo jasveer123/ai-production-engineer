@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { and, eq, inArray, ne } from 'drizzle-orm';
-import type { GitHubOverview, Integration, RepoCommit, RepositoryAccess } from '@ape/api-contracts';
+import type { GitHubOverview, RepoCommit, RepositoryAccess } from '@ape/api-contracts';
 import { AuditService } from '../audit/audit.service';
 import { ApiException, conflict, notFound } from '../common/errors';
 import type { ActorContext } from '../common/request-context';
@@ -422,12 +422,5 @@ export class GitHubService {
       i.cfg.repositories.some((r) => r.toLowerCase() === repo.toLowerCase()),
     );
     return match?.cfg.installationId ?? null;
-  }
-
-  toScope(row: Row): Partial<Integration> {
-    const cfg = row.config as unknown as Partial<GitHubConfig>;
-    return {
-      scope: `Read code and history${cfg.repositories ? ` of ${cfg.repositories.length} repo(s): ${cfg.repositories.join(', ')}` : ''}. Writes only open a pull request on an ai-fix/* branch, after a human approves a validated fix.`,
-    };
   }
 }

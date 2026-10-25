@@ -21,12 +21,16 @@ import type { ActorContext } from '../common/request-context';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { MinRole } from '../workspaces/min-role.decorator';
 import { WorkspaceAccessGuard } from '../workspaces/workspace-access.guard';
+import { DeadLettersService } from './dead-letters.service';
 import { IntegrationsService } from './integrations.service';
 
 @Controller('workspaces/:workspaceId')
 @UseGuards(WorkspaceAccessGuard)
 export class IntegrationsController {
-  constructor(private readonly svc: IntegrationsService) {}
+  constructor(
+    private readonly svc: IntegrationsService,
+    private readonly deadLetterQueue: DeadLettersService,
+  ) {}
 
   @Get('integrations')
   list(@Actor() actor: ActorContext): Promise<Integration[]> {
@@ -75,13 +79,13 @@ export class IntegrationsController {
   @Get('ingest/dead-letters')
   @MinRole('admin')
   deadLetters(@Actor() actor: ActorContext): Promise<DeadLetter[]> {
-    return this.svc.deadLetters(actor);
+    return this.deadLetterQueue.deadLetters(actor);
   }
 
   @Post('ingest/dead-letters/:eventId/replay')
   @MinRole('admin')
   @HttpCode(204)
   replay(@Actor() actor: ActorContext, @Param('eventId', ParseUUIDPipe) id: string): Promise<void> {
-    return this.svc.replayDeadLetter(actor, id);
+    return this.deadLetterQueue.replayDeadLetter(actor, id);
   }
 }

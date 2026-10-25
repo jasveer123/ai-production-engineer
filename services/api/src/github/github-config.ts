@@ -1,5 +1,6 @@
 import { HttpStatus } from '@nestjs/common';
 import { ApiException } from '../common/errors';
+import type { Integration } from '@ape/api-contracts';
 import type { integrations } from '../db/schema';
 
 export type IntegrationRow = typeof integrations.$inferSelect;
@@ -58,4 +59,12 @@ export function manageUrl(
   return cfg.accountType === 'Organization'
     ? `https://github.com/organizations/${cfg.accountLogin}/settings/installations/${cfg.installationId}`
     : `https://github.com/settings/installations/${cfg.installationId}`;
+}
+
+/** What a connected GitHub integration is allowed to do, in words, for the integrations list. */
+export function githubScope(row: IntegrationRow): Partial<Integration> {
+  const cfg = row.config as unknown as Partial<GitHubConfig>;
+  return {
+    scope: `Read code and history${cfg.repositories ? ` of ${cfg.repositories.length} repo(s): ${cfg.repositories.join(', ')}` : ''}. Writes only open a pull request on an ai-fix/* branch, after a human approves a validated fix.`,
+  };
 }
