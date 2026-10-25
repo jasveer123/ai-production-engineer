@@ -6,15 +6,13 @@ import { newLinkToken, sha256 } from '../auth/password';
 import { ENV, type ApiEnv } from '../config/config.module';
 import { AuditService } from '../audit/audit.service';
 import { DB } from '../db/database.module';
-import type { Database } from '../db/client';
+import type { Database, Tx } from '../db/client';
 import { users, workspaceInvitations, workspaceMembers } from '../db/schema';
 import type { ActorContext } from '../common/request-context';
 import { ApiException, conflict, forbidden, notFound } from '../common/errors';
 import { canManageRole } from './roles';
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-
-type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 
 @Injectable()
 export class MembersService {

@@ -189,7 +189,6 @@ export class InvestigationsService {
     input: IncidentActionInput,
   ): Promise<IncidentInvestigation> {
     const inc = await this.incident(actor, incidentId);
-    const wf = { incidentId, workspaceId: actor.workspaceId };
     const state = await this.temporal.state(incidentId).catch(() => {
       throw new ApiException(
         HttpStatus.SERVICE_UNAVAILABLE,
@@ -197,69 +196,25 @@ export class InvestigationsService {
         'The workflow engine is not reachable',
       );
     });
-    const awaiting = state?.running && state.phase === 'awaiting_decision';
 
     if (input.action === 'investigate') {
-      if (state?.running && state.phase === 'investigating') {
-        throw new ApiException(
-          HttpStatus.CONFLICT,
-          'investigation_running',
-          'An investigation is already running',
-        );
-      }
-      const blocked = await this.usage.blockedReason(actor.workspaceId);
-      if (blocked) {
-        await this.usage.recordBlocked({
-          workspaceId: actor.workspaceId,
-          incidentId,
-          reason: blocked,
-          actorId: actor.userId,
-          correlationId: actor.correlationId,
-        });
-        throw new ApiException(
-          HttpStatus.CONFLICT,
-          'usage_limit_reached',
-          `Investigation not started: ${blocked}`,
-        );
-      }
-      await this.temporal.requestInvestigation(wf, actor.userId, input.note ?? null);
+      await this.requestInvestigation(actor, incidentId, state, input.note ?? null);
     } else {
-      if (!awaiting) {
+      if (!(state?.running && state.phase === 'awaiting_decision')) {
         throw new ApiException(
           HttpStatus.CONFLICT,
           'not_awaiting_decision',
           'Wait for the investigation to finish first',
         );
       }
-      if (input.action === 'approve_reproduction') {
-        const [latest] = await this.db
-          .select({ status: investigations.status })
-          .from(investigations)
-          .where(eq(investigations.incidentId, incidentId))
-          .orderBy(desc(investigations.createdAt))
-          .limit(1);
-        if (latest?.status !== 'completed') {
-          throw new ApiException(
-            HttpStatus.CONFLICT,
-            'no_report',
-            'Reproduction needs a completed report with hypotheses',
-          );
-        }
-        if (!inc.serviceId) {
-          throw new ApiException(
-            HttpStatus.CONFLICT,
-            'repository_not_mapped',
-            'Map the service to a repository first',
-          );
-        }
-        await this.temporal.approveReproduction(incidentId, actor.userId);
-      } else {
+      if (input.action === 'approve_reproduction')
+        await this.approveReproduction(actor, inc, incidentId);
+      else
         await this.temporal.dismiss(
           incidentId,
           actor.userId,
           input.note || 'Dismissed after investigation',
         );
-      }
     }
     await this.audit.record({
       workspaceId: actor.workspaceId,
@@ -272,6 +227,74 @@ export class InvestigationsService {
       metadata: { note: input.note ?? null, phase: state?.phase ?? null },
     });
     return this.forIncident(actor, incidentId);
+  }
+
+  private async requestInvestigation(
+    actor: ActorContext,
+    incidentId: string,
+    state: Awaited<ReturnType<TemporalService['state']>>,
+    note: string | null,
+  ): Promise<void> {
+    if (state?.running && state.phase === 'investigating') {
+      throw new ApiException(
+        HttpStatus.CONFLICT,
+        'investigation_running',
+        'An investigation is already running',
+      );
+    }
+    const blocked = await this.usage.blockedReason(actor.workspaceId);
+    if (blocked) {
+      await this.usage.recordBlocked({
+        workspaceId: actor.workspaceId,
+        incidentId,
+        reason: blocked,
+        actorId: actor.userId,
+        correlationId: actor.correlationId,
+      });
+      throw new ApiException(
+        HttpStatus.CONFLICT,
+        'usage_limit_reached',
+        `Investigation not started: ${blocked}`,
+      );
+    }
+    await this.temporal.requestInvestigation(
+      { incidentId, workspaceId: actor.workspaceId },
+      actor.userId,
+      note,
+    );
+  }
+
+  private async approveReproduction(
+    actor: ActorContext,
+    inc: { serviceId: string | null },
+    incidentId: string,
+  ): Promise<void> {
+    const [latest] = await this.db
+      .select({ status: investigations.status })
+      .from(investigations)
+      .where(
+        and(
+          eq(investigations.incidentId, incidentId),
+          eq(investigations.workspaceId, actor.workspaceId),
+        ),
+      )
+      .orderBy(desc(investigations.createdAt))
+      .limit(1);
+    if (latest?.status !== 'completed') {
+      throw new ApiException(
+        HttpStatus.CONFLICT,
+        'no_report',
+        'Reproduction needs a completed report with hypotheses',
+      );
+    }
+    if (!inc.serviceId) {
+      throw new ApiException(
+        HttpStatus.CONFLICT,
+        'repository_not_mapped',
+        'Map the service to a repository first',
+      );
+    }
+    await this.temporal.approveReproduction(incidentId, actor.userId);
   }
 
   /** An engineer's verdict on a hypothesis (Phase 9). Re-voting replaces the earlier verdict. */

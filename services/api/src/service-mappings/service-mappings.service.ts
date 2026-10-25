@@ -8,13 +8,12 @@ import type {
 } from '@ape/api-contracts';
 import { AuditService } from '../audit/audit.service';
 import { DB } from '../db/database.module';
-import type { Database } from '../db/client';
+import type { Database, Tx } from '../db/client';
 import { incidents, ingestStreams, services } from '../db/schema';
 import type { ActorContext } from '../common/request-context';
 import { conflict, isUniqueViolation, notFound } from '../common/errors';
 
 type Row = typeof services.$inferSelect;
-type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 
 /**
  * Incidents opened before their service was set up keep no link to it, so the AI could never read

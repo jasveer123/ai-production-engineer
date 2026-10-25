@@ -13,7 +13,7 @@ import type {
 import { AuditService } from '../audit/audit.service';
 import { ENV, type ApiEnv } from '../config/config.module';
 import { DB } from '../db/database.module';
-import type { Database } from '../db/client';
+import type { Database, Tx } from '../db/client';
 import {
   deployments,
   incidentEvents,
@@ -36,7 +36,6 @@ import {
   sameCommit,
 } from './recovery';
 
-type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 type IncidentRow = typeof incidents.$inferSelect;
 
 /** Statuses verification may act on. Anything else means a human (or a recurrence) took over. */

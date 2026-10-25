@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { and, count, eq, notInArray, sql } from 'drizzle-orm';
 import { CLOSED_STATUSES } from '@ape/api-contracts';
 import { AuditService } from '../audit/audit.service';
-import type { Database } from '../db/client';
+import type { Database, Tx } from '../db/client';
 import {
   alertRoutes,
   alerts,
@@ -15,7 +15,6 @@ import { openIncident } from '../ingestion/open-incident';
 import { parseAlerts, type ParsedAlert } from './parsers';
 import { groupFingerprint, groupKey, groupReason, matchRoute } from './routing';
 
-type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 type InboundRow = typeof inboundEvents.$inferSelect;
 type RouteRow = typeof alertRoutes.$inferSelect;
 type AlertRow = typeof alerts.$inferSelect;
