@@ -3,6 +3,7 @@
 import type { FixActionInput, PullRequestView, ValidationRunView } from '@ape/api-contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Banner } from '@/components/ui/banner';
 import { Button } from '@/components/ui/button';
@@ -44,7 +45,7 @@ export function IncidentFix({ id }: { id: string }) {
     onError: (e) => setError(errorMessage(e)),
   });
 
-  if (fixes.isPending) return <p className="text-ink-muted">Loading the fix…</p>;
+  if (fixes.isPending) return <ListSkeleton label="Loading the fix" />;
   if (fixes.isError)
     return (
       <Banner tone="danger" title="Could not load the fix.">

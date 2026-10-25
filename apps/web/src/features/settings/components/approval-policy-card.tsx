@@ -3,6 +3,7 @@
 import type { ApprovalPolicyInput } from '@ape/api-contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Banner } from '@/components/ui/banner';
 import { Card, CardHeader } from '@/components/ui/card';
 import { FormError, Select } from '@/components/ui/form';
@@ -40,7 +41,7 @@ export function ApprovalPolicyCard() {
     <Card as="section" className="grid content-start gap-4">
       <CardHeader eyebrow="Approvals" title="Who can approve opening a pull request" />
       {policy.isPending ? (
-        <p className="m-0 text-ink-muted">Loading policy…</p>
+        <ListSkeleton label="Loading policy" />
       ) : policy.isError ? (
         <Banner tone="danger" title="Could not load the approval policy.">
           {errorMessage(policy.error)}

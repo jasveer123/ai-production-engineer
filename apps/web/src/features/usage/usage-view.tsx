@@ -1,6 +1,7 @@
 'use client';
 
 import { useQueryClient } from '@tanstack/react-query';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Banner } from '@/components/ui/banner';
 import { PageHeader } from '@/components/ui/page-header';
 import { Table, Td, Th, Tr } from '@/components/ui/table';
@@ -35,7 +36,7 @@ export function UsageView() {
         description="AI and sandbox use by month, and the limits that stop costs from running away. Every investigation, automatic or manual, checks these limits before it starts."
       />
       {usage.isPending ? (
-        <p className="text-ink-muted">Loading usage…</p>
+        <ListSkeleton label="Loading usage" />
       ) : usage.isError ? (
         <Banner tone="danger" title="Could not load usage.">
           {errorMessage(usage.error)}

@@ -3,6 +3,7 @@
 import type { Integration, IntegrationWithSecret } from '@ape/api-contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { CodeSnippet } from '@/components/ui/code-snippet';
@@ -51,7 +52,7 @@ export function deployActionStep(service = 'checkout-api'): string {
 
 export function CodeCards() {
   const integrations = useIntegrations();
-  if (integrations.isPending) return <p className="text-ink-muted">Loading…</p>;
+  if (integrations.isPending) return <ListSkeleton label="Loading" />;
   if (integrations.isError)
     return <FormError>Could not load integrations: {errorMessage(integrations.error)}</FormError>;
   const live = integrations.data.filter((i) => i.status !== 'disconnected');

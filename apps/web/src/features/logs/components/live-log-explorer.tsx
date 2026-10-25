@@ -3,6 +3,7 @@
 import type { LogLine as ApiLogLine } from '@ape/api-contracts';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Banner } from '@/components/ui/banner';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -196,7 +197,7 @@ export function LiveLogExplorer() {
       </Card>
 
       {query.isPending ? (
-        <p className="text-ink-muted">Searching…</p>
+        <ListSkeleton label="Searching" />
       ) : lines.length > 0 ? (
         <>
           <LogViewer lines={lines} label="Log lines, newest first" />

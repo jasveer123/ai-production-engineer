@@ -10,6 +10,7 @@ import {
 } from '@ape/api-contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
 import { Banner } from '@/components/ui/banner';
 import { Button } from '@/components/ui/button';
@@ -129,7 +130,7 @@ export function SourcesView() {
       )}
 
       {sources.isPending ? (
-        <p className="text-ink-muted">Loading alert sources…</p>
+        <ListSkeleton label="Loading alert sources" />
       ) : sources.isError ? (
         <Banner tone="danger" title="Could not load alert sources.">
           {errorMessage(sources.error)}

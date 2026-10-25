@@ -4,6 +4,7 @@ import { SEVERITIES, severityRulesSchema, type SeverityRule } from '@ape/api-con
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useFieldArray } from 'react-hook-form';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Banner } from '@/components/ui/banner';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
@@ -56,7 +57,7 @@ export function SeverityRulesCard() {
         aside={<span className="text-[13px] text-ink-muted">First match wins</span>}
       />
       {rules.isPending ? (
-        <p className="m-0 text-ink-muted">Loading rules…</p>
+        <ListSkeleton label="Loading rules" />
       ) : rules.isError ? (
         <Banner tone="danger" title="Could not load severity rules.">
           {errorMessage(rules.error)}

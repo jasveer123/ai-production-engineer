@@ -3,6 +3,7 @@
 import type { ServiceImpact, ServiceValueInput } from '@ape/api-contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Banner } from '@/components/ui/banner';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { Card, Eyebrow } from '@/components/ui/card';
@@ -52,7 +53,7 @@ export function BusinessView() {
       />
 
       {impact.isPending ? (
-        <p className="text-ink-muted">Loading business impact…</p>
+        <ListSkeleton label="Loading business impact" />
       ) : impact.isError ? (
         <Banner tone="danger" title="Could not load business impact.">
           {errorMessage(impact.error)}

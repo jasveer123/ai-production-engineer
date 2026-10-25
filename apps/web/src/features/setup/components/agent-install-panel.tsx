@@ -1,5 +1,6 @@
 'use client';
 
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { CodeSnippet } from '@/components/ui/code-snippet';
 import { useRevealedToken } from '@/features/integrations/token-context';
 import { useSetupCapabilities } from '../queries';
@@ -8,7 +9,7 @@ import { useSetupCapabilities } from '../queries';
 export function AgentInstallPanel() {
   const caps = useSetupCapabilities();
   const { snippetToken } = useRevealedToken();
-  if (!caps.data) return <p className="m-0 text-[13px] text-ink-muted">Loading…</p>;
+  if (!caps.data) return <ListSkeleton label="Loading" />;
   const { scriptUrl, kubernetesUrl } = caps.data.agent;
   return (
     <div className="grid gap-3">

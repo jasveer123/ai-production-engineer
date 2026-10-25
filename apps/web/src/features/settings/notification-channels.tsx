@@ -8,6 +8,7 @@ import {
 } from '@ape/api-contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Banner } from '@/components/ui/banner';
 import { Button } from '@/components/ui/button';
@@ -100,7 +101,7 @@ export function NotificationChannels() {
           </Banner>
         )}
         {channels.isPending ? (
-          <p className="m-0 text-ink-muted">Loading channels…</p>
+          <ListSkeleton label="Loading channels" />
         ) : channels.isError ? (
           <Banner tone="danger" title="Could not load notification channels.">
             {errorMessage(channels.error)}

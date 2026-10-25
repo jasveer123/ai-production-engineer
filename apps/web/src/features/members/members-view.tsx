@@ -3,6 +3,7 @@
 import { ROLES, type InvitationWithLink, type Member, type Role } from '@ape/api-contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Banner } from '@/components/ui/banner';
 import { Button } from '@/components/ui/button';
@@ -91,7 +92,7 @@ export function MembersView() {
       )}
 
       {members.isPending ? (
-        <p className="text-ink-muted">Loading members…</p>
+        <ListSkeleton label="Loading members" />
       ) : members.isError ? (
         <Banner tone="danger" title="Could not load members.">
           {errorMessage(members.error)}

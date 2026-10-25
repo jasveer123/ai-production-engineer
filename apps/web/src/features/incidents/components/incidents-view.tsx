@@ -3,6 +3,7 @@
 import { INCIDENT_STATUSES, SEVERITIES, type IncidentListQuery } from '@ape/api-contracts';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Banner } from '@/components/ui/banner';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -95,7 +96,7 @@ export function IncidentsView() {
       </div>
 
       {incidents.isPending ? (
-        <p className="text-ink-muted">Loading incidents…</p>
+        <ListSkeleton label="Loading incidents" />
       ) : incidents.isError ? (
         <Banner tone="danger" title="Could not load incidents.">
           {errorMessage(incidents.error)}

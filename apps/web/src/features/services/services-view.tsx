@@ -3,6 +3,7 @@
 import type { Service } from '@ape/api-contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Banner } from '@/components/ui/banner';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -87,7 +88,7 @@ export function ServicesView() {
       )}
 
       {services.isPending ? (
-        <p className="text-ink-muted">Loading services…</p>
+        <ListSkeleton label="Loading services" />
       ) : services.isError ? (
         <Banner tone="danger" title="Could not load services.">
           {errorMessage(services.error)}

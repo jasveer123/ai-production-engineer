@@ -1,6 +1,7 @@
 'use client';
 
 import { NOTIFICATION_EVENT_LABELS, type NotificationEvent } from '@ape/api-contracts';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Banner } from '@/components/ui/banner';
 import { Table, Td, Th, Tr } from '@/components/ui/table';
@@ -19,7 +20,7 @@ export function RecentDeliveries() {
         </p>
       </div>
       {deliveries.isPending ? (
-        <p className="m-0 text-ink-muted">Loading deliveries…</p>
+        <ListSkeleton label="Loading deliveries" />
       ) : deliveries.isError ? (
         <Banner tone="danger" title="Could not load deliveries.">
           {errorMessage(deliveries.error)}

@@ -2,6 +2,7 @@
 
 import type { Service } from '@ape/api-contracts';
 import Link from 'next/link';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
 import { Banner } from '@/components/ui/banner';
 import { ButtonLink } from '@/components/ui/button';
@@ -34,7 +35,7 @@ export function ChangesView() {
         description="Recent commits on each service's default branch, marked with the deploys that shipped them."
       />
       {services.isPending ? (
-        <p className="text-ink-muted">Loading services…</p>
+        <ListSkeleton label="Loading services" />
       ) : services.isError ? (
         <Banner tone="danger" title="Could not load services.">
           {errorMessage(services.error)}
@@ -80,7 +81,7 @@ function ServiceChanges({ service }: { service: Service }) {
         </p>
       </div>
       {commits.isPending ? (
-        <p className="text-ink-muted">Loading commits…</p>
+        <ListSkeleton label="Loading commits" />
       ) : commits.isError ? (
         <Banner tone="danger" title="Could not read this repository.">
           {errorMessage(commits.error)}

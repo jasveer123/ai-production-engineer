@@ -9,6 +9,7 @@ import type {
 } from '@ape/api-contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Banner } from '@/components/ui/banner';
 import { Button } from '@/components/ui/button';
@@ -44,7 +45,7 @@ export function IncidentReport({ id }: { id: string }) {
   });
   const engineer = can('engineer');
 
-  if (investigation.isPending) return <p className="text-ink-muted">Loading the report…</p>;
+  if (investigation.isPending) return <ListSkeleton label="Loading the report" />;
   if (investigation.isError)
     return (
       <Banner tone="danger" title="Could not load the report.">

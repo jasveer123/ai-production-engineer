@@ -1,5 +1,6 @@
 'use client';
 
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Banner } from '@/components/ui/banner';
 import { Button } from '@/components/ui/button';
@@ -34,7 +35,7 @@ export function AuditView() {
     return (
       <>
         {header}
-        <p className="text-ink-muted">Loading…</p>
+        <ListSkeleton label="Loading" />
       </>
     );
   if (q.isError)

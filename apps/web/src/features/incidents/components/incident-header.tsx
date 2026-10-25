@@ -4,6 +4,7 @@ import type { Incident, IncidentStatus } from '@ape/api-contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Banner } from '@/components/ui/banner';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
@@ -23,7 +24,7 @@ export function IncidentHeader({ id }: { id: string }) {
   const { can } = useSession();
   const [changing, setChanging] = useState(false);
 
-  if (incident.isPending) return <p className="text-ink-muted">Loading incident…</p>;
+  if (incident.isPending) return <ListSkeleton label="Loading incident" />;
   if (incident.isError)
     return (
       <Banner tone="danger" title="Could not load this incident.">

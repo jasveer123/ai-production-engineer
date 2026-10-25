@@ -4,6 +4,7 @@ import type { Integration } from '@ape/api-contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { FormError, Input } from '@/components/ui/form';
@@ -117,7 +118,7 @@ export function GitHubRepoSelect() {
         </div>
 
         <div className="grid gap-4">
-          {view.isPending && <p className="m-0 text-ink-muted">Loading GitHub accounts…</p>}
+          {view.isPending && <ListSkeleton label="Loading GitHub accounts" />}
           {view.isError && <FormError>{errorMessage(view.error)}</FormError>}
           {view.data && !view.data.configured && (
             <FormError>The GitHub App is not configured on this server.</FormError>

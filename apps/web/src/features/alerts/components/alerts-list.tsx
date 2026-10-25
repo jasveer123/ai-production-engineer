@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Banner } from '@/components/ui/banner';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -34,7 +35,7 @@ export function AlertsList() {
         ))}
       </div>
       {alerts.isPending ? (
-        <p className="text-ink-muted">Loading alerts…</p>
+        <ListSkeleton label="Loading alerts" />
       ) : alerts.isError ? (
         <Banner tone="danger" title="Could not load alerts.">
           {errorMessage(alerts.error)}
