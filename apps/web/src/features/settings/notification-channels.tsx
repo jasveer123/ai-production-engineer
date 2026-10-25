@@ -19,7 +19,7 @@ import { api, errorMessage } from '@/lib/api';
 import { formatAgo } from '@/lib/format';
 import { ChannelDialog } from './components/channel-dialog';
 import { RecentDeliveries } from './components/recent-deliveries';
-import { useNotificationChannels } from './queries';
+import { settingsKeys, useNotificationChannels } from './queries';
 
 const KIND_LABEL = { slack: 'Slack', webhook: 'Webhook' } as const;
 
@@ -35,7 +35,7 @@ export function NotificationChannels() {
   const [editing, setEditing] = useState<Editing>(null);
   const [secret, setSecret] = useState<NotificationChannelWithSecret | null>(null);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
-  const refresh = () => qc.invalidateQueries({ queryKey: ['ws', ws, 'notifications'] });
+  const refresh = () => qc.invalidateQueries({ queryKey: settingsKeys.notifications(ws) });
   const base = `/workspaces/${ws}/notifications/channels`;
   const fail = (e: unknown) => setNotice({ ok: false, text: errorMessage(e) });
 
