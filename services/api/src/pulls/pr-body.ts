@@ -1,3 +1,11 @@
+import type {
+  evidenceItems,
+  fixProposals,
+  hypotheses,
+  incidents,
+  validationRuns,
+} from '../db/schema';
+
 /** Builds the pull request title, body and commit message. Pure, so it is unit-tested. */
 
 export interface PrBodyInput {
@@ -122,4 +130,53 @@ export function prBody(i: PrBodyInput): string {
     `---\nOpened by AI Production Engineer after approval by ${i.approver}.`,
   ];
   return lines.join('\n');
+}
+
+interface PrBodyParts {
+  incident: typeof incidents.$inferSelect;
+  fix: typeof fixProposals.$inferSelect;
+  top: typeof hypotheses.$inferSelect | undefined;
+  evidence: (typeof evidenceItems.$inferSelect)[];
+  runs: (typeof validationRuns.$inferSelect)[];
+  approver: string;
+  webUrl: string;
+}
+
+/** What the pull request text is written from: the incident, top hypothesis, cited evidence, runs. */
+export function prBodyInput(parts: PrBodyParts): PrBodyInput {
+  const { incident, fix, top } = parts;
+  const cited = new Set(top?.supportingEvidenceIds ?? []);
+  return {
+    incident: {
+      id: incident.id,
+      title: incident.title,
+      severity: incident.severity,
+      serviceName: incident.serviceName,
+      environment: incident.environment,
+      eventCount: incident.eventCount,
+    },
+    dashboardUrl: `${parts.webUrl}/w/${incident.workspaceId}/incidents/${incident.id}`,
+    hypothesis: top
+      ? {
+          summary: top.summary,
+          rationale: top.confidenceRationale,
+          location: top.suspectedLocation as NonNullable<PrBodyInput['hypothesis']>['location'],
+        }
+      : null,
+    evidence: parts.evidence
+      .filter((e) => cited.has(e.id))
+      .sort((a, b) => Number(a.ref.slice(1)) - Number(b.ref.slice(1)))
+      .map((e) => ({ ref: e.ref, title: e.title, sourceUrl: e.sourceUrl })),
+    fix: {
+      version: fix.version,
+      explanation: fix.explanation,
+      diffStat: fix.diffStat ?? null,
+      baseCommitSha: fix.baseCommitSha,
+      testPath: fix.testPath,
+    },
+    runs: [...parts.runs]
+      .reverse()
+      .map((r) => ({ kind: r.kind, attempt: r.attempt, status: r.status, summary: r.summary })),
+    approver: parts.approver,
+  };
 }

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { and, count, eq, notInArray, sql } from 'drizzle-orm';
 import { CLOSED_STATUSES } from '@ape/api-contracts';
 import { AuditService } from '../audit/audit.service';
-import type { Database, Tx } from '../db/client';
+import type { Tx } from '../db/client';
 import {
   alertRoutes,
   alerts,

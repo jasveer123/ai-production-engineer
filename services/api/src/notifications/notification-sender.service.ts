@@ -20,6 +20,53 @@ export interface SendResult {
 const TIMEOUT_MS = 5000;
 export const EVENT_HEADER = 'x-ape-event';
 
+const fail = (error: string, permanent: boolean, status: number | null = null): SendResult => ({
+  ok: false,
+  status,
+  error: error.slice(0, 500),
+  permanent,
+});
+
+/** The destination URL: a Slack webhook is the stored secret, a generic webhook keeps its URL. */
+function destinationOf(channel: ChannelRow, secret: string | undefined): string | SendResult {
+  const target = channel.kind === 'slack' ? secret : channel.url;
+  if (!target) return fail('Channel is missing its URL or secret', true);
+  if (channel.kind === 'slack' && !SLACK_WEBHOOK_PATTERN.test(target))
+    return fail('Not a Slack incoming webhook URL', true);
+  return target;
+}
+
+/** The JSON body and headers; generic webhooks are signed with the channel's secret. */
+function requestFor(
+  channel: ChannelRow,
+  n: Notification,
+  secret: string | undefined,
+): { body: string; headers: Record<string, string> } | SendResult {
+  const body = JSON.stringify(channel.kind === 'slack' ? slackMessage(n) : webhookPayload(n));
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    'user-agent': 'ai-production-engineer-notifications',
+  };
+  if (channel.kind === 'webhook') {
+    if (!secret) return fail('Channel is missing its signing secret', true);
+    const ts = String(Math.floor(Date.now() / 1000));
+    headers[TIMESTAMP_HEADER] = ts;
+    headers[SIGNATURE_HEADER] = sign(secret, ts, body);
+    headers[EVENT_HEADER] = n.type;
+  }
+  return { body, headers };
+}
+
+function resultOf(status: number): SendResult {
+  if (status >= 200 && status < 300) return { ok: true, status, error: null, permanent: false };
+  if (status >= 300 && status < 400)
+    return fail(`Receiver redirected (${status}); redirects are not followed`, true, status);
+  const retryable = status >= 500 || status === 429 || status === 408;
+  return fail(`Receiver responded ${status}`, !retryable, status);
+}
+
+const isFailure = (v: unknown): v is SendResult => typeof v === 'object' && v !== null && 'ok' in v;
+
 /** Posts one notification to one channel. Never follows redirects (SSRF, ADR-020). */
 @Injectable()
 export class NotificationSender {
@@ -29,20 +76,11 @@ export class NotificationSender {
   ) {}
 
   async send(channel: ChannelRow, n: Notification): Promise<SendResult> {
-    const fail = (error: string, permanent: boolean, status: number | null = null): SendResult => ({
-      ok: false,
-      status,
-      error: error.slice(0, 500),
-      permanent,
-    });
-
     const secret = channel.secretReference
       ? await this.secrets.get(channel.workspaceId, channel.secretReference)
       : undefined;
-    const target = channel.kind === 'slack' ? secret : channel.url;
-    if (!target) return fail('Channel is missing its URL or secret', true);
-    if (channel.kind === 'slack' && !SLACK_WEBHOOK_PATTERN.test(target))
-      return fail('Not a Slack incoming webhook URL', true);
+    const target = destinationOf(channel, secret);
+    if (isFailure(target)) return target;
 
     let url: URL;
     try {
@@ -52,25 +90,15 @@ export class NotificationSender {
       return fail(`Could not resolve the webhook host: ${(err as Error).message}`, false);
     }
 
-    const body = JSON.stringify(channel.kind === 'slack' ? slackMessage(n) : webhookPayload(n));
-    const headers: Record<string, string> = {
-      'content-type': 'application/json',
-      'user-agent': 'ai-production-engineer-notifications',
-    };
-    if (channel.kind === 'webhook') {
-      if (!secret) return fail('Channel is missing its signing secret', true);
-      const ts = String(Math.floor(Date.now() / 1000));
-      headers[TIMESTAMP_HEADER] = ts;
-      headers[SIGNATURE_HEADER] = sign(secret, ts, body);
-      headers[EVENT_HEADER] = n.type;
-    }
+    const request = requestFor(channel, n, secret);
+    if (isFailure(request)) return request;
 
     let res: Response;
     try {
       res = await fetch(url, {
         method: 'POST',
-        body,
-        headers,
+        body: request.body,
+        headers: request.headers,
         redirect: 'manual',
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
@@ -82,15 +110,6 @@ export class NotificationSender {
       );
     }
     await res.body?.cancel().catch(() => undefined);
-    if (res.status >= 200 && res.status < 300)
-      return { ok: true, status: res.status, error: null, permanent: false };
-    if (res.status >= 300 && res.status < 400)
-      return fail(
-        `Receiver redirected (${res.status}); redirects are not followed`,
-        true,
-        res.status,
-      );
-    const retryable = res.status >= 500 || res.status === 429 || res.status === 408;
-    return fail(`Receiver responded ${res.status}`, !retryable, res.status);
+    return resultOf(res.status);
   }
 }

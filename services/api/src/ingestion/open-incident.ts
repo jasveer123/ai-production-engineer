@@ -1,5 +1,5 @@
 import type { AuditService } from '../audit/audit.service';
-import type { Database, Tx } from '../db/client';
+import type { Tx } from '../db/client';
 import { incidentEvents, incidents, outbox, type Severity } from '../db/schema';
 
 export interface NewIncident {
