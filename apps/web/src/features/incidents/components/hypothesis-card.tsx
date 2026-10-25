@@ -1,18 +1,12 @@
 'use client';
 
-import type {
-  EvidenceRef,
-  HypothesisVerdict,
-  HypothesisView,
-  IncidentActionInput,
-} from '@ape/api-contracts';
+import type { EvidenceRef, HypothesisVerdict, HypothesisView } from '@ape/api-contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, Eyebrow } from '@/components/ui/card';
 import { useSession } from '@/features/auth/session';
-import { api, errorMessage } from '@/lib/api';
+import { api } from '@/lib/api';
 import { incidentKeys } from '../queries';
 
 const CONFIDENCE_TONE = { high: 'ok', medium: 'warn', low: 'neutral' } as const;

@@ -1,19 +1,10 @@
 'use client';
 
-import type {
-  EvidenceRef,
-  HypothesisVerdict,
-  HypothesisView,
-  IncidentActionInput,
-  InvestigationView,
-} from '@ape/api-contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
 import { ListSkeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
 import { Banner } from '@/components/ui/banner';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader, Eyebrow } from '@/components/ui/card';
+import { Card, CardHeader } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useSession } from '@/features/auth/session';
 import { api, errorMessage } from '@/lib/api';
@@ -21,7 +12,6 @@ import { formatUsd } from '@/lib/format';
 import { incidentKeys, useInvestigation } from '../queries';
 import { EvidenceLinks, HypothesisCard } from './hypothesis-card';
 import { InvestigationStatus, RUNNING } from './investigation-status';
-
 
 /** The AI's report: what it observed, what is missing, and ranked hypotheses with evidence. */
 export function IncidentReport({ id }: { id: string }) {
