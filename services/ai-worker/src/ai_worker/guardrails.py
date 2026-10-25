@@ -302,10 +302,10 @@ def guard_report(report: ModelReport, items: list[tuple[str, str, str, str]]) ->
         if note:
             out.adjustments.append(f"hypothesis {h.rank}: {note}")
         # 4. Confidence the evidence cannot carry.
-        h, note = calibrate(h, kinds, has_code)
+        calibrated, note = calibrate(h, kinds, has_code)
         if note:
             out.adjustments.append(note)
-        hypotheses.append(h)
+        hypotheses.append(calibrated)
 
     # 5. Duplicate causes are one cause.
     unique: list[Hypothesis] = []

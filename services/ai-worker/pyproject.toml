@@ -38,11 +38,27 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP", "S", "ASYNC"]
-ignore = []
+select = ["E", "F", "I", "B", "UP", "S", "ASYNC", "C4", "SIM", "PT", "RUF", "PERF", "N", "ARG", "T20", "PL", "C90"]
+ignore = [
+  "PLR2004",  # magic numbers and argument counts are judged in review
+  "PLR0913",
+  "PLR0917",
+  "N818",     # public error names are stable and carry a `reason` code
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 12
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]
+"tests/**" = ["S101", "ARG", "PLR", "PLC", "PT018"]
+# Wire-format field names (camelCase) shared with the TypeScript side.
+"src/ai_worker/fixing.py" = ["N815", "C901", "PLR0912"]  # validate_test: split into checks (backlog)
+"src/ai_worker/contracts.py" = ["N815"]
+# Command-line output and interface stubs.
+"src/ai_worker/evaluation/__main__.py" = ["T201"]
+"src/ai_worker/evaluation/providers.py" = ["ARG002", "PLC0415"]  # lazy provider imports
+"src/ai_worker/evaluation/scoring.py" = ["C901", "PLR0912", "PLR0915"]  # score(): split by metric (backlog)
+"src/ai_worker/llm/gateway.py" = ["ARG002", "PLC0415"]  # NoProvider stub; lazy SDK imports
 
 [tool.mypy]
 python_version = "3.12"
