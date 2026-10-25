@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { GitHubController } from '../github/github.controller';
+import { GitHubSelectService } from '../github/github-select.service';
 import { GitHubService } from '../github/github.service';
 import { IntegrationsController } from '../integrations/integrations.controller';
 import { IntegrationsService } from '../integrations/integrations.service';
@@ -21,6 +22,7 @@ import { JaegerPoller } from './jaeger.poller';
     IngestionWorker,
     IntegrationsService,
     GitHubService,
+    GitHubSelectService,
   ],
   exports: [IngestionProcessor, JaegerPoller, GitHubService],
 })

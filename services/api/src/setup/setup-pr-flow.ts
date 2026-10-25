@@ -2,7 +2,7 @@ import { HttpStatus } from '@nestjs/common';
 import type { GitHubOverview, SetupPrInput } from '@ape/api-contracts';
 import { ApiException } from '../common/errors';
 import { GitHubError, type GitHubAppClient } from '../github/github-app';
-import { missingPermissions, NEEDED_PERMISSIONS } from '../github/github.service';
+import { missingPermissions, NEEDED_PERMISSIONS } from '../github/github-config';
 import {
   DEPLOY_WORKFLOW_PATH,
   deployWorkflow,

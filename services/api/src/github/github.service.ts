@@ -2,56 +2,22 @@ import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { and, eq, inArray, ne } from 'drizzle-orm';
-import type {
-  GitHubOverview,
-  GitHubAppInfo,
-  GitHubSelectView,
-  Integration,
-  RepoCommit,
-  RepositoryAccess,
-} from '@ape/api-contracts';
+import type { GitHubOverview, Integration, RepoCommit, RepositoryAccess } from '@ape/api-contracts';
 import { AuditService } from '../audit/audit.service';
 import { ApiException, conflict, notFound } from '../common/errors';
 import type { ActorContext } from '../common/request-context';
 import { ENV, type ApiEnv } from '../config/config.module';
 import { DB } from '../db/database.module';
 import type { Database } from '../db/client';
-import { integrations, services, workspaceMembers, workspaces } from '../db/schema';
+import { integrations, services, workspaceMembers } from '../db/schema';
 import { GitHubAppClient, GitHubError } from './github-app';
-
-type Row = typeof integrations.$inferSelect;
-
-interface GitHubConfig {
-  installationId: number;
-  accountLogin: string;
-  /** Repositories this workspace may use (a subset of the App installation). */
-  repositories: string[];
-  /** Every repository the App installation currently grants. */
-  grantedRepositories?: string[];
-  /** Refreshed by check(); absent on rows connected before they were recorded. */
-  accountType?: string;
-  repositorySelection?: 'all' | 'selected';
-  permissions?: Record<string, string>;
-}
-
-/** Permissions each automation needs on the GitHub App installation. */
-export const NEEDED_PERMISSIONS = {
-  setupPullRequest: { contents: 'write', pull_requests: 'write' },
-  deployWorkflow: { contents: 'write', pull_requests: 'write', workflows: 'write' },
-} as const;
-
-/** "contents: write" style list of what `granted` lacks. */
-export function missingPermissions(
-  granted: Record<string, string> | undefined,
-  needed: Record<string, string>,
-): string[] {
-  return Object.entries(needed)
-    .filter(([k, v]) => {
-      const have = granted?.[k];
-      return !(have === v || (v === 'read' && have === 'write'));
-    })
-    .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`);
-}
+import {
+  missingPermissions,
+  NEEDED_PERMISSIONS,
+  pickRepositories,
+  type GitHubConfig,
+  type IntegrationRow as Row,
+} from './github-config';
 
 /**
  * GitHub App integration (ADR-009). The workspace stores only the installation id; tokens are
@@ -96,149 +62,40 @@ export class GitHubService {
     return this.client;
   }
 
+  /** The App's URL slug, cached; null when GitHub does not answer. */
+  async appSlug(): Promise<string | null> {
+    this.slug ??= (await this.gh().app()).slug;
+    return this.slug;
+  }
+
   /** For tests: swap in a fake client. */
   useClient(client: GitHubAppClient) {
     this.client = client;
   }
 
-  async appInfo(actor?: ActorContext): Promise<GitHubAppInfo> {
-    if (!this.configured)
-      return {
-        configured: false,
-        slug: null,
-        installUrl: null,
-        installations: [],
-        connectedElsewhere: [],
-      };
+  /** Reads an installation and which repositories it grants (404 means it is gone). */
+  private async describeInstallation(
+    installationId: number,
+    requested?: string[],
+  ): Promise<GitHubConfig> {
     const gh = this.gh();
     try {
-      this.slug ??= (await gh.app()).slug;
+      const inst = await gh.getInstallation(installationId);
+      const repos = await gh.listRepositories(installationId);
+      const granted = repos.map((r) => r.full_name);
+      return {
+        installationId,
+        accountLogin: inst.account?.login ?? 'unknown',
+        accountType: inst.account?.type,
+        repositorySelection: inst.repository_selection,
+        permissions: inst.permissions,
+        grantedRepositories: granted,
+        repositories: pickRepositories(granted, requested),
+      };
     } catch (err) {
-      if (err instanceof GitHubError && [401, 404].includes(err.status)) {
-        throw new ApiException(
-          HttpStatus.BAD_GATEWAY,
-          'github_app_invalid',
-          'GitHub App not found or key rejected: check GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY_PATH',
-        );
-      }
+      if (err instanceof GitHubError && err.status === 404) throw notFound('GitHub installation');
       throw err;
     }
-    const claimed = await this.db
-      .select({ id: integrations.externalAccountId, workspaceId: integrations.workspaceId })
-      .from(integrations)
-      .where(and(eq(integrations.provider, 'github'), ne(integrations.status, 'disconnected')));
-    const all = await gh.listInstallations();
-    // Name other workspaces only to their own members.
-    const mine = actor
-      ? await this.db
-          .select({ id: workspaces.id, name: workspaces.name })
-          .from(workspaceMembers)
-          .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
-          .where(eq(workspaceMembers.userId, actor.userId))
-      : [];
-    const mineIds = new Set(mine.map((m) => m.id));
-    const takenByStrangers = new Set(
-      claimed.filter((c) => !mineIds.has(c.workspaceId)).map((c) => c.id),
-    );
-    const connectedHere = new Set(
-      claimed.filter((c) => c.workspaceId === actor?.workspaceId).map((c) => c.id),
-    );
-    const connectedElsewhere = claimed
-      .filter((c) => c.workspaceId !== actor?.workspaceId)
-      .map((c) => {
-        const inst = all.find((i) => String(i.id) === c.id);
-        const ws = mine.find((m) => m.id === c.workspaceId);
-        return inst
-          ? {
-              id: inst.id,
-              account: inst.account?.login ?? 'unknown',
-              workspaceId: ws?.id ?? null,
-              workspaceName: ws?.name ?? null,
-            }
-          : null;
-      })
-      .filter((x): x is NonNullable<typeof x> => x !== null);
-    const installations = all
-      .filter(
-        (i) =>
-          !i.suspended_at &&
-          !takenByStrangers.has(String(i.id)) &&
-          !connectedHere.has(String(i.id)),
-      )
-      .map((i) => ({
-        id: i.id,
-        account: i.account?.login ?? 'unknown',
-        repositorySelection: i.repository_selection,
-      }));
-    return {
-      configured: true,
-      slug: this.slug,
-      installUrl: `https://github.com/apps/${this.slug}/installations/new`,
-      installations,
-      connectedElsewhere,
-    };
-  }
-
-  /**
-   * GitHub accounts this workspace can attach, with every repository each installation granted.
-   * Used by the post-callback "Select GitHub repositories" page.
-   */
-  async selectView(actor: ActorContext): Promise<GitHubSelectView> {
-    const info = await this.appInfo(actor);
-    if (!info.configured) return { configured: false, installUrl: null, accounts: [] };
-    const gh = this.gh();
-    const here = await this.db
-      .select()
-      .from(integrations)
-      .where(
-        and(
-          eq(integrations.workspaceId, actor.workspaceId),
-          eq(integrations.provider, 'github'),
-          ne(integrations.status, 'disconnected'),
-        ),
-      );
-    const connectedIds = new Set(here.map((r) => r.externalAccountId));
-    const candidates = [
-      ...info.installations.map((i) => i.id),
-      ...here.map((r) => Number(r.externalAccountId)),
-    ].filter((id, i, arr) => Number.isFinite(id) && arr.indexOf(id) === i);
-    const accounts = (
-      await Promise.all(
-        candidates.map(async (installationId) => {
-          try {
-            const inst = await gh.getInstallation(installationId);
-            if (inst.suspended_at) return null;
-            const repos = await gh.listRepositories(installationId);
-            const login = inst.account?.login ?? 'unknown';
-            const row = here.find((r) => r.externalAccountId === String(installationId));
-            const selected = row
-              ? ((row.config as unknown as GitHubConfig).repositories ?? []).filter((name) =>
-                  repos.some((r) => r.full_name.toLowerCase() === name.toLowerCase()),
-                )
-              : repos.map((r) => r.full_name);
-            return {
-              installationId,
-              account: login,
-              accountType: inst.account?.type ?? null,
-              avatarUrl: `https://github.com/${login}.png?size=64`,
-              repositorySelection: inst.repository_selection,
-              repositories: repos.map((r) => ({
-                fullName: r.full_name,
-                defaultBranch: r.default_branch,
-                private: r.private,
-              })),
-              selected,
-              connected: connectedIds.has(String(installationId)),
-              integrationId: row?.id ?? null,
-            };
-          } catch (err) {
-            if (err instanceof GitHubError && err.status === 404) return null;
-            throw err;
-          }
-        }),
-      )
-    ).filter((a): a is NonNullable<typeof a> => a !== null);
-    return { configured: true, installUrl: info.installUrl, accounts };
   }
 
   /** Connects an installation after validating it and reading which repositories it grants. */
@@ -248,27 +105,7 @@ export class GitHubService {
     name: string,
     repositories?: string[],
   ): Promise<Row> {
-    const gh = this.gh();
-    let config: GitHubConfig;
-    try {
-      const inst = await gh.getInstallation(installationId);
-      const repos = await gh.listRepositories(installationId);
-      const granted = repos.map((r) => r.full_name);
-      const selected = this.pickRepositories(granted, repositories);
-      config = {
-        installationId,
-        accountLogin: inst.account?.login ?? 'unknown',
-        accountType: inst.account?.type,
-        repositorySelection: inst.repository_selection,
-        permissions: inst.permissions,
-        grantedRepositories: granted,
-        repositories: selected,
-      };
-    } catch (err) {
-      if (err instanceof GitHubError && err.status === 404) throw notFound('GitHub installation');
-      throw err;
-    }
-
+    const config = await this.describeInstallation(installationId, repositories);
     const claims = await this.db
       .select({ id: integrations.id, workspaceId: integrations.workspaceId })
       .from(integrations)
@@ -284,52 +121,37 @@ export class GitHubService {
       throw conflict('This GitHub installation is already connected to another workspace');
     }
     const existingHere = claims.find((c) => c.workspaceId === actor.workspaceId);
-    if (existingHere) {
-      const [row] = await this.db
-        .update(integrations)
-        .set({
-          name,
-          status: 'connected',
-          lastError: null,
-          lastSyncAt: new Date(),
-          config: { ...config },
-        })
-        .where(eq(integrations.id, existingHere.id))
-        .returning();
-      await this.audit.record({
-        workspaceId: actor.workspaceId,
-        actorId: actor.userId,
-        action: 'integration.updated',
-        resourceType: 'integration',
-        resourceId: row!.id,
-        outcome: 'success',
-        correlationId: actor.correlationId,
-        metadata: {
-          provider: 'github',
-          installationId,
-          account: config.accountLogin,
-          repositories: config.repositories,
-        },
-      });
-      return row!;
-    }
-
-    const [row] = await this.db
-      .insert(integrations)
-      .values({
-        workspaceId: actor.workspaceId,
-        provider: 'github',
-        name,
-        externalAccountId: String(installationId),
-        status: 'connected',
-        lastSyncAt: new Date(),
-        config: { ...config },
-      })
-      .returning();
+    const values = {
+      name,
+      status: 'connected' as const,
+      lastError: null,
+      lastSyncAt: new Date(),
+      config: { ...config },
+    };
+    const [row] = existingHere
+      ? await this.db
+          .update(integrations)
+          .set(values)
+          .where(
+            and(
+              eq(integrations.id, existingHere.id),
+              eq(integrations.workspaceId, actor.workspaceId),
+            ),
+          )
+          .returning()
+      : await this.db
+          .insert(integrations)
+          .values({
+            ...values,
+            workspaceId: actor.workspaceId,
+            provider: 'github',
+            externalAccountId: String(installationId),
+          })
+          .returning();
     await this.audit.record({
       workspaceId: actor.workspaceId,
       actorId: actor.userId,
-      action: 'integration.created',
+      action: existingHere ? 'integration.updated' : 'integration.created',
       resourceType: 'integration',
       resourceId: row!.id,
       outcome: 'success',
@@ -342,21 +164,6 @@ export class GitHubService {
       },
     });
     return row!;
-  }
-
-  private pickRepositories(granted: string[], requested?: string[]): string[] {
-    if (!requested) return granted;
-    const allowed = new Set(granted.map((r) => r.toLowerCase()));
-    const picked = requested.filter((r) => allowed.has(r.toLowerCase()));
-    const unique = granted.filter((g) => picked.some((p) => p.toLowerCase() === g.toLowerCase()));
-    if (!unique.length) {
-      throw new ApiException(
-        HttpStatus.BAD_REQUEST,
-        'repo_not_granted',
-        'Select at least one repository this GitHub App installation can access.',
-      );
-    }
-    return unique;
   }
 
   private async memberWorkspaceIds(userId: string): Promise<string[]> {
@@ -537,11 +344,7 @@ export class GitHubService {
     const reachable = new Set(
       installations.flatMap((i) => i.repositories.map((x) => x.toLowerCase())),
     );
-    try {
-      this.slug ??= (await this.gh().app()).slug;
-    } catch {
-      // the overview still works without the app's slug
-    }
+    const slug = await this.appSlug().catch(() => null); // works without the app's slug
     return {
       configured: true,
       installations,
@@ -551,9 +354,7 @@ export class GitHubService {
             deployWorkflow: missingPermissions(perms, NEEDED_PERMISSIONS.deployWorkflow),
           }
         : empty.missing,
-      appPermissionsUrl: this.slug
-        ? `https://github.com/settings/apps/${this.slug}/permissions`
-        : null,
+      appPermissionsUrl: slug ? `https://github.com/settings/apps/${slug}/permissions` : null,
       unreachableServiceRepos: mapped
         .map((m) => m.repo)
         .filter((r): r is string => !!r && !reachable.has(r.toLowerCase())),
