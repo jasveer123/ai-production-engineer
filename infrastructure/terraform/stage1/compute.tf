@@ -11,6 +11,9 @@ locals {
     "deploy-sandbox.sh"   = "${path.module}/../../deploy/deploy-sandbox.sh"
     "backup.sh"           = "${path.module}/../../deploy/backup.sh"
     "ape-sandbox.service" = "${path.module}/../../deploy/ape-sandbox.service"
+    "pull-deploy.sh"      = "${path.module}/../../deploy/pull-deploy.sh"
+    "pull-sandbox.sh"     = "${path.module}/../../deploy/pull-sandbox.sh"
+    "bootstrap-pull.sh"   = "${path.module}/../../deploy/bootstrap-pull.sh"
   }
 }
 

@@ -2,6 +2,7 @@
 # One-off (idempotent) setup of the polling timers on an existing host: bootstrap-pull.sh app|sandbox
 set -euo pipefail
 ROLE=${1:?usage: bootstrap-pull.sh app|sandbox}
+export AWS_DEFAULT_REGION=ap-southeast-2
 if [ "$ROLE" = app ]; then
   source /srv/ape/host.env
   aws s3 cp "s3://$RELEASES_BUCKET/host/" /srv/ape/ --recursive --exclude "*" --include "*.sh" --include "*.yml" --include "Caddyfile" --include "*.yaml" --quiet
