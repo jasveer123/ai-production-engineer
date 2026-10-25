@@ -41,6 +41,8 @@ jobs:
           curl -sSf https://temporal.download/cli.sh | sh
           ~/.temporalio/bin/temporal server start-dev --headless --log-level warn &
           for i in $(seq 1 30); do ~/.temporalio/bin/temporal operator cluster health && break; sleep 1; done
+          # The e2e tests run in their own namespace (services/api/test/env.ts).
+          ~/.temporalio/bin/temporal operator namespace create --namespace ape-test
       - run: pnpm format:check
       - run: pnpm -r run lint
       - run: pnpm -r run typecheck
