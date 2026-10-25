@@ -68,6 +68,7 @@ ${transforms}sinks:
 }
 
 /** POSIX sh installer: systemd service (default) or a Docker container (APE_MODE=docker). */
+// eslint-disable-next-line max-lines-per-function -- embedded POSIX shell script; splitting it would hide the script
 export function installScript(defaultEndpoint: string): string {
   return `#!/bin/sh
 # AI Production Engineer server agent (Vector). Usage:

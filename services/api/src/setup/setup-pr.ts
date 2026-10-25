@@ -65,14 +65,15 @@ function envExampleBlock(service: string, environment: string, endpoint: string)
   ].join('\n');
 }
 
-async function withEnvExample(
-  r: RepoFiles,
-  dir: string,
-  c: FileChanges,
-  service: string,
-  environment: string,
-  endpoint: string,
-) {
+interface EnvExampleOptions {
+  dir: string;
+  service: string;
+  environment: string;
+  endpoint: string;
+}
+
+async function withEnvExample(r: RepoFiles, c: FileChanges, opts: EnvExampleOptions) {
+  const { dir, service, environment, endpoint } = opts;
   const path = join(dir, '.env.example');
   const current = has(r.paths, path) ? await r.read(path) : '';
   if (current.includes('APE_SERVICE=')) return;
@@ -104,6 +105,64 @@ export function preloadInScript(script: string): string | null {
   return `${script.slice(0, at)} ${REGISTER}${script.slice(at)}`;
 }
 
+type PackageJson = {
+  dependencies?: Record<string, string>;
+  scripts?: Record<string, string>;
+  main?: string;
+};
+
+function addAgentDependency(pkg: PackageJson, pkgPath: string, c: FileChanges): void {
+  pkg.dependencies = { ...(pkg.dependencies ?? {}) };
+  if (pkg.dependencies[AGENT_NPM]) return;
+  pkg.dependencies[AGENT_NPM] = AGENT_NPM_VERSION;
+  // Keep dependencies sorted, as npm writes them.
+  pkg.dependencies = Object.fromEntries(
+    Object.entries(pkg.dependencies).sort(([a], [b]) => a.localeCompare(b)),
+  );
+  c.done.push(`Added \`${AGENT_NPM}\` to \`${pkgPath}\`.`);
+}
+
+/** Makes the start scripts load the agent first. Returns true when the agent will preload. */
+function preloadAgentScripts(pkg: PackageJson, c: FileChanges): boolean {
+  let preloaded = false;
+  const scripts = { ...(pkg.scripts ?? {}) };
+  for (const name of ['start', 'start:prod', 'serve']) {
+    if (!scripts[name]) continue;
+    const next = preloadInScript(scripts[name]);
+    if (!next) continue;
+    if (next !== scripts[name])
+      c.done.push(`The \`${name}\` script now loads the agent first (\`node ${REGISTER}\`).`);
+    scripts[name] = next;
+    preloaded = true;
+  }
+  if (!preloaded && !scripts.start && pkg.main) {
+    scripts.start = `node ${REGISTER} ${pkg.main}`;
+    c.done.push(`Added a \`start\` script that loads the agent before \`${pkg.main}\`.`);
+    preloaded = true;
+  }
+  if (Object.keys(scripts).length) pkg.scripts = scripts;
+  return preloaded;
+}
+
+const NODE_INSTALL_COMMANDS: [prefix: string, command: string][] = [
+  ['pnpm', 'pnpm install'],
+  ['yarn', 'yarn install'],
+  ['bun', 'bun install'],
+];
+
+function nodeLockfileTodo(r: RepoFiles, dir: string, c: FileChanges): void {
+  for (const lock of ['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lockb']) {
+    if (!has(r.paths, join(dir, lock)) && !has(r.paths, lock)) continue;
+    c.needsLockfileUpdate = true;
+    const cmd =
+      NODE_INSTALL_COMMANDS.find(([prefix]) => lock.startsWith(prefix))?.[1] ?? 'npm install';
+    c.todo.push(
+      `Run \`${cmd}\` on this branch and commit \`${lock}\` (we cannot run your package manager from GitHub).`,
+    );
+    return;
+  }
+}
+
 export async function nodeChanges(
   r: RepoFiles,
   dir: string,
@@ -121,40 +180,10 @@ export async function nodeChanges(
   const pkgPath = join(dir, 'package.json');
   const raw = await r.read(pkgPath);
   const indent = /\n(\s+)"/.exec(raw)?.[1] ?? '  ';
-  const pkg = JSON.parse(raw) as {
-    dependencies?: Record<string, string>;
-    scripts?: Record<string, string>;
-    main?: string;
-  };
+  const pkg = JSON.parse(raw) as PackageJson;
 
-  pkg.dependencies = { ...(pkg.dependencies ?? {}) };
-  if (!pkg.dependencies[AGENT_NPM]) {
-    pkg.dependencies[AGENT_NPM] = AGENT_NPM_VERSION;
-    // Keep dependencies sorted, as npm writes them.
-    pkg.dependencies = Object.fromEntries(
-      Object.entries(pkg.dependencies).sort(([a], [b]) => a.localeCompare(b)),
-    );
-    c.done.push(`Added \`${AGENT_NPM}\` to \`${pkgPath}\`.`);
-  }
-
-  let preloaded = false;
-  const scripts = { ...(pkg.scripts ?? {}) };
-  for (const name of ['start', 'start:prod', 'serve']) {
-    if (!scripts[name]) continue;
-    const next = preloadInScript(scripts[name]);
-    if (next) {
-      if (next !== scripts[name])
-        c.done.push(`The \`${name}\` script now loads the agent first (\`node ${REGISTER}\`).`);
-      scripts[name] = next;
-      preloaded = true;
-    }
-  }
-  if (!preloaded && !scripts.start && pkg.main) {
-    scripts.start = `node ${REGISTER} ${pkg.main}`;
-    c.done.push(`Added a \`start\` script that loads the agent before \`${pkg.main}\`.`);
-    preloaded = true;
-  }
-  if (Object.keys(scripts).length) pkg.scripts = scripts;
+  addAgentDependency(pkg, pkgPath, c);
+  let preloaded = preloadAgentScripts(pkg, c);
   c.files[pkgPath] = `${JSON.stringify(pkg, null, indent)}\n`;
 
   const dockerfile = join(dir, 'Dockerfile');
@@ -172,23 +201,8 @@ export async function nodeChanges(
       `Start the app with \`NODE_OPTIONS="${REGISTER}"\`, or add \`require('${AGENT_NPM}').start()\` as the first line of your entry file.`,
     );
 
-  for (const lock of ['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock', 'bun.lockb']) {
-    if (has(r.paths, join(dir, lock)) || has(r.paths, lock)) {
-      c.needsLockfileUpdate = true;
-      const cmd = lock.startsWith('pnpm')
-        ? 'pnpm install'
-        : lock.startsWith('yarn')
-          ? 'yarn install'
-          : lock.startsWith('bun')
-            ? 'bun install'
-            : 'npm install';
-      c.todo.push(
-        `Run \`${cmd}\` on this branch and commit \`${lock}\` (we cannot run your package manager from GitHub).`,
-      );
-      break;
-    }
-  }
-  await withEnvExample(r, dir, c, service, environment, endpoint);
+  nodeLockfileTodo(r, dir, c);
+  await withEnvExample(r, c, { dir, service, environment, endpoint });
   return c;
 }
 
@@ -265,6 +279,61 @@ export function addPyprojectDependency(toml: string): string | null {
   return null;
 }
 
+async function addPythonDependency(r: RepoFiles, dir: string, c: FileChanges): Promise<void> {
+  const req = join(dir, 'requirements.txt');
+  const pyproject = join(dir, 'pyproject.toml');
+  if (has(r.paths, req)) {
+    const text = await r.read(req);
+    if (/^ape-agent\b/m.test(text)) return;
+    c.files[req] = `${text}${text.endsWith('\n') || !text ? '' : '\n'}${AGENT_PYPI_SPEC}\n`;
+    c.done.push(`Added \`${AGENT_PYPI}\` to \`${req}\`.`);
+  } else if (has(r.paths, pyproject)) {
+    const next = addPyprojectDependency(await r.read(pyproject));
+    if (next) {
+      c.files[pyproject] = next;
+      c.done.push(`Added \`${AGENT_PYPI}\` to \`${pyproject}\`.`);
+    } else c.todo.push(`Add \`${AGENT_PYPI_SPEC}\` to your dependencies.`);
+  }
+}
+
+/** Finds the entry module (a Procfile command first, then common file names) and starts the agent. */
+async function startAgentInEntry(r: RepoFiles, dir: string, c: FileChanges): Promise<void> {
+  const candidates: string[] = [];
+  for (const f of [join(dir, 'Procfile'), 'Procfile', join(dir, 'Dockerfile')]) {
+    if (!has(r.paths, f)) continue;
+    const e = entryFromCommand(await r.read(f));
+    if (e) candidates.push(join(dir, e));
+  }
+  candidates.push(...PY_ENTRIES.map((e) => join(dir, e)));
+  const entry = candidates.find((p) => has(r.paths, p));
+  if (!entry) {
+    c.todo.push(
+      'Add `import ape_agent; ape_agent.start()` at the top of the module your server imports first.',
+    );
+    return;
+  }
+  const src = await r.read(entry);
+  const next = insertPythonStart(src);
+  if (next === src) return;
+  c.files[entry] = next;
+  c.done.push(`\`${entry}\` starts the agent before anything else runs.`);
+}
+
+const PYTHON_LOCK_COMMANDS: Record<string, string> = {
+  'poetry.lock': 'poetry lock',
+  'uv.lock': 'uv lock',
+  'Pipfile.lock': 'pipenv lock',
+  'pdm.lock': 'pdm lock',
+};
+
+function pythonLockfileTodo(r: RepoFiles, dir: string, c: FileChanges): void {
+  for (const [lock, cmd] of Object.entries(PYTHON_LOCK_COMMANDS)) {
+    if (!has(r.paths, join(dir, lock))) continue;
+    c.needsLockfileUpdate = true;
+    c.todo.push(`Run \`${cmd}\` on this branch and commit \`${lock}\`.`);
+  }
+}
+
 export async function pythonChanges(
   r: RepoFiles,
   dir: string,
@@ -279,59 +348,10 @@ export async function pythonChanges(
     language: 'python',
     needsLockfileUpdate: false,
   };
-  const req = join(dir, 'requirements.txt');
-  const pyproject = join(dir, 'pyproject.toml');
-  if (has(r.paths, req)) {
-    const text = await r.read(req);
-    if (!/^ape-agent\b/m.test(text)) {
-      c.files[req] = `${text}${text.endsWith('\n') || !text ? '' : '\n'}${AGENT_PYPI_SPEC}\n`;
-      c.done.push(`Added \`${AGENT_PYPI}\` to \`${req}\`.`);
-    }
-  } else if (has(r.paths, pyproject)) {
-    const next = addPyprojectDependency(await r.read(pyproject));
-    if (next) {
-      c.files[pyproject] = next;
-      c.done.push(`Added \`${AGENT_PYPI}\` to \`${pyproject}\`.`);
-    } else c.todo.push(`Add \`${AGENT_PYPI_SPEC}\` to your dependencies.`);
-  }
-
-  // Find the entry module: a Procfile command first, then common file names.
-  const candidates: string[] = [];
-  for (const f of [join(dir, 'Procfile'), 'Procfile', join(dir, 'Dockerfile')]) {
-    if (has(r.paths, f)) {
-      const e = entryFromCommand(await r.read(f));
-      if (e) candidates.push(join(dir, e));
-    }
-  }
-  candidates.push(...PY_ENTRIES.map((e) => join(dir, e)));
-  const entry = candidates.find((p) => has(r.paths, p));
-  if (entry) {
-    const src = await r.read(entry);
-    const next = insertPythonStart(src);
-    if (next !== src) {
-      c.files[entry] = next;
-      c.done.push(`\`${entry}\` starts the agent before anything else runs.`);
-    }
-  } else {
-    c.todo.push(
-      'Add `import ape_agent; ape_agent.start()` at the top of the module your server imports first.',
-    );
-  }
-  for (const lock of ['poetry.lock', 'uv.lock', 'Pipfile.lock', 'pdm.lock']) {
-    if (has(r.paths, join(dir, lock))) {
-      c.needsLockfileUpdate = true;
-      const cmd =
-        lock === 'poetry.lock'
-          ? 'poetry lock'
-          : lock === 'uv.lock'
-            ? 'uv lock'
-            : lock === 'pdm.lock'
-              ? 'pdm lock'
-              : 'pipenv lock';
-      c.todo.push(`Run \`${cmd}\` on this branch and commit \`${lock}\`.`);
-    }
-  }
-  await withEnvExample(r, dir, c, service, environment, endpoint);
+  await addPythonDependency(r, dir, c);
+  await startAgentInEntry(r, dir, c);
+  pythonLockfileTodo(r, dir, c);
+  await withEnvExample(r, c, { dir, service, environment, endpoint });
   return c;
 }
 

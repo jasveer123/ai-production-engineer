@@ -10,7 +10,7 @@ import { integrations } from '../db/schema';
 import { SecretStore } from '../secrets/secret-store.service';
 import type { FetchFn } from '../tools/readers';
 import { fetchGitHubJwks, type JwksFetcher } from './github-oidc';
-import { ProvisionError } from './provisioners';
+import { ProvisionError } from './provisioner-http';
 
 /** Integration rows owned by the setup flows; hidden from the integrations list. */
 export const SETUP_PROVIDERS = ['sentry_app', 'heroku_oauth', 'aws_setup'] as const;

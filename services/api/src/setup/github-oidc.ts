@@ -40,6 +40,34 @@ export const fetchGitHubJwks: JwksFetcher = async () => {
 
 const b64url = (s: string) => Buffer.from(s, 'base64url');
 
+function decodeJwt(token: string) {
+  const parts = token.split('.');
+  if (parts.length !== 3) throw new OidcError('Not a JWT');
+  const [h, p, sig] = parts as [string, string, string];
+  try {
+    return {
+      h,
+      p,
+      sig,
+      header: JSON.parse(b64url(h).toString('utf8')) as { alg?: string; kid?: string },
+      claims: JSON.parse(b64url(p).toString('utf8')) as GitHubOidcClaims,
+    };
+  } catch {
+    throw new OidcError('Malformed token');
+  }
+}
+
+function assertClaims(claims: GitHubOidcClaims, audience: string, nowS: number): void {
+  if (claims.iss !== GITHUB_OIDC_ISSUER) throw new OidcError('Wrong issuer');
+  const aud = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+  if (!aud.includes(audience)) throw new OidcError('Wrong audience');
+  if (typeof claims.exp !== 'number' || claims.exp + CLOCK_SKEW_S < nowS)
+    throw new OidcError('Token expired');
+  if (claims.nbf && claims.nbf - CLOCK_SKEW_S > nowS) throw new OidcError('Token not yet valid');
+  if (!/^[\w.-]+\/[\w.-]+$/.test(claims.repository ?? ''))
+    throw new OidcError('Missing repository claim');
+}
+
 /**
  * Verifies a GitHub Actions OIDC token: RS256 signature against GitHub's published keys, issuer,
  * audience and time. The `repository` claim then says exactly which repo the workflow ran in, so
@@ -51,17 +79,7 @@ export async function verifyGitHubOidc(
   jwks: JwksFetcher = fetchGitHubJwks,
   nowS = Math.floor(Date.now() / 1000),
 ): Promise<GitHubOidcClaims> {
-  const parts = token.split('.');
-  if (parts.length !== 3) throw new OidcError('Not a JWT');
-  const [h, p, sig] = parts as [string, string, string];
-  let header: { alg?: string; kid?: string };
-  let claims: GitHubOidcClaims;
-  try {
-    header = JSON.parse(b64url(h).toString('utf8')) as typeof header;
-    claims = JSON.parse(b64url(p).toString('utf8')) as GitHubOidcClaims;
-  } catch {
-    throw new OidcError('Malformed token');
-  }
+  const { h, p, sig, header, claims } = decodeJwt(token);
   if (header.alg !== 'RS256') throw new OidcError('Unexpected signing algorithm');
   const key = (await jwks()).find((k) => k.kid === header.kid);
   if (!key) throw new OidcError('Unknown signing key');
@@ -69,13 +87,6 @@ export async function verifyGitHubOidc(
     .update(`${h}.${p}`)
     .verify(createPublicKey({ key, format: 'jwk' }), b64url(sig));
   if (!ok) throw new OidcError('Bad signature');
-  if (claims.iss !== GITHUB_OIDC_ISSUER) throw new OidcError('Wrong issuer');
-  const aud = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
-  if (!aud.includes(audience)) throw new OidcError('Wrong audience');
-  if (typeof claims.exp !== 'number' || claims.exp + CLOCK_SKEW_S < nowS)
-    throw new OidcError('Token expired');
-  if (claims.nbf && claims.nbf - CLOCK_SKEW_S > nowS) throw new OidcError('Token not yet valid');
-  if (!/^[\w.-]+\/[\w.-]+$/.test(claims.repository ?? ''))
-    throw new OidcError('Missing repository claim');
+  assertClaims(claims, audience, nowS);
   return claims;
 }

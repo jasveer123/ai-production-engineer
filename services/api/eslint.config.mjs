@@ -45,4 +45,9 @@ export default tseslint.config(
       'prettier/prettier': ['error', { endOfLine: 'auto' }],
     },
   },
+  {
+    // A describe() block is a container for many small tests, not one long function.
+    files: ['**/*.spec.ts', 'test/**/*.ts'],
+    rules: { 'max-lines-per-function': 'off' },
+  },
 );

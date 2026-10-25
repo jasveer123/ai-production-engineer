@@ -1,5 +1,6 @@
 import type { ConnectReaderInput } from '@ape/api-contracts';
 import type { FetchFn } from '../tools/readers';
+import { base, call, json, ProvisionError } from './provisioner-http';
 
 /**
  * "Paste one admin key, we do the rest" (ADR-024). Each provisioner uses the key once to create
@@ -21,39 +22,6 @@ export interface ProvisionResult {
   done: string[];
   todo: string[];
 }
-
-export class ProvisionError extends Error {}
-
-const TIMEOUT = 15_000;
-
-async function call<T>(
-  fetchFn: FetchFn,
-  tool: string,
-  url: string,
-  init: RequestInit = {},
-): Promise<T> {
-  let res: Response;
-  try {
-    res = await fetchFn(url, { ...init, signal: AbortSignal.timeout(TIMEOUT), redirect: 'error' });
-  } catch (err) {
-    throw new ProvisionError(`Could not reach ${tool}: ${(err as Error).message}`);
-  }
-  const text = await res.text();
-  if (res.status === 401 || res.status === 403)
-    throw new ProvisionError(
-      `${tool} rejected the key (HTTP ${res.status}). It needs admin rights for the one-time setup.`,
-    );
-  if (!res.ok)
-    throw new ProvisionError(`${tool} answered HTTP ${res.status}: ${text.slice(0, 300)}`);
-  return (text ? JSON.parse(text) : null) as T;
-}
-
-const json = (body: unknown, headers: Record<string, string> = {}): RequestInit => ({
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json', ...headers },
-  body: JSON.stringify(body),
-});
-const base = (u: string) => u.replace(/\/+$/, '');
 
 // ---------- Grafana: contact point + policy route + Loki read access ----------
 
@@ -213,27 +181,23 @@ export async function provisionDatadog(
 
 // ---------- Elasticsearch + Kibana: read-only API key and webhook connector ----------
 
-export async function provisionElasticsearch(
-  input: {
-    url: string;
-    kibanaUrl?: string;
-    adminApiKey: string;
-    index: string;
-    serviceField: string;
-  },
-  alerts: AlertTarget,
-  fetchFn: FetchFn,
-): Promise<ProvisionResult> {
-  const es = base(input.url);
-  const auth = { Authorization: `ApiKey ${input.adminApiKey}` };
-  const done: string[] = [];
-  const todo: string[] = [];
+interface ElasticsearchInput {
+  url: string;
+  kibanaUrl?: string;
+  adminApiKey: string;
+  index: string;
+  serviceField: string;
+}
 
-  // A read-only key limited to the log indices; the admin key is not kept.
+/** A read-only key limited to the log indices; the admin key is not kept. */
+async function createElasticsearchReadKey(
+  input: ElasticsearchInput,
+  fetchFn: FetchFn,
+): Promise<string> {
   const key = await call<{ id: string; api_key: string; encoded?: string }>(
     fetchFn,
     'Elasticsearch',
-    `${es}/_security/api_key`,
+    `${base(input.url)}/_security/api_key`,
     json(
       {
         name: 'ai-production-engineer-read',
@@ -249,36 +213,48 @@ export async function provisionElasticsearch(
         },
         metadata: { created_by: 'ai-production-engineer' },
       },
-      auth,
+      { Authorization: `ApiKey ${input.adminApiKey}` },
     ),
   );
-  const encoded = key.encoded ?? Buffer.from(`${key.id}:${key.api_key}`).toString('base64');
-  done.push(`Created a read-only API key for \`${input.index}\`.`);
+  return key.encoded ?? Buffer.from(`${key.id}:${key.api_key}`).toString('base64');
+}
 
-  const alertsAutomatic = false;
-  if (input.kibanaUrl) {
-    await call(
-      fetchFn,
-      'Kibana',
-      `${base(input.kibanaUrl)}/api/actions/connector`,
-      json(
-        {
-          name: 'AI Production Engineer',
-          connector_type_id: '.webhook',
-          config: {
-            url: alerts.url,
-            method: 'post',
-            hasAuth: false,
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${alerts.token}`,
-            },
-          },
-          secrets: {},
+async function createKibanaConnector(
+  input: ElasticsearchInput & { kibanaUrl: string },
+  alerts: AlertTarget,
+  fetchFn: FetchFn,
+): Promise<void> {
+  await call(
+    fetchFn,
+    'Kibana',
+    `${base(input.kibanaUrl)}/api/actions/connector`,
+    json(
+      {
+        name: 'AI Production Engineer',
+        connector_type_id: '.webhook',
+        config: {
+          url: alerts.url,
+          method: 'post',
+          hasAuth: false,
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${alerts.token}` },
         },
-        { ...auth, 'kbn-xsrf': 'true' },
-      ),
-    );
+        secrets: {},
+      },
+      { Authorization: `ApiKey ${input.adminApiKey}`, 'kbn-xsrf': 'true' },
+    ),
+  );
+}
+
+export async function provisionElasticsearch(
+  input: ElasticsearchInput,
+  alerts: AlertTarget,
+  fetchFn: FetchFn,
+): Promise<ProvisionResult> {
+  const encoded = await createElasticsearchReadKey(input, fetchFn);
+  const done = [`Created a read-only API key for \`${input.index}\`.`];
+  const todo: string[] = [];
+  if (input.kibanaUrl) {
+    await createKibanaConnector({ ...input, kibanaUrl: input.kibanaUrl }, alerts, fetchFn);
     done.push('Created the "AI Production Engineer" webhook connector in Kibana.');
     todo.push(
       'In each Kibana rule, add an action with this connector and the body shown on the Tools page (one for Active, one for Recovered).',
@@ -289,13 +265,13 @@ export async function provisionElasticsearch(
   return {
     reader: {
       tool: 'elasticsearch',
-      url: es,
+      url: base(input.url),
       auth: 'apikey',
       token: encoded,
       index: input.index,
       serviceField: input.serviceField,
     },
-    alertsAutomatic,
+    alertsAutomatic: false,
     done,
     todo,
   };
@@ -350,127 +326,4 @@ export async function provisionBetterStack(
       'Better Stack only creates outgoing webhooks in its UI: Uptime → Integrations → Webhook, with the URL shown on the Tools page.',
     ],
   };
-}
-
-// ---------- Log drains (Way 5) ----------
-
-export async function provisionVercelDrain(
-  input: { accessToken: string; teamId?: string | null },
-  drain: { logsUrl: string; tracesUrl: string; ingestToken: string },
-  fetchFn: FetchFn,
-): Promise<{ done: string[] }> {
-  const q = input.teamId ? `?teamId=${encodeURIComponent(input.teamId)}` : '';
-  const auth = { Authorization: `Bearer ${input.accessToken}` };
-  const headers = { Authorization: `Bearer ${drain.ingestToken}` };
-  await call(
-    fetchFn,
-    'Vercel',
-    `https://api.vercel.com/v1/drains${q}`,
-    json(
-      {
-        name: 'AI Production Engineer logs',
-        projects: 'all',
-        schemas: { log: { version: 'v1' } },
-        delivery: {
-          type: 'http',
-          endpoint: drain.logsUrl,
-          encoding: 'json',
-          compression: 'gzip',
-          headers,
-        },
-      },
-      auth,
-    ),
-  );
-  const done = ['Created a Vercel log drain for all projects.'];
-  try {
-    await call(
-      fetchFn,
-      'Vercel',
-      `https://api.vercel.com/v1/drains${q}`,
-      json(
-        {
-          name: 'AI Production Engineer traces',
-          projects: 'all',
-          schemas: { trace: { version: 'v1' } },
-          delivery: { type: 'otlphttp', endpoint: drain.tracesUrl, encoding: 'proto', headers },
-        },
-        auth,
-      ),
-    );
-    done.push('Created a Vercel trace drain for all projects.');
-  } catch {
-    // Trace drains need tracing enabled on the Vercel plan; logs alone are still useful.
-  }
-  return { done };
-}
-
-const HEROKU = 'https://api.heroku.com';
-const herokuHeaders = (token: string) => ({
-  Authorization: `Bearer ${token}`,
-  Accept: 'application/vnd.heroku+json; version=3',
-});
-
-export async function listHerokuApps(token: string, fetchFn: FetchFn): Promise<string[]> {
-  const apps = await call<{ name: string }[]>(fetchFn, 'Heroku', `${HEROKU}/apps`, {
-    headers: herokuHeaders(token),
-  });
-  return apps.map((a) => a.name).sort();
-}
-
-/** Adds one drain per app; the URL names the app because Heroku does not send it. */
-export async function provisionHerokuDrains(
-  token: string,
-  apps: string[],
-  drainUrlFor: (app: string) => string,
-  fetchFn: FetchFn,
-): Promise<{ done: string[]; failed: string[] }> {
-  const done: string[] = [];
-  const failed: string[] = [];
-  for (const app of apps) {
-    try {
-      await call(fetchFn, 'Heroku', `${HEROKU}/apps/${encodeURIComponent(app)}/log-drains`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...herokuHeaders(token) },
-        body: JSON.stringify({ url: drainUrlFor(app) }),
-      });
-      done.push(`Added a log drain to ${app}.`);
-    } catch (err) {
-      // 422 "already exists" is fine on a second run.
-      if (/HTTP 422/.test((err as Error).message) && /already/i.test((err as Error).message))
-        done.push(`${app} already drains to us.`);
-      else failed.push(`${app}: ${(err as Error).message}`);
-    }
-  }
-  return { done, failed };
-}
-
-export async function provisionRenderStream(
-  input: { apiKey: string },
-  stream: { endpoint: string; token: string },
-  fetchFn: FetchFn,
-): Promise<{ done: string[] }> {
-  const auth = { Authorization: `Bearer ${input.apiKey}`, Accept: 'application/json' };
-  const owners = await call<{ owner: { id: string; name: string } }[]>(
-    fetchFn,
-    'Render',
-    'https://api.render.com/v1/owners?limit=20',
-    { headers: auth },
-  );
-  if (!owners.length) throw new ProvisionError('This Render API key has no workspaces');
-  const done: string[] = [];
-  for (const { owner } of owners) {
-    await call(
-      fetchFn,
-      'Render',
-      `https://api.render.com/v1/logs/streams/owner/${encodeURIComponent(owner.id)}`,
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...auth },
-        body: JSON.stringify({ endpoint: stream.endpoint, token: stream.token, preview: 'send' }),
-      },
-    );
-    done.push(`Render workspace "${owner.name}" streams its logs to us.`);
-  }
-  return { done };
 }

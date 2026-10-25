@@ -14,7 +14,8 @@ import {
   vercelInstallUrl,
 } from './oauth';
 import { OAuthStateService } from './oauth-state.service';
-import { listHerokuApps, ProvisionError } from './provisioners';
+import { listHerokuApps } from './drain-provisioners';
+import { ProvisionError } from './provisioner-http';
 import {
   callbackUrl,
   herokuConfigured,
