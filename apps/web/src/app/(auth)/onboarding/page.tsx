@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import type { Me, Workspace } from '@ape/api-contracts';
+import { createWorkspaceSchema, type Me, type Workspace } from '@ape/api-contracts';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
@@ -11,6 +11,7 @@ import { AuthHeading } from '@/features/auth/components/auth-heading';
 import { ME_KEY } from '@/features/auth/session';
 import { useAuthAction } from '@/features/auth/use-auth-action';
 import { api, ApiError } from '@/lib/api';
+import { useZodForm } from '@/lib/use-zod-form';
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -23,10 +24,11 @@ export default function OnboardingPage() {
       router.replace('/login/?next=/onboarding/');
   }, [me.error, router]);
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const name = new FormData(e.currentTarget).get('name');
-    const ws = await run(() => api<Workspace>('/workspaces', { method: 'POST', json: { name } }));
+  const form = useZodForm(createWorkspaceSchema, { defaultValues: { name: '' } });
+  const nameError = form.formState.errors.name?.message ?? fieldErrors.name;
+
+  const onSubmit = form.handleSubmit(async (values) => {
+    const ws = await run(() => api<Workspace>('/workspaces', { method: 'POST', json: values }));
     if (!ws) return;
     try {
       localStorage.setItem('ape.workspace', ws.id);
@@ -35,7 +37,7 @@ export default function OnboardingPage() {
     }
     await qc.invalidateQueries({ queryKey: ME_KEY });
     router.replace('/integrations/');
-  }
+  });
 
   return (
     <>
@@ -43,21 +45,19 @@ export default function OnboardingPage() {
         {me.data ? `Hi ${me.data.user.name ?? me.data.user.email}. ` : ''}A workspace holds your
         services, incidents and team. You will be its owner.
       </AuthHeading>
-      <form onSubmit={onSubmit} className="grid gap-4">
+      <form onSubmit={onSubmit} className="grid gap-4" noValidate>
         <Field
           id="name"
           label="Workspace name"
-          error={fieldErrors.name}
+          error={nameError}
           hint="Usually your company or team, e.g. Jasveer Shop."
         >
           <Input
             id="name"
-            name="name"
-            required
-            minLength={2}
             maxLength={80}
             autoFocus
-            invalid={Boolean(fieldErrors.name)}
+            invalid={Boolean(nameError)}
+            {...form.register('name')}
           />
         </Field>
         <FormError>{error}</FormError>
