@@ -4,7 +4,8 @@ from typing import Any
 import pytest
 
 from ai_worker.contracts import EvidenceBundle
-from ai_worker.investigate import apply_evidence_guard, build_user_message, run_investigation
+from ai_worker.guardrails import apply_evidence_guard
+from ai_worker.investigate import build_user_message, run_investigation
 from ai_worker.llm.gateway import (
     ModelCall,
     ModelNotConfigured,

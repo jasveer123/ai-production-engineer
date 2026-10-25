@@ -23,7 +23,7 @@ def hyp(**over: object) -> Hypothesis:
         "missing_information": [],
         "suspected_location": SuspectedLocation(file="api/src/checkout.ts", line=81, symbol=None),
     }
-    return Hypothesis(**{**base, **over})  # type: ignore[arg-type]
+    return Hypothesis(**{**base, **over})
 
 
 ITEMS = [

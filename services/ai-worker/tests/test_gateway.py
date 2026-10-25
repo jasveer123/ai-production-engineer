@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 
 from ai_worker.config import Settings
@@ -10,7 +12,7 @@ def settings(**over: object) -> Settings:
     return Settings(_env_file=None, **{"anthropic_api_key": None, "gemini_api_key": None, **over})  # type: ignore[arg-type]
 
 
-def request(purpose: str = "investigate", **over: object) -> dict:
+def request(purpose: str = "investigate", **over: object) -> dict[str, Any]:
     return build_request(settings(**over), system="S", user="U", schema=SCHEMA, purpose=purpose)
 
 

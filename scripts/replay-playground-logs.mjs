@@ -24,7 +24,9 @@ const dryRun = flag('dry-run');
 const apeUrl = (process.env.APE_URL ?? 'http://localhost:4000').replace(/\/$/, '');
 const token = process.env.APE_TOKEN;
 if (!dryRun && !token) {
-  console.error('Set APE_TOKEN to your workspace token (Integrations → Send data), or use --dry-run.');
+  console.error(
+    'Set APE_TOKEN to your workspace token (Integrations → Send data), or use --dry-run.',
+  );
   process.exit(1);
 }
 
@@ -42,7 +44,9 @@ export function toIntakeLine(rec) {
 
 async function fetchSince(since) {
   const window = since ? `_time:>${since}` : `_time:${minutes}m`;
-  const body = new URLSearchParams({ query: `${window} service.name:* | sort by (_time) | limit ${limit}` });
+  const body = new URLSearchParams({
+    query: `${window} service.name:* | sort by (_time) | limit ${limit}`,
+  });
   const res = await fetch(PLAYGROUND, { method: 'POST', body });
   if (!res.ok) throw new Error(`playground answered ${res.status}: ${await res.text()}`);
   const text = await res.text();
@@ -70,11 +74,15 @@ do {
   const lines = records.map(toIntakeLine);
   const services = new Set(lines.map((l) => l.service));
   if (dryRun) {
-    console.log(`${lines.length} lines from ${services.size} services: ${[...services].join(', ')}`);
+    console.log(
+      `${lines.length} lines from ${services.size} services: ${[...services].join(', ')}`,
+    );
     if (lines[0]) console.log('first line:', JSON.stringify(lines[0]).slice(0, 400));
   } else if (lines.length) {
     await send(lines);
-    console.log(`${new Date().toISOString()} sent ${lines.length} lines from ${services.size} services`);
+    console.log(
+      `${new Date().toISOString()} sent ${lines.length} lines from ${services.size} services`,
+    );
   }
   if (records.length) since = records[records.length - 1]._time;
   if (flag('follow')) await new Promise((r) => setTimeout(r, 20_000));
