@@ -63,6 +63,14 @@ for _ in $(seq 1 30); do dc ps postgres --format '{{.Health}}' | grep -q healthy
 dc --profile tools run --rm migrate
 dc up -d --remove-orphans
 
+# Config files are bind-mounted, so `up` does not notice edits to them. Reload the proxy without
+# dropping connections, and restart the collector only when its file changed.
+dc exec -T caddy caddy reload --config /etc/caddy/Caddyfile || dc restart caddy
+NEW_OTEL=$(md5sum otel-collector.yaml | cut -d' ' -f1)
+if [ "$NEW_OTEL" != "$(cat .otel.md5 2>/dev/null || true)" ]; then
+  dc restart otel-collector && echo "$NEW_OTEL" > .otel.md5
+fi
+
 if healthy; then
   echo "$TAG" > current_tag
   docker image prune -af --filter "until=168h" >/dev/null || true
