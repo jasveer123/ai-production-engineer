@@ -1,4 +1,4 @@
-import { HttpStatus, PipeTransform } from '@nestjs/common';
+import { HttpStatus, type PipeTransform } from '@nestjs/common';
 import type { ZodTypeAny, output } from 'zod';
 import { ApiException } from './errors';
 
