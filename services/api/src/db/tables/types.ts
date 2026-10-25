@@ -1,4 +1,4 @@
-import { incidentStatusEnum, roleEnum, severityEnum } from './enums';
+import { type incidentStatusEnum, type roleEnum, type severityEnum } from './enums';
 
 export type Role = (typeof roleEnum.enumValues)[number];
 export type Severity = (typeof severityEnum.enumValues)[number];

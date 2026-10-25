@@ -10,7 +10,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { WorkspaceSettings } from './types';
+import { type WorkspaceSettings } from './types';
 import { roleEnum, workspaceStatusEnum } from './enums';
 import { id, timestamps } from './helpers';
 

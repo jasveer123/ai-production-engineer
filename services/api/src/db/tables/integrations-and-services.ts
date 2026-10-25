@@ -8,7 +8,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { SandboxProfile } from './types';
+import { type SandboxProfile } from './types';
 import { integrationStatusEnum } from './enums';
 import { id, timestamps } from './helpers';
 import { workspaceRef } from './identity-and-tenancy';
