@@ -18,10 +18,11 @@ export class ArtifactStore implements OnModuleInit {
   constructor(@Inject(ENV) env: ApiEnv) {
     this.bucket = env.S3_BUCKET;
     this.s3 = new S3Client({
-      endpoint: env.S3_ENDPOINT,
-      region: 'us-east-1',
-      forcePathStyle: true,
-      credentials: { accessKeyId: env.S3_ACCESS_KEY, secretAccessKey: env.S3_SECRET_KEY },
+      region: env.S3_REGION,
+      ...(env.S3_ENDPOINT ? { endpoint: env.S3_ENDPOINT, forcePathStyle: true } : {}),
+      ...(env.S3_ACCESS_KEY && env.S3_SECRET_KEY
+        ? { credentials: { accessKeyId: env.S3_ACCESS_KEY, secretAccessKey: env.S3_SECRET_KEY } }
+        : {}),
     });
   }
 
