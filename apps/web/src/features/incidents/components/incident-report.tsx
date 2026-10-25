@@ -1,6 +1,8 @@
 'use client';
 
+import type { IncidentActionInput } from '@ape/api-contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { ListSkeleton } from '@/components/ui/skeleton';
 import { Banner } from '@/components/ui/banner';
 import { Button } from '@/components/ui/button';
