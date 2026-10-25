@@ -12,7 +12,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { useSession } from '@/features/auth/session';
 import { api, errorMessage } from '@/lib/api';
 import { formatDuration } from '@/lib/format';
-import { incidentPrefix, useFixes } from '../queries';
+import { incidentKeys, useFixes } from '../queries';
 
 /** Workflow phases in which the AI is actually working on a fix. */
 const FIXING_PHASES = ['reproduction_approved', 'reproducing', 'patching', 'validating'];
@@ -39,7 +39,7 @@ export function IncidentFix({ id }: { id: string }) {
       }),
     onSuccess: () => (
       setError(null),
-      qc.invalidateQueries({ queryKey: incidentPrefix(workspace.id, id) })
+      qc.invalidateQueries({ queryKey: incidentKeys.detail(workspace.id, id) })
     ),
     onError: (e) => setError(errorMessage(e)),
   });

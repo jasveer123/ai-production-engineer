@@ -13,7 +13,7 @@ import { useSession } from '@/features/auth/session';
 import { api, errorMessage } from '@/lib/api';
 import { formatAgo, formatCount, formatDateTime } from '@/lib/format';
 import { manualNextStatuses, STATUS_META } from '../live';
-import { incidentPrefix, useIncident } from '../queries';
+import { incidentKeys, useIncident } from '../queries';
 import { SeverityBadge } from './incident-badges';
 import { IncidentStatusBadge } from './incident-status-badge';
 
@@ -103,13 +103,13 @@ function ChangeStatusDialog({
         json: { ...body, expectedVersion: incident.version },
       }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: incidentPrefix(workspace.id, incident.id) });
-      void qc.invalidateQueries({ queryKey: ['ws', workspace.id, 'incidents'] });
+      void qc.invalidateQueries({ queryKey: incidentKeys.detail(workspace.id, incident.id) });
+      void qc.invalidateQueries({ queryKey: incidentKeys.all(workspace.id) });
       onClose();
     },
     onError: (e) => {
       setError(errorMessage(e));
-      void qc.invalidateQueries({ queryKey: incidentPrefix(workspace.id, incident.id) });
+      void qc.invalidateQueries({ queryKey: incidentKeys.detail(workspace.id, incident.id) });
     },
   });
 

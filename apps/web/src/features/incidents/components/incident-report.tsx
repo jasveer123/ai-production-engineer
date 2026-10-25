@@ -17,7 +17,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { useSession } from '@/features/auth/session';
 import { api, errorMessage } from '@/lib/api';
 import { formatUsd } from '@/lib/format';
-import { incidentPrefix, useInvestigation } from '../queries';
+import { incidentKeys, useInvestigation } from '../queries';
 
 const RUNNING = ['collecting_evidence', 'analyzing'];
 const CONFIDENCE_TONE = { high: 'ok', medium: 'warn', low: 'neutral' } as const;
@@ -38,7 +38,7 @@ export function IncidentReport({ id }: { id: string }) {
       api(`/workspaces/${workspace.id}/incidents/${id}/actions`, { method: 'POST', json: body }),
     onSuccess: () => (
       setError(null),
-      qc.invalidateQueries({ queryKey: incidentPrefix(workspace.id, id) })
+      qc.invalidateQueries({ queryKey: incidentKeys.detail(workspace.id, id) })
     ),
     onError: (e) => setError(errorMessage(e)),
   });
@@ -211,7 +211,8 @@ function Hypothesis({
         method: 'POST',
         json: { hypothesisId: h.id, verdict },
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: incidentPrefix(workspace.id, incidentId) }),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: incidentKeys.detail(workspace.id, incidentId) }),
   });
 
   return (
