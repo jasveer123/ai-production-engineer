@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import { planRepoChanges } from './repo-changes.ts';
 
 const account = (installationId: number, connected: boolean, selected: string[]) => ({

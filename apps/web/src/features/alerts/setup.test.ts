@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import { describeConditions, moveRoute, parseList, setupSnippet } from './setup.ts';
 
 test('every setup snippet carries the url and token', () => {

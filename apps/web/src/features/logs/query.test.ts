@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import { bucketLogs, filterLogs, parseLogQuery } from './query.ts';
 import type { LogLine } from './types.ts';
 

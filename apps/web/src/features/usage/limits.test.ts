@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import { budgetShare } from './limits.ts';
 
 test('budget share is null without a budget and over 1 when exceeded', () => {
