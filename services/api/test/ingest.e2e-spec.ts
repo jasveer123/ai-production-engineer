@@ -150,9 +150,12 @@ describe('Telemetry intake, ingest tokens and tools (e2e)', () => {
       .bytes(1, Buffer.from('4bf92f3577b34da6a3ce929d0e0e4736', 'hex'))
       .bytes(2, Buffer.from('00f067aa0ba902b7', 'hex'))
       .string(5, 'POST /checkout')
+      // A real HTTP request ends in a server span; without it the processor waits SERVER_SPAN_WAIT_MS.
+      .uint(6, 2)
       .fixed64(7, BigInt(Date.now()) * 1_000_000n)
       .fixed64(8, BigInt(Date.now() + 20) * 1_000_000n)
       .message(9, kv('http.route', '/checkout'))
+      .message(9, kv('http.response.status_code', '500'))
       .message(11, event)
       .message(15, new Writer().uint(3, 2));
     const body = new Writer()

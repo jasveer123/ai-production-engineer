@@ -14,6 +14,7 @@ on:
 permissions:
   contents: read
   packages: write
+  actions: read
 
 concurrency:
   group: deploy-production
@@ -25,8 +26,24 @@ env:
   OWNER: ${{ github.repository_owner }}
 
 jobs:
+  # A manual run deploys the selected commit only if CI passed on that exact commit.
+  # (The workflow_run path is already gated on CI success.)
+  ci-green:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a green CI run on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ok=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=${{ github.sha }}&status=success&per_page=1" --jq '.total_count')
+          [ "$ok" -gt 0 ] || { echo "No successful CI run for ${{ github.sha }}. Fix CI or run Deploy from a green commit."; exit 1; }
+
   publish:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    needs: [ci-green]
+    if: >-
+      always() && (github.event_name == 'workflow_dispatch' && needs.ci-green.result == 'success'
+      || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 45
     steps:
