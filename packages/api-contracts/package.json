@@ -9,7 +9,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"lint via root prettier\"",
-    "test": "echo \"no contract tests yet\""
+    "test": "pnpm build && node --test test/*.test.cjs"
   },
   "dependencies": {
     "zod": "^3.25.0"
