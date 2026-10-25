@@ -38,6 +38,36 @@ interface Counts {
   last: Date;
 }
 
+interface Bump {
+  service: string;
+  environment: string;
+  key: keyof Omit<Counts, 'host' | 'last'>;
+  n: number;
+  at: Date;
+  host?: string | null;
+}
+
+/** Per service and environment counts for one batch, written to the stream status afterwards. */
+class StreamTally {
+  readonly streams = new Map<string, Counts>();
+
+  bump({ service, environment, key, n, at, host = null }: Bump): void {
+    const k = `${service}\u0000${environment}`;
+    const c = this.streams.get(k) ?? {
+      logs: 0,
+      spans: 0,
+      errors: 0,
+      metrics: 0,
+      host: null,
+      last: at,
+    };
+    c[key] += n;
+    c.host ??= host;
+    if (at > c.last) c.last = at;
+    this.streams.set(k, c);
+  }
+}
+
 /**
  * Writes an ingest batch: redacted logs and spans, error events into the ingestion buffer (so
  * incidents open through the usual pipeline), and per-stream status for the integrations page.
@@ -67,34 +97,35 @@ export class TelemetryStore implements OnModuleInit, OnModuleDestroy {
     workspaceId: string,
     batch: Batch,
   ): Promise<{ logs: number; spans: number; errors: number }> {
-    const streams = new Map<string, Counts>();
-    const bump = (
-      service: string,
-      environment: string,
-      key: keyof Omit<Counts, 'host' | 'last'>,
-      n: number,
-      at: Date,
-      host: string | null = null,
-    ) => {
-      const k = `${service}\u0000${environment}`;
-      const c = streams.get(k) ?? {
-        logs: 0,
-        spans: 0,
-        errors: 0,
-        metrics: 0,
-        host: null,
-        last: at,
-      };
-      c[key] += n;
-      c.host ??= host;
-      if (at > c.last) c.last = at;
-      streams.set(k, c);
-    };
+    const tally = new StreamTally();
+    const logsWritten = await this.writeLogs(workspaceId, batch, tally);
+    await this.writeSpans(workspaceId, batch, tally);
+    if (batch.errors.length > 0) await this.bufferErrors(workspaceId, batch, tally);
+    for (const m of batch.metrics)
+      tally.bump({
+        service: m.service,
+        environment: m.environment,
+        key: 'metrics',
+        n: m.count,
+        at: new Date(),
+      });
 
-    let logsWritten = 0;
+    await this.upsertStreams(workspaceId, batch.way, tally.streams);
+    return { logs: logsWritten, spans: batch.spans.length, errors: batch.errors.length };
+  }
+
+  private async writeLogs(workspaceId: string, batch: Batch, tally: StreamTally): Promise<number> {
+    let written = 0;
     for (let i = 0; i < batch.logs.length; i += CHUNK) {
       const rows = batch.logs.slice(i, i + CHUNK).map((l) => {
-        bump(l.service, l.environment, 'logs', 1, l.ts, l.host);
+        tally.bump({
+          service: l.service,
+          environment: l.environment,
+          key: 'logs',
+          n: 1,
+          at: l.ts,
+          host: l.host,
+        });
         return {
           workspaceId,
           ts: l.ts,
@@ -115,12 +146,21 @@ export class TelemetryStore implements OnModuleInit, OnModuleDestroy {
         .values(rows)
         .onConflictDoNothing()
         .returning({ id: logRecords.id });
-      logsWritten += res.length;
+      written += res.length;
     }
+    return written;
+  }
 
+  private async writeSpans(workspaceId: string, batch: Batch, tally: StreamTally): Promise<void> {
     for (let i = 0; i < batch.spans.length; i += CHUNK) {
       const rows = batch.spans.slice(i, i + CHUNK).map((s) => {
-        bump(s.service, s.environment, 'spans', 1, s.start);
+        tally.bump({
+          service: s.service,
+          environment: s.environment,
+          key: 'spans',
+          n: 1,
+          at: s.start,
+        });
         return {
           workspaceId,
           traceId: s.traceId,
@@ -140,26 +180,28 @@ export class TelemetryStore implements OnModuleInit, OnModuleDestroy {
       });
       await this.db.insert(spans).values(rows).onConflictDoNothing();
     }
+  }
 
-    if (batch.errors.length > 0) {
-      const integrationId = await this.ingestIntegrationId(workspaceId);
-      const rows = batch.errors.slice(0, 1000).map((e) => {
-        bump(e.service, e.environment, 'errors', 1, e.occurredAt);
-        return {
-          workspaceId,
-          integrationId,
-          source: INGEST_ERROR_SOURCE,
-          externalEventId: e.eventId ?? errorEventId(e),
-          payload: errorPayload(e, batch.way),
-        };
+  /** Errors go through the ingestion buffer so incidents open the usual way. */
+  private async bufferErrors(workspaceId: string, batch: Batch, tally: StreamTally): Promise<void> {
+    const integrationId = await this.ingestIntegrationId(workspaceId);
+    const rows = batch.errors.slice(0, 1000).map((e) => {
+      tally.bump({
+        service: e.service,
+        environment: e.environment,
+        key: 'errors',
+        n: 1,
+        at: e.occurredAt,
       });
-      await this.db.insert(inboundEvents).values(rows).onConflictDoNothing();
-    }
-
-    for (const m of batch.metrics) bump(m.service, m.environment, 'metrics', m.count, new Date());
-
-    await this.upsertStreams(workspaceId, batch.way, streams);
-    return { logs: logsWritten, spans: batch.spans.length, errors: batch.errors.length };
+      return {
+        workspaceId,
+        integrationId,
+        source: INGEST_ERROR_SOURCE,
+        externalEventId: e.eventId ?? errorEventId(e),
+        payload: errorPayload(e, batch.way),
+      };
+    });
+    await this.db.insert(inboundEvents).values(rows).onConflictDoNothing();
   }
 
   private async upsertStreams(workspaceId: string, way: string, streams: Map<string, Counts>) {

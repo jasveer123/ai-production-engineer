@@ -12,6 +12,7 @@ import {
   toLevel,
   type Batch,
   type ErrorInput,
+  type LogInput,
 } from './types';
 
 /** OTLP/JSON shapes (the protobuf decoder produces the same). Everything is optional on the wire. */
@@ -118,24 +119,85 @@ function exceptionFrom(a: Record<string, unknown>) {
   };
 }
 
+interface OtlpSpan {
+  traceId?: string;
+  spanId?: string;
+  parentSpanId?: string;
+  name?: string;
+  kind?: number | string;
+  startTimeUnixNano?: string | number;
+  endTimeUnixNano?: string | number;
+  attributes?: KeyValue[];
+  events?: { timeUnixNano?: string | number; name?: string; attributes?: KeyValue[] }[];
+  status?: { code?: number | string; message?: string };
+}
+
 interface TracesRequest {
   resourceSpans?: {
     resource?: Resource;
-    scopeSpans?: {
-      spans?: {
-        traceId?: string;
-        spanId?: string;
-        parentSpanId?: string;
-        name?: string;
-        kind?: number | string;
-        startTimeUnixNano?: string | number;
-        endTimeUnixNano?: string | number;
-        attributes?: KeyValue[];
-        events?: { timeUnixNano?: string | number; name?: string; attributes?: KeyValue[] }[];
-        status?: { code?: number | string; message?: string };
-      }[];
-    }[];
+    scopeSpans?: { spans?: OtlpSpan[] }[];
   }[];
+}
+
+type ResourceInfo = ReturnType<typeof resourceInfo>;
+
+/** The stored span and, for an error span with a recorded exception, the error occurrence. */
+function spanEntries(
+  s: OtlpSpan,
+  res: ResourceInfo,
+): { span: Batch['spans'][number]; error: ErrorInput | null } | null {
+  const traceId = id(s.traceId, 16);
+  const spanId = id(s.spanId, 8);
+  if (!traceId || !spanId) return null;
+  const start = nanosToDate(s.startTimeUnixNano);
+  const end = nanosToDate(s.endTimeUnixNano, start);
+  const attributes = attributesOf(s.attributes);
+  const events: SpanEvent[] = (s.events ?? []).slice(0, 32).map((e) => ({
+    name: e.name ?? '',
+    time: nanosToDate(e.timeUnixNano, start).toISOString(),
+    attributes: boundAttributes(attributesOf(e.attributes), 16),
+  }));
+  const statusCode = enumOf(s.status?.code, STATUS_CODES);
+  const span = {
+    traceId,
+    spanId,
+    parentSpanId: id(s.parentSpanId, 8),
+    service: res.service,
+    environment: res.environment,
+    name: (s.name ?? '').slice(0, 300),
+    kind: enumOf(s.kind, SPAN_KINDS),
+    start,
+    durationMs: durationMs(s.startTimeUnixNano, s.endTimeUnixNano, start, end),
+    statusCode,
+    statusMessage: s.status?.message?.slice(0, 1000) || null,
+    attributes: boundAttributes(attributes),
+    events,
+  };
+
+  // An error span with a recorded exception is an error occurrence.
+  const exEvent = events.find((e) => e.name === 'exception');
+  const ex = exEvent ? exceptionFrom(exEvent.attributes) : null;
+  if (statusCode !== 2 || !ex) return { span, error: null };
+  return {
+    span,
+    error: {
+      service: res.service,
+      environment: res.environment,
+      errorType: ex.type,
+      message: ex.message,
+      stack: ex.stack,
+      traceId,
+      spanId,
+      occurredAt: start,
+      route: str(attributes['http.route']),
+      httpStatus:
+        Number(attributes['http.response.status_code'] ?? attributes['http.status_code']) || null,
+      operation: s.name ?? null,
+      eventId: `span:${traceId}:${spanId}`,
+      release: res.release,
+      attributes: {},
+    },
+  };
 }
 
 export function tracesToBatch(req: TracesRequest, way: Batch['way'] = 'otlp'): Batch {
@@ -144,58 +206,10 @@ export function tracesToBatch(req: TracesRequest, way: Batch['way'] = 'otlp'): B
     const res = resourceInfo(rs.resource);
     for (const ss of rs.scopeSpans ?? []) {
       for (const s of ss.spans ?? []) {
-        const traceId = id(s.traceId, 16);
-        const spanId = id(s.spanId, 8);
-        if (!traceId || !spanId) continue;
-        const start = nanosToDate(s.startTimeUnixNano);
-        const end = nanosToDate(s.endTimeUnixNano, start);
-        const attributes = attributesOf(s.attributes);
-        const events: SpanEvent[] = (s.events ?? []).slice(0, 32).map((e) => ({
-          name: e.name ?? '',
-          time: nanosToDate(e.timeUnixNano, start).toISOString(),
-          attributes: boundAttributes(attributesOf(e.attributes), 16),
-        }));
-        const statusCode = enumOf(s.status?.code, STATUS_CODES);
-        batch.spans.push({
-          traceId,
-          spanId,
-          parentSpanId: id(s.parentSpanId, 8),
-          service: res.service,
-          environment: res.environment,
-          name: (s.name ?? '').slice(0, 300),
-          kind: enumOf(s.kind, SPAN_KINDS),
-          start,
-          durationMs: durationMs(s.startTimeUnixNano, s.endTimeUnixNano, start, end),
-          statusCode,
-          statusMessage: s.status?.message?.slice(0, 1000) || null,
-          attributes: boundAttributes(attributes),
-          events,
-        });
-
-        // An error span with a recorded exception is an error occurrence.
-        const exEvent = events.find((e) => e.name === 'exception');
-        const ex = exEvent ? exceptionFrom(exEvent.attributes) : null;
-        if (statusCode === 2 && ex) {
-          const route = str(attributes['http.route']);
-          batch.errors.push({
-            service: res.service,
-            environment: res.environment,
-            errorType: ex.type,
-            message: ex.message,
-            stack: ex.stack,
-            traceId,
-            spanId,
-            occurredAt: start,
-            route,
-            httpStatus:
-              Number(attributes['http.response.status_code'] ?? attributes['http.status_code']) ||
-              null,
-            operation: s.name ?? null,
-            eventId: `span:${traceId}:${spanId}`,
-            release: res.release,
-            attributes: {},
-          });
-        }
+        const entries = spanEntries(s, res);
+        if (!entries) continue;
+        batch.spans.push(entries.span);
+        if (entries.error) batch.errors.push(entries.error);
       }
     }
   }
@@ -226,22 +240,65 @@ function withoutClientErrors(batch: Batch): Batch {
   return batch;
 }
 
+interface OtlpLogRecord {
+  timeUnixNano?: string | number;
+  observedTimeUnixNano?: string | number;
+  severityNumber?: number | string;
+  severityText?: string;
+  body?: AnyValue;
+  attributes?: KeyValue[];
+  traceId?: string;
+  spanId?: string;
+}
+
 interface LogsRequest {
   resourceLogs?: {
     resource?: Resource;
-    scopeLogs?: {
-      logRecords?: {
-        timeUnixNano?: string | number;
-        observedTimeUnixNano?: string | number;
-        severityNumber?: number | string;
-        severityText?: string;
-        body?: AnyValue;
-        attributes?: KeyValue[];
-        traceId?: string;
-        spanId?: string;
-      }[];
-    }[];
+    scopeLogs?: { logRecords?: OtlpLogRecord[] }[];
   }[];
+}
+
+function logLevelOf(r: OtlpLogRecord): LogLevel {
+  const sevNum =
+    typeof r.severityNumber === 'string'
+      ? parseInt(r.severityNumber.replace(/\D/g, ''), 10)
+      : r.severityNumber;
+  return levelFromSeverityNumber(Number(sevNum)) ?? toLevel(r.severityText, 'info');
+}
+
+function logMessageOf(body: unknown): string {
+  if (typeof body === 'string') return body;
+  return body == null ? '' : JSON.stringify(body);
+}
+
+function logEntries(
+  r: OtlpLogRecord,
+  res: ResourceInfo,
+): { log: LogInput; error: ErrorInput | null } {
+  const attributes = attributesOf(r.attributes);
+  const level = logLevelOf(r);
+  const ts =
+    r.timeUnixNano && String(r.timeUnixNano) !== '0'
+      ? nanosToDate(r.timeUnixNano)
+      : nanosToDate(r.observedTimeUnixNano);
+  const traceId = id(r.traceId, 16);
+  const spanId = id(r.spanId, 8);
+  const ex = exceptionFrom(attributes);
+  const log: LogInput = {
+    ts,
+    service: res.service,
+    environment: res.environment,
+    level,
+    message: logMessageOf(anyValue(r.body)).slice(0, 32_000),
+    attributes: boundAttributes(attributes),
+    traceId,
+    spanId,
+    host: res.host,
+    exception: ex,
+  };
+  const error =
+    ex && isErrorLevel(level) ? errorFromLog({ res, ex, ts, traceId, spanId, attributes }) : null;
+  return { log, error };
 }
 
 export function logsToBatch(req: LogsRequest, way: Batch['way'] = 'otlp'): Batch {
@@ -250,50 +307,26 @@ export function logsToBatch(req: LogsRequest, way: Batch['way'] = 'otlp'): Batch
     const res = resourceInfo(rl.resource);
     for (const sl of rl.scopeLogs ?? []) {
       for (const r of sl.logRecords ?? []) {
-        const attributes = attributesOf(r.attributes);
-        const body = anyValue(r.body);
-        const sevNum =
-          typeof r.severityNumber === 'string'
-            ? parseInt(r.severityNumber.replace(/\D/g, ''), 10)
-            : r.severityNumber;
-        const level: LogLevel =
-          levelFromSeverityNumber(Number(sevNum)) ?? toLevel(r.severityText, 'info');
-        const message = typeof body === 'string' ? body : body == null ? '' : JSON.stringify(body);
-        const ts =
-          r.timeUnixNano && String(r.timeUnixNano) !== '0'
-            ? nanosToDate(r.timeUnixNano)
-            : nanosToDate(r.observedTimeUnixNano);
-        const traceId = id(r.traceId, 16);
-        const spanId = id(r.spanId, 8);
-        const ex = exceptionFrom(attributes);
-        batch.logs.push({
-          ts,
-          service: res.service,
-          environment: res.environment,
-          level,
-          message: message.slice(0, 32_000),
-          attributes: boundAttributes(attributes),
-          traceId,
-          spanId,
-          host: res.host,
-          exception: ex,
-        });
-        if (ex && isErrorLevel(level))
-          batch.errors.push(errorFromLog(res, ex, ts, traceId, spanId, attributes));
+        const { log, error } = logEntries(r, res);
+        batch.logs.push(log);
+        if (error) batch.errors.push(error);
       }
     }
   }
   return batch;
 }
 
-function errorFromLog(
-  res: ReturnType<typeof resourceInfo>,
-  ex: { type: string; message: string; stack: string[] },
-  ts: Date,
-  traceId: string | null,
-  spanId: string | null,
-  attributes: Record<string, unknown>,
-): ErrorInput {
+interface ErrorFromLogInput {
+  res: ResourceInfo;
+  ex: { type: string; message: string; stack: string[] };
+  ts: Date;
+  traceId: string | null;
+  spanId: string | null;
+  attributes: Record<string, unknown>;
+}
+
+function errorFromLog(input: ErrorFromLogInput): ErrorInput {
+  const { res, ex, ts, traceId, spanId, attributes } = input;
   return {
     service: res.service,
     environment: res.environment,
