@@ -1,18 +1,16 @@
-import {
-  jsonLogsToBatch,
-  logplexToBatch,
-  parseOctetFrames,
-  parseSyslog,
-  sdkErrorsToBatch,
-  syslogToken,
-  syslogToLog,
-  vercelToBatch,
-} from './formats';
+import { jsonLogsToBatch, sdkErrorsToBatch, vercelToBatch } from './formats';
 import { maskToken, newIngestToken } from './ingest-tokens.service';
 import { streamState } from './ingest.service';
 import { parseLogQuery } from './log-query';
 import { logsToBatch, metricsToBatch, tracesToBatch } from './otlp';
 import { decodeLogs, decodeMetrics, decodeTraces, Writer } from './protobuf';
+import {
+  logplexToBatch,
+  parseOctetFrames,
+  parseSyslog,
+  syslogToken,
+  syslogToLog,
+} from './syslog-format';
 import { levelFromSeverityNumber, parseDate, toLevel } from './types';
 
 const kv = (key: string, value: string) =>
