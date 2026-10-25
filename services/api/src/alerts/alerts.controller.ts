@@ -52,6 +52,19 @@ function tokenOf(req: Request): string | undefined {
   );
 }
 
+/** SNS posts JSON with `Content-Type: text/plain`; the text parser leaves it as a string. */
+function parseSnsBody(req: Request): Record<string, unknown> | null {
+  const body: unknown = req.body;
+  if (body && typeof body === 'object' && !Array.isArray(body) && 'Type' in body) return body;
+  if (typeof body !== 'string') return null;
+  try {
+    const parsed = JSON.parse(body) as unknown;
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
 const unauthorized = () =>
   new ApiException(HttpStatus.UNAUTHORIZED, 'invalid_token', 'Unknown alert source or bad token');
 
@@ -88,6 +101,14 @@ export class AlertIntakeController {
         'heartbeat',
         'Send heartbeats to /ingest/heartbeats',
       );
+    }
+    if ((row.config as unknown as SourceConfig).kind === 'cloudwatch') {
+      const sns = parseSnsBody(req);
+      if (sns?.Type === 'SubscriptionConfirmation' || sns?.Type === 'UnsubscribeConfirmation') {
+        await this.sources.confirmSnsSubscription(row, sns);
+        return { accepted: true, duplicate: false };
+      }
+      if (sns) req.body = sns;
     }
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
       throw new ApiException(HttpStatus.BAD_REQUEST, 'validation_failed', 'Expected a JSON object');

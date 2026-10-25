@@ -92,6 +92,20 @@
       "when": 1792475116314,
       "tag": "0012_alerts_realtime",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792525152276,
+      "tag": "0013_auth_and_ingest",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792856164237,
+      "tag": "0014_usage_limits_and_value",
+      "breakpoints": true
     }
   ]
 }

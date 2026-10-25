@@ -22,6 +22,7 @@ import {
   investigations,
 } from '../db/schema';
 import { TemporalService } from '../temporal/temporal.service';
+import { UsageService } from '../usage/usage.service';
 
 @Injectable()
 export class InvestigationsService {
@@ -30,6 +31,7 @@ export class InvestigationsService {
     private readonly temporal: TemporalService,
     private readonly artifacts: ArtifactStore,
     private readonly audit: AuditService,
+    private readonly usage: UsageService,
   ) {}
 
   private async incident(actor: ActorContext, incidentId: string) {
@@ -203,6 +205,21 @@ export class InvestigationsService {
           HttpStatus.CONFLICT,
           'investigation_running',
           'An investigation is already running',
+        );
+      }
+      const blocked = await this.usage.blockedReason(actor.workspaceId);
+      if (blocked) {
+        await this.usage.recordBlocked({
+          workspaceId: actor.workspaceId,
+          incidentId,
+          reason: blocked,
+          actorId: actor.userId,
+          correlationId: actor.correlationId,
+        });
+        throw new ApiException(
+          HttpStatus.CONFLICT,
+          'usage_limit_reached',
+          `Investigation not started: ${blocked}`,
         );
       }
       await this.temporal.requestInvestigation(wf, actor.userId, input.note ?? null);

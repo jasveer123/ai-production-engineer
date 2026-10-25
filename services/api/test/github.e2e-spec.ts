@@ -92,11 +92,15 @@ describe('GitHub App integration (e2e)', () => {
     expect(integration).toMatchObject({ provider: 'github', status: 'connected' });
     expect(integration.scope).toContain('acct42/demo-shop');
 
-    // Claimed installations are no longer offered, and cannot be connected twice.
+    // Claimed installations are no longer offered. Connecting one again in the same workspace
+    // updates it (the "Manage repositories" page relies on this) and never makes a second row.
     const after = (await owner.get(`/workspaces/${ws}/github/app`).expect(200))
       .body as GitHubAppInfo;
     expect(after.installations.map((i) => i.id)).toEqual([43]);
-    await owner.post(`/workspaces/${ws}/github/connect`).send({ installationId: 42 }).expect(409);
+    const again = (
+      await owner.post(`/workspaces/${ws}/github/connect`).send({ installationId: 42 }).expect(201)
+    ).body as Integration;
+    expect(again.id).toBe(integration.id);
 
     const svc = await owner
       .post(`/workspaces/${ws}/services`)

@@ -1,6 +1,9 @@
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { and, asc, count, eq, isNull, sql } from 'drizzle-orm';
-import type { Invitation, Member, Role } from '@ape/api-contracts';
+import type { Invitation, InvitationWithLink, Member, Role } from '@ape/api-contracts';
+import { Mailer } from '../auth/mailer.service';
+import { newLinkToken, sha256 } from '../auth/password';
+import { ENV, type ApiEnv } from '../config/config.module';
 import { AuditService } from '../audit/audit.service';
 import { DB } from '../db/database.module';
 import type { Database } from '../db/client';
@@ -9,13 +12,17 @@ import type { ActorContext } from '../common/request-context';
 import { ApiException, conflict, forbidden, notFound } from '../common/errors';
 import { canManageRole } from './roles';
 
+const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 
 @Injectable()
 export class MembersService {
   constructor(
     @Inject(DB) private readonly db: Database,
+    @Inject(ENV) private readonly env: ApiEnv,
     private readonly audit: AuditService,
+    private readonly mailer: Mailer,
   ) {}
 
   async list(actor: ActorContext): Promise<Member[]> {
@@ -91,6 +98,7 @@ export class MembersService {
         email: workspaceInvitations.email,
         role: workspaceInvitations.role,
         createdAt: workspaceInvitations.createdAt,
+        expiresAt: workspaceInvitations.expiresAt,
       })
       .from(workspaceInvitations)
       .where(
@@ -101,11 +109,19 @@ export class MembersService {
         ),
       )
       .orderBy(asc(workspaceInvitations.createdAt));
-    return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
+    return rows.map((r) => ({
+      ...r,
+      createdAt: r.createdAt.toISOString(),
+      expiresAt: r.expiresAt?.toISOString() ?? null,
+    }));
   }
 
-  /** Pending invitations become memberships when that email next signs in. */
-  async invite(actor: ActorContext, email: string, role: Role): Promise<Invitation> {
+  /**
+   * Creates an invitation with a 7-day link. The link is returned once (and emailed); the person
+   * registers or signs in through it. A pending invite also applies when that verified email
+   * next signs in.
+   */
+  async invite(actor: ActorContext, email: string, role: Role): Promise<InvitationWithLink> {
     await this.assertCanManage(actor, null, role, 'invitation.created', email);
 
     const [alreadyMember] = await this.db
@@ -120,7 +136,9 @@ export class MembersService {
       );
     if (alreadyMember) throw conflict('This person is already a member');
 
-    return this.db.transaction(async (tx) => {
+    const token = newLinkToken();
+    const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
+    const result = await this.db.transaction(async (tx) => {
       // Replace any earlier pending invite for the same email so there is only one.
       await tx
         .update(workspaceInvitations)
@@ -135,7 +153,14 @@ export class MembersService {
         );
       const [inv] = await tx
         .insert(workspaceInvitations)
-        .values({ workspaceId: actor.workspaceId, email, role, invitedBy: actor.userId })
+        .values({
+          workspaceId: actor.workspaceId,
+          email,
+          role,
+          invitedBy: actor.userId,
+          tokenHash: sha256(token),
+          expiresAt,
+        })
         .returning();
       await this.audit.record(
         {
@@ -155,8 +180,20 @@ export class MembersService {
         email: inv!.email,
         role: inv!.role,
         createdAt: inv!.createdAt.toISOString(),
+        expiresAt: expiresAt.toISOString(),
+        inviteUrl: `${this.env.WEB_URL}/invite/?token=${token}`,
       };
     });
+    await this.mailer.send({
+      to: email,
+      subject: `You are invited to join as ${role}`,
+      text: [
+        `You have been invited to an AI Production Engineer workspace as ${role}.`,
+        `Accept the invitation: ${result.inviteUrl}`,
+        'The link expires in 7 days.',
+      ].join('\n\n'),
+    });
+    return result;
   }
 
   async revokeInvitation(actor: ActorContext, invitationId: string): Promise<void> {

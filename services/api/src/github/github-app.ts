@@ -226,6 +226,13 @@ export class GitHubAppClient {
     return r.status === 'ahead' || r.status === 'identical';
   }
 
+  getRepo(installationId: number, repo: string) {
+    return this.asInstallation<{ full_name: string; default_branch: string; private: boolean }>(
+      installationId,
+      `/repos/${repo}`,
+    );
+  }
+
   /** Drops a cached token, e.g. after the installation was removed. */
   forget(installationId: number) {
     this.tokens.delete(installationId);

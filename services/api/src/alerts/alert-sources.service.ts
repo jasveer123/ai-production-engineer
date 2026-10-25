@@ -196,6 +196,21 @@ export class AlertSourcesService {
     return secret && sameToken(secret, token) ? row : null;
   }
 
+  /** A source row by id, for routing webhooks that identify the workspace themselves. */
+  async row(id: string): Promise<Row | null> {
+    const [r] = await this.db
+      .select()
+      .from(integrations)
+      .where(
+        and(
+          eq(integrations.id, id),
+          eq(integrations.provider, ALERT_SOURCE_PROVIDER),
+          ne(integrations.status, 'disconnected'),
+        ),
+      );
+    return r ?? null;
+  }
+
   /** Buffers an alert request durably; processing happens asynchronously (Phase 3 pipeline). */
   async buffer(
     row: Row,
@@ -223,6 +238,45 @@ export class AlertSourcesService {
         .where(eq(integrations.id, row.id));
     }
     return inserted.length === 0;
+  }
+
+  /**
+   * Confirms an SNS subscription by visiting its SubscribeURL. The request is already
+   * authenticated by the source token; the URL must be an AWS SNS endpoint (no SSRF).
+   */
+  async confirmSnsSubscription(row: Row, sns: Record<string, unknown>): Promise<void> {
+    const raw = typeof sns.SubscribeURL === 'string' ? sns.SubscribeURL : '';
+    let target: URL | null = null;
+    try {
+      target = new URL(raw);
+    } catch {
+      target = null;
+    }
+    const ok =
+      target?.protocol === 'https:' &&
+      /^sns\.[a-z0-9-]+\.amazonaws\.com(\.cn)?$/.test(target.hostname) &&
+      target.searchParams.get('Action') === 'ConfirmSubscription';
+    let error: string | null = null;
+    if (!ok) error = 'SNS sent a subscription URL that is not an AWS SNS endpoint';
+    else {
+      try {
+        const res = await fetch(target!, {
+          signal: AbortSignal.timeout(10_000),
+          redirect: 'error',
+        });
+        if (!res.ok) error = `SNS subscription confirmation failed (HTTP ${res.status})`;
+      } catch (err) {
+        error = `SNS subscription confirmation failed: ${(err as Error).message}`;
+      }
+    }
+    await this.db
+      .update(integrations)
+      .set(
+        error
+          ? { status: 'error', lastError: error }
+          : { status: 'connected', lastSyncAt: new Date(), lastError: null },
+      )
+      .where(eq(integrations.id, row.id));
   }
 
   /** A heartbeat ping. If the heartbeat was down, it resolves the missed-heartbeat alert. */

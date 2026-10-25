@@ -14,6 +14,7 @@ import {
   inviteMemberSchema,
   updateMemberRoleSchema,
   type Invitation,
+  type InvitationWithLink,
   type InviteMemberInput,
   type Member,
   type UpdateMemberRoleInput,
@@ -66,7 +67,7 @@ export class MembersController {
   invite(
     @Actor() actor: ActorContext,
     @Body(new ZodValidationPipe(inviteMemberSchema)) body: InviteMemberInput,
-  ): Promise<Invitation> {
+  ): Promise<InvitationWithLink> {
     return this.members.invite(actor, body.email, body.role);
   }
 

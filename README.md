@@ -34,7 +34,7 @@ make dev      # run web, api and ai-worker
 | Jaeger UI | http://localhost:16686 |
 | S3 console (RustFS) | http://localhost:9001/rustfs/console/ (`ape-minio` / `ape-minio-secret`) |
 
-Sign in at http://localhost:3000/login with the seeded demo users (`owner@demo.local`, `engineer@demo.local`, `viewer@demo.local`) through the local-only dev login. For real GitHub sign-in, create a GitHub OAuth app with callback `http://localhost:4000/auth/github/callback` and set `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET` in `services/api/.env`.
+Open http://localhost:3000 and **create an account**, then create a workspace. Admins invite people from **Members** with a role; the invite link is shown once and emailed. Without `RESEND_API_KEY`, account emails (verify, reset, invite) are printed in the API log. For real GitHub sign-in, create a GitHub OAuth app with callback `http://localhost:4000/auth/github/callback` and set `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET` in `services/api/.env`.
 
 ### Detecting incidents (Phase 3)
 
@@ -72,12 +72,28 @@ See [ADR-021](docs/architecture/021-evaluation-and-model-comparison.md).
 
 **Alerts → Sources**: add Prometheus Alertmanager, Grafana, Sentry, Datadog, generic HTTP JSON, or a heartbeat monitor. Each source shows its URL and a token once, with a ready-to-paste setup snippet. **Alerts → Routes**: ordered rules (first match wins) that filter on title, severity or labels, group alerts into one incident by labels such as `service`, set the severity, or only record. *Test a payload* previews where alerts would go. Heartbeats raise an alert when a job stops pinging. See [ADR-022](docs/architecture/022-alert-sources-routes-and-heartbeats.md) and the product plan in [docs/research](docs/research/incident-io-feature-map.md).
 
+### Accounts and the integrations hub
+
+See [docs/requirements/auth-and-integrations.md](docs/requirements/auth-and-integrations.md) and [ADR-023](docs/architecture/023-accounts-and-telemetry-intake.md).
+
+- **Integrations → Send data**: create the workspace token (shown once), then pick a way. Every setup page has copyable snippets with your URL and token, and turns green when data arrives.
+  1. Our packages: [`@ape/agent`](packages/sdk-node/README.md) (Node.js, JS/TS) and [`ape-agent`](packages/sdk-python/README.md) (Python).
+  2. OpenTelemetry: `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4000` (protobuf or JSON, gzip).
+  3. HTTP API: `POST /v1/logs` and `POST /v1/errors`.
+  4. Vector / Fluent Bit: `POST /v1/logs`.
+  5. Drains: Vercel and Heroku on `POST /v1/drain`, Render over syslog on port 6514.
+- **Integrations → Connect tools**: per tool, *Send alerts to us* (Way 6) and *Let the AI read logs* (Way 7, read-only credentials, tested on save).
+- **Logs**: search everything received, e.g. `level:error service:checkout-api "timeout"`.
+- Smoke test: `APE_TOKEN=… node packages/sdk-node/examples/send-test-data.mjs`.
+
+**One-click setup** ([ADR-024](docs/architecture/024-one-click-integration-setup.md)): every way and tool has a "Let us set it up" / "Set up automatically" path. It opens setup pull requests (package, OIDC deploy markers), installs the server agent with one command, creates drains in Vercel/Heroku/Render, configures Grafana, Datadog, Elasticsearch and Better Stack from one admin key, and connects Sentry and AWS by approval. For the sign-in flows, register the apps once and fill `SENTRY_*`, `VERCEL_*`, `HEROKU_*` in `services/api/.env`. Cloud tools need public URLs: set `PUBLIC_API_URL` and `PUBLIC_INGEST_URL` (a tunnel works for local testing).
+
 Other targets: `make test`, `make eval`, `make lint`, `make typecheck`, `make format`, `make down`, `make clean` (deletes local data volumes).
 
 ## Layout
 
 ```text
-apps/web/                 Next.js dashboard
+apps/web/                 Next.js product UI (was business-ai)
 services/api/             NestJS control plane
 services/ai-worker/       Python FastAPI AI worker (uv project)
 services/sandbox-manager/ Isolated job runner (Phase 5)
@@ -86,6 +102,8 @@ workflows/temporal/       Temporal workflows (Phase 4)
 packages/config/          Zod-validated env config
 packages/api-contracts/   OpenAPI + generated types (Phase 1)
 packages/ui/              Shared UI components
+packages/sdk-node/        @ape/agent: Node.js SDK (Way 1)
+packages/sdk-python/      ape-agent: Python SDK (Way 1)
 prompts/                  Versioned prompt files
 infrastructure/           docker-compose, Terraform, OTel/Grafana config
 tests/                    integration, security, load, evaluation

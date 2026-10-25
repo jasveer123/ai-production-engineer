@@ -57,6 +57,7 @@ test:
 	pnpm -r run test
 	pnpm --filter @ape/api test:e2e
 	cd $(WORKER) && uv run pytest -q
+	cd packages/sdk-python && uv run --group dev pytest -q
 
 ## Score investigations against the answer key (ADR-021). Real models need keys in the worker's .env:
 ##   make eval MODELS="gemini:gemini-3.6-flash anthropic:claude-opus-5-5" REPEAT=3

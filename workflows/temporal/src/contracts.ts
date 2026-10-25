@@ -62,7 +62,10 @@ export interface Actor {
 }
 
 export interface EvidenceActivities {
-  startInvestigation(input: StartInvestigationInput): Promise<{ investigationId: string }>;
+  /** `blocked` is set when the workspace usage limits stopped the start (FR-16). */
+  startInvestigation(
+    input: StartInvestigationInput,
+  ): Promise<{ investigationId: string; blocked?: string }>;
   collectEvidence(input: { investigationId: string }): Promise<CollectEvidenceResult>;
   publishReport(input: { investigationId: string; result: InvestigateResult }): Promise<void>;
   markInvestigation(input: {

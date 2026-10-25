@@ -4,6 +4,8 @@ import { IngestionModule } from '../ingestion/ingestion.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { OutboxPublisher } from '../temporal/outbox-publisher.service';
 import { TemporalService } from '../temporal/temporal.service';
+import { ToolsModule } from '../tools/tools.module';
+import { UsageModule } from '../usage/usage.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { FixActivitiesService } from '../fixes/fix-activities.service';
 import { FixesService } from '../fixes/fixes.service';
@@ -22,7 +24,7 @@ import { VerificationService } from '../verification/verification.service';
 import { VerifyActivitiesService } from '../verification/verify-activities.service';
 
 @Module({
-  imports: [WorkspacesModule, IngestionModule, NotificationsModule],
+  imports: [WorkspacesModule, IngestionModule, NotificationsModule, ToolsModule, UsageModule],
   controllers: [
     InvestigationsController,
     FixesController,

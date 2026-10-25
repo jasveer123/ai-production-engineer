@@ -10,7 +10,7 @@ import { and, eq } from 'drizzle-orm';
 import request from 'supertest';
 import type { App } from 'supertest/types';
 import { createDatabase } from '../src/db/client';
-import { auditEvents, inboundEvents, outbox } from '../src/db/schema';
+import { auditEvents, inboundEvents, incidentEvents, outbox, spans } from '../src/db/schema';
 import { IngestionProcessor } from '../src/ingestion/ingestion.processor';
 import { extractError, type JaegerTrace } from '../src/ingestion/jaeger';
 import { JaegerPoller } from '../src/ingestion/jaeger.poller';
@@ -180,6 +180,105 @@ describe('Ingestion and incidents (e2e)', () => {
       commit_sha: 'abc1234',
       env: 'production',
     }).expect(404);
+  });
+
+  it('drops an error whose server span ended as a 4xx, and waits for a server span that is late', async () => {
+    const integrationId = await jaegerIntegration();
+    const base = extractError(trace, 'demo-shop-api')!;
+    const [early, late] = traceIds(2, 'c');
+    const serverSpan = (traceId: string, status: number) => ({
+      workspaceId: ws,
+      traceId,
+      spanId: '00f067aa0ba902b7',
+      service: 'demo-shop-api',
+      environment: 'production',
+      name: 'GET /api/Users',
+      kind: 2,
+      startTime: new Date(),
+      durationMs: '2',
+      attributes: { 'http.response.status_code': status },
+    });
+    await db.insert(spans).values(serverSpan(early!, 401));
+    await db.insert(inboundEvents).values(
+      [early!, late!].map((traceId) => ({
+        workspaceId: ws,
+        integrationId,
+        source: 'otel_jaeger',
+        externalEventId: traceId,
+        payload: { ...base, traceId, httpStatus: null, occurredAt: new Date().toISOString() },
+      })),
+    );
+    const open = async () =>
+      ((await owner.get(`/workspaces/${ws}/incidents`).expect(200)).body as Incident[]).length;
+
+    // The 401 is dropped; the other error is held back until its server span shows up.
+    expect(await processor.processBatch()).toEqual({ processed: 1, retried: 1, dead: 0 });
+    expect(await open()).toBe(0);
+    // Once the server span arrives as a 500, the held error opens an incident.
+    await db.insert(spans).values(serverSpan(late!, 500));
+    await db
+      .update(inboundEvents)
+      .set({ nextAttemptAt: new Date(Date.now() - 1000) })
+      .where(eq(inboundEvents.externalEventId, late!));
+    expect(await processor.processBatch()).toEqual({ processed: 1, retried: 0, dead: 0 });
+    expect(await open()).toBe(1);
+  });
+
+  it('links incidents opened before their service was set up, once the service is created', async () => {
+    const integrationId = await jaegerIntegration();
+    const base = extractError(trace, 'demo-shop-api')!;
+    await db.insert(inboundEvents).values({
+      workspaceId: ws,
+      integrationId,
+      source: 'otel_jaeger',
+      externalEventId: 'e'.padEnd(32, '0'),
+      payload: {
+        ...base,
+        serviceName: 'orphan-api',
+        traceId: 'e'.padEnd(32, '0'),
+        occurredAt: new Date().toISOString(),
+      },
+    });
+    await processor.processBatch();
+    const list = async () =>
+      (await owner.get(`/workspaces/${ws}/incidents`).expect(200)).body as Incident[];
+    const [before] = await list();
+    expect(before).toMatchObject({ serviceName: 'orphan-api', serviceId: null });
+
+    await owner
+      .post(`/workspaces/${ws}/services`)
+      .send({
+        name: 'orphan-api',
+        environment: before!.environment,
+        repositoryFullName: 'me/orphan-api',
+      })
+      .expect(201);
+    expect((await list())[0]).toMatchObject({ repositoryFullName: 'me/orphan-api' });
+  });
+
+  it('keeps every non-error step on the timeline when errors pass the 200 cap', async () => {
+    const incident = (
+      await owner
+        .post(`/workspaces/${ws}/incidents`)
+        .send({ title: 'Checkout fails', severity: 'high' })
+        .expect(201)
+    ).body as Incident;
+    const start = Date.now();
+    await db.insert(incidentEvents).values(
+      Array.from({ length: 210 }, (_, i) => ({
+        workspaceId: ws,
+        incidentId: incident.id,
+        kind: 'error',
+        source: 'test',
+        summary: 'boom',
+        occurredAt: new Date(start + 1000 + i),
+      })),
+    );
+    const timeline = (
+      await owner.get(`/workspaces/${ws}/incidents/${incident.id}/timeline`).expect(200)
+    ).body as TimelineEntry[];
+    expect(timeline.filter((e) => e.kind === 'error')).toHaveLength(200);
+    expect(timeline.some((e) => e.kind === 'created')).toBe(true);
   });
 
   it('turns 50 occurrences of one error into exactly one incident, with the deploy on its timeline', async () => {

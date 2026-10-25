@@ -14,6 +14,7 @@ import {
   createServiceSchema,
   updateServiceSchema,
   type CreateServiceInput,
+  type DiscoveredService,
   type Service,
   type UpdateServiceInput,
 } from '@ape/api-contracts';
@@ -32,6 +33,12 @@ export class ServiceMappingsController {
   @Get()
   list(@Actor() actor: ActorContext): Promise<Service[]> {
     return this.svc.list(actor);
+  }
+
+  // Declared before ':serviceId' so the UUID pipe never sees "discovered".
+  @Get('discovered')
+  discovered(@Actor() actor: ActorContext): Promise<DiscoveredService[]> {
+    return this.svc.discovered(actor);
   }
 
   @Get(':serviceId')

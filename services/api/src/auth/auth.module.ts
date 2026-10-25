@@ -1,12 +1,15 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { ENV, type ApiEnv } from '../config/config.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { GitHubOAuthService } from './github-oauth.service';
+import { Mailer } from './mailer.service';
 import { SessionGuard } from './session.guard';
 
+/** Global so other modules (members) can send account email. */
+@Global()
 @Module({
   imports: [
     JwtModule.registerAsync({
@@ -20,6 +23,12 @@ import { SessionGuard } from './session.guard';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, GitHubOAuthService, { provide: APP_GUARD, useClass: SessionGuard }],
+  exports: [Mailer],
+  providers: [
+    AuthService,
+    GitHubOAuthService,
+    Mailer,
+    { provide: APP_GUARD, useClass: SessionGuard },
+  ],
 })
 export class AuthModule {}

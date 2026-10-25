@@ -1,34 +1,27 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
-import './globals.css';
+import { Atkinson_Hyperlegible_Next, JetBrains_Mono, Schibsted_Grotesk } from 'next/font/google';
+import { THEME_INIT_SCRIPT } from '@/features/theme/theme';
 import { Providers } from './providers';
+import './globals.css';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-});
-
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
-});
+const body = Atkinson_Hyperlegible_Next({ subsets: ['latin'], variable: '--font-body' });
+const heading = Schibsted_Grotesk({ subsets: ['latin'], variable: '--font-heading' });
+const code = JetBrains_Mono({ subsets: ['latin'], variable: '--font-code' });
 
 export const metadata: Metadata = {
-  title: 'AI Production Engineer',
-  description: 'Evidence-backed incident investigation and tested fixes',
+  title: { default: 'AI Production Engineer', template: '%s · AI Production Engineer' },
+  description: 'Find the cause, prove it with a test, ship the fix. A person always approves.',
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      {/* Browser extensions (e.g. Grammarly) add attributes to <body> before React hydrates. */}
+    // The init script may set data-theme before React hydrates, so the attribute can differ.
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
-        suppressHydrationWarning
+        className={`${body.variable} ${heading.variable} ${code.variable} font-sans antialiased`}
       >
         <Providers>{children}</Providers>
       </body>

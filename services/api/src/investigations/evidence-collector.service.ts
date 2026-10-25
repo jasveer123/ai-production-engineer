@@ -1,10 +1,19 @@
 import { createHash } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { and, asc, desc, eq, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { ENV, type ApiEnv } from '../config/config.module';
 import { DB } from '../db/database.module';
 import type { Database } from '../db/client';
-import { alerts, deployments, incidentEvents, incidents, services } from '../db/schema';
+import {
+  alerts,
+  deployments,
+  incidentEvents,
+  incidents,
+  logRecords,
+  services,
+  spans,
+} from '../db/schema';
+import { ToolsService } from '../tools/tools.service';
 import { GitHubService } from '../github/github.service';
 import { str, type JaegerTrace } from '../ingestion/jaeger';
 import { JaegerPoller } from '../ingestion/jaeger.poller';
@@ -20,11 +29,23 @@ const LIMITS = {
   codeFiles: 3,
   codeRadius: 30,
   commits: 6,
+  logLines: 40,
+  toolLines: 30,
   itemChars: 8000,
 };
 
+/** Attribute values as text: scalars as-is, anything else as JSON. */
+const scalar = (v: unknown): string =>
+  typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean'
+    ? String(v)
+    : JSON.stringify(v);
+
+/** Logs are read from 15 minutes before the first error to 5 minutes after the last one. */
+const LOG_WINDOW_BEFORE_MS = 15 * 60_000;
+const LOG_WINDOW_AFTER_MS = 5 * 60_000;
+
 export interface DraftEvidence {
-  kind: 'error_event' | 'alert' | 'trace' | 'deploy' | 'code' | 'commit';
+  kind: 'error_event' | 'alert' | 'trace' | 'log' | 'deploy' | 'code' | 'commit';
   title: string;
   source: string;
   sourceReference: string;
@@ -73,6 +94,7 @@ export class EvidenceCollector {
     @Inject(ENV) private readonly env: ApiEnv,
     private readonly github: GitHubService,
     private readonly jaeger: JaegerPoller,
+    private readonly tools: ToolsService,
   ) {}
 
   async collect(incidentId: string, workspaceId: string): Promise<CollectedEvidence> {
@@ -87,7 +109,7 @@ export class EvidenceCollector {
 
     const drafts: DraftEvidence[] = [];
     const coverage: Record<string, CoverageValue> = {
-      logs: 'not_supported',
+      logs: 0,
       metrics: 'not_supported',
     };
 
@@ -161,7 +183,7 @@ export class EvidenceCollector {
     }
     coverage.alerts = routed.length;
 
-    // 2. One full trace of the most recent failure.
+    // 2. One full trace of the most recent failure: Jaeger first, then traces sent to our intake.
     const traceId = errors.find((e) => e.traceId)?.traceId;
     if (traceId) {
       try {
@@ -180,7 +202,17 @@ export class EvidenceCollector {
       } catch (err) {
         coverage.traces = `unavailable: ${(err as Error).message}`;
       }
+      if (coverage.traces !== 'ok') {
+        const stored = await this.storedTrace(workspaceId, traceId);
+        if (stored) {
+          drafts.push(stored);
+          coverage.traces = 'ok';
+        }
+      }
     } else coverage.traces = 'none';
+
+    // 2b. Logs around the incident: our own intake (Ways 1-5) and connected tools (Way 7).
+    await this.collectLogs(incident, drafts, coverage);
 
     // 3. Deploys of this service before the last occurrence.
     const deploys =
@@ -239,6 +271,102 @@ export class EvidenceCollector {
     });
     coverage.redactions = Object.values(redactions).reduce((a, b) => a + b, 0);
     return { items, coverage, redactions };
+  }
+
+  private async storedTrace(workspaceId: string, traceId: string): Promise<DraftEvidence | null> {
+    const rows = await this.db
+      .select()
+      .from(spans)
+      .where(and(eq(spans.workspaceId, workspaceId), eq(spans.traceId, traceId)))
+      .orderBy(asc(spans.startTime))
+      .limit(LIMITS.traceSpans);
+    if (rows.length === 0) return null;
+    const start = rows[0]!.startTime.getTime();
+    const content = rows
+      .map((s) => {
+        const status =
+          s.attributes['http.response.status_code'] ?? s.attributes['http.status_code'];
+        const exc = s.events.find((e) => e.name === 'exception')?.attributes['exception.message'];
+        return `+${s.startTime.getTime() - start}ms ${s.service} ${s.name} (${Math.round(Number(s.durationMs))}ms)${status ? ` status=${scalar(status)}` : ''}${s.statusCode === 2 ? ' ERROR' : ''}${exc ? ` exception="${scalar(exc)}"` : ''}`;
+      })
+      .join('\n');
+    return {
+      kind: 'trace',
+      title: `Trace ${traceId.slice(0, 12)} (${rows.length} spans)`,
+      source: 'ingest',
+      sourceReference: `trace:${traceId}`,
+      sourceUrl: null,
+      content,
+    };
+  }
+
+  private async collectLogs(
+    incident: typeof incidents.$inferSelect,
+    drafts: DraftEvidence[],
+    coverage: Record<string, CoverageValue>,
+  ): Promise<void> {
+    const from = new Date(incident.firstSeenAt.getTime() - LOG_WINDOW_BEFORE_MS);
+    const to = new Date(Math.min(Date.now(), incident.lastSeenAt.getTime() + LOG_WINDOW_AFTER_MS));
+    const line = (ts: string, level: string, service: string | null, msg: string) =>
+      `${ts} ${level.toUpperCase().padEnd(5)} ${service ?? ''} ${msg.replace(/\s+/g, ' ').slice(0, 500)}`.trim();
+
+    if (incident.serviceName) {
+      // Warnings and errors first (they explain the failure), then the most recent context.
+      const where = and(
+        eq(logRecords.workspaceId, incident.workspaceId),
+        eq(logRecords.service, incident.serviceName),
+        gte(logRecords.ts, from),
+        lte(logRecords.ts, to),
+      );
+      const [bad, recent] = await Promise.all([
+        this.db
+          .select()
+          .from(logRecords)
+          .where(and(where, inArray(logRecords.level, ['warn', 'error', 'fatal'])))
+          .orderBy(desc(logRecords.ts))
+          .limit(LIMITS.logLines),
+        this.db.select().from(logRecords).where(where).orderBy(desc(logRecords.ts)).limit(10),
+      ]);
+      const rows = [...bad, ...recent.filter((r) => !bad.some((b) => b.id === r.id))]
+        .sort((a, b) => a.ts.getTime() - b.ts.getTime())
+        .slice(-LIMITS.logLines);
+      if (rows.length > 0) {
+        drafts.push({
+          kind: 'log',
+          title: `Logs from ${incident.serviceName} (${rows.length} lines)`,
+          source: 'ingest',
+          sourceReference: `logs:${incident.serviceName}:${from.toISOString()}/${to.toISOString()}`,
+          sourceUrl: null,
+          content: rows
+            .map((r) => line(r.ts.toISOString(), r.level, r.service, r.message))
+            .join('\n'),
+        });
+      }
+      coverage.logs = rows.length;
+    }
+
+    const results = await this.tools.readForIncident(incident.workspaceId, {
+      service: incident.serviceName,
+      environment: incident.environment,
+      from,
+      to,
+      limit: LIMITS.toolLines,
+      errorsOnly: false,
+    });
+    for (const r of results) {
+      coverage[`logs_${r.tool}`] = r.error ? `unavailable: ${r.error}` : r.lines.length;
+      if (r.lines.length === 0) continue;
+      const lines = [...r.lines].sort((a, b) => a.ts.localeCompare(b.ts));
+      drafts.push({
+        kind: 'log',
+        title: `${r.name}: ${lines.length} log lines`,
+        source: r.tool,
+        sourceReference: `${r.tool}:${incident.serviceName ?? '*'}:${from.toISOString()}/${to.toISOString()}`,
+        sourceUrl: lines.find((l) => l.url)?.url ?? null,
+        content: lines.map((l) => line(l.ts, l.level, l.service, l.message)).join('\n'),
+      });
+      coverage.logs = Number(coverage.logs) + lines.length;
+    }
   }
 
   private async collectCode(

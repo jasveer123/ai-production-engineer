@@ -12,6 +12,7 @@ import {
   incidents,
   outbox,
   services,
+  spans,
   workspaces,
 } from '../db/schema';
 import { severityFor } from '../incidents/lifecycle';
@@ -23,6 +24,16 @@ type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 type InboundRow = typeof inboundEvents.$inferSelect;
 
 export const MAX_ATTEMPTS = 5;
+/**
+ * An error can arrive before the server span that holds the request's HTTP status (the server span
+ * ends last). Wait this long for it before treating the status as unknown.
+ */
+export const SERVER_SPAN_WAIT_MS = 20_000;
+const DEFER_MS = 3_000;
+const SERVER_SPAN_KIND = 2;
+
+/** Not a failure: look at this event again shortly, without counting an attempt. */
+class DeferIngest extends Error {}
 const backoffMs = (attempt: number) => Math.min(60_000, 1000 * 2 ** attempt);
 
 export interface BatchResult {
@@ -76,6 +87,13 @@ export class IngestionProcessor {
             .where(eq(inboundEvents.id, row.id));
           return 'processed' as const;
         } catch (err) {
+          if (err instanceof DeferIngest) {
+            await tx
+              .update(inboundEvents)
+              .set({ nextAttemptAt: sql`now() + ${DEFER_MS} * interval '1 millisecond'` })
+              .where(eq(inboundEvents.id, row.id));
+            return 'retried' as const;
+          }
           return this.recordFailure(tx, row, err);
         }
       });
@@ -165,7 +183,40 @@ export class IngestionProcessor {
       }
       return;
     }
+    if (await this.endedAsClientError(tx, row, event)) return;
     await this.correlateError(tx, row, event, service?.id ?? null);
+  }
+
+  /**
+   * A declined card or a bad request is the app working as designed, not an incident. When the
+   * error carries no HTTP status, read it from the trace's server span; if that span has not
+   * arrived yet, wait a little for it (see SERVER_SPAN_WAIT_MS).
+   */
+  private async endedAsClientError(
+    tx: Tx,
+    row: InboundRow,
+    event: Extract<NormalizedEvent, { kind: 'error' }>,
+  ): Promise<boolean> {
+    if (event.attributes.httpStatus != null || !event.traceId) return false;
+    const [server] = await tx
+      .select({ attributes: spans.attributes })
+      .from(spans)
+      .where(
+        and(
+          eq(spans.workspaceId, row.workspaceId),
+          eq(spans.traceId, event.traceId),
+          eq(spans.kind, SERVER_SPAN_KIND),
+        ),
+      )
+      .limit(1);
+    if (!server) {
+      if (Date.now() - row.receivedAt.getTime() < SERVER_SPAN_WAIT_MS) throw new DeferIngest();
+      return false;
+    }
+    const status = Number(
+      server.attributes['http.response.status_code'] ?? server.attributes['http.status_code'],
+    );
+    return status > 0 && status < 500;
   }
 
   /** Attaches the error to the open incident with the same fingerprint, or opens a new one. */
@@ -222,7 +273,11 @@ export class IngestionProcessor {
         occurredAt: event.occurredAt,
         summary: event.title,
         traceId: event.traceId,
-        sourceUrl: event.traceId ? `${this.env.JAEGER_UI_URL}/trace/${event.traceId}` : null,
+        // Jaeger only holds traces it polled; ingested traces are stored here (spans table).
+        sourceUrl:
+          event.traceId && row.source === 'otel_jaeger'
+            ? `${this.env.JAEGER_UI_URL}/trace/${event.traceId}`
+            : null,
         attributes: event.attributes,
       })
       .onConflictDoNothing()

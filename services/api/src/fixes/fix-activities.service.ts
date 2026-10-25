@@ -21,6 +21,7 @@ import {
   incidents,
   investigations,
   services,
+  usageRecords,
   validationRuns,
   type IncidentStatus,
 } from '../db/schema';
@@ -372,6 +373,13 @@ export class FixActivitiesService implements FixActivities {
       summary: { ...input.result.summary, reason: input.result.reason },
       resultReference: input.result.outputRef ?? null,
     });
+    if (input.result.durationMs) {
+      await this.db.insert(usageRecords).values({
+        workspaceId: fix!.workspaceId,
+        metric: 'sandbox_seconds',
+        quantity: String(input.result.durationMs / 1000),
+      });
+    }
   }
 
   async updateFix(input: Parameters<FixActivities['updateFix']>[0]): Promise<void> {

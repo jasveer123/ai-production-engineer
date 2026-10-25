@@ -1,14 +1,38 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq } from 'drizzle-orm';
-import type { CreateServiceInput, Service, UpdateServiceInput } from '@ape/api-contracts';
+import { and, asc, desc, eq, isNull, max } from 'drizzle-orm';
+import type {
+  CreateServiceInput,
+  DiscoveredService,
+  Service,
+  UpdateServiceInput,
+} from '@ape/api-contracts';
 import { AuditService } from '../audit/audit.service';
 import { DB } from '../db/database.module';
 import type { Database } from '../db/client';
-import { services } from '../db/schema';
+import { incidents, ingestStreams, services } from '../db/schema';
 import type { ActorContext } from '../common/request-context';
 import { conflict, isUniqueViolation, notFound } from '../common/errors';
 
 type Row = typeof services.$inferSelect;
+type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
+
+/**
+ * Incidents opened before their service was set up keep no link to it, so the AI could never read
+ * their code. Link every unlinked incident that reports this service name and environment.
+ */
+async function linkIncidents(tx: Tx, service: Row): Promise<void> {
+  await tx
+    .update(incidents)
+    .set({ serviceId: service.id })
+    .where(
+      and(
+        eq(incidents.workspaceId, service.workspaceId),
+        eq(incidents.serviceName, service.name),
+        eq(incidents.environment, service.environment),
+        isNull(incidents.serviceId),
+      ),
+    );
+}
 
 const toDto = (r: Row): Service => ({
   id: r.id,
@@ -37,6 +61,34 @@ export class ServiceMappingsService {
     return rows.map(toDto);
   }
 
+  /** Service names that telemetry reports but no mapping covers yet, newest first. Read-only. */
+  async discovered(actor: ActorContext): Promise<DiscoveredService[]> {
+    const lastReceivedAt = max(ingestStreams.lastReceivedAt);
+    const rows = await this.db
+      .select({
+        name: ingestStreams.serviceName,
+        environment: ingestStreams.environment,
+        lastReceivedAt,
+      })
+      .from(ingestStreams)
+      .leftJoin(
+        services,
+        and(
+          eq(services.workspaceId, ingestStreams.workspaceId),
+          eq(services.name, ingestStreams.serviceName),
+          eq(services.environment, ingestStreams.environment),
+        ),
+      )
+      .where(and(eq(ingestStreams.workspaceId, actor.workspaceId), isNull(services.id)))
+      .groupBy(ingestStreams.serviceName, ingestStreams.environment)
+      .orderBy(desc(lastReceivedAt));
+    return rows.map((r) => ({
+      name: r.name,
+      environment: r.environment,
+      lastReceivedAt: (r.lastReceivedAt ?? new Date(0)).toISOString(),
+    }));
+  }
+
   async get(actor: ActorContext, id: string): Promise<Service> {
     const [row] = await this.db
       .select()
@@ -59,6 +111,7 @@ export class ServiceMappingsService {
             defaultBranch: input.defaultBranch ?? 'main',
           })
           .returning();
+        await linkIncidents(tx, row!);
         await this.audit.record(
           {
             workspaceId: actor.workspaceId,
@@ -94,6 +147,7 @@ export class ServiceMappingsService {
           .set(input)
           .where(and(eq(services.id, id), eq(services.workspaceId, actor.workspaceId)))
           .returning();
+        await linkIncidents(tx, row!);
         await this.audit.record(
           {
             workspaceId: actor.workspaceId,

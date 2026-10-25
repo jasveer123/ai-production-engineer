@@ -58,6 +58,24 @@ export const jaegerErrorPayloadSchema = z.object({
 });
 export type JaegerErrorPayload = z.infer<typeof jaegerErrorPayloadSchema>;
 
+/** Error events from the telemetry intake: OTLP, our SDKs, HTTP API, agents and drains. */
+export const ingestErrorPayloadSchema = z.object({
+  way: z.string(),
+  serviceName: z.string().min(1),
+  environment: z.string().min(1),
+  errorType: z.string().min(1),
+  message: z.string(),
+  stack: z.array(z.string()).max(50),
+  traceId: z.string().nullable(),
+  spanId: z.string().nullable(),
+  occurredAt: z.string().datetime(),
+  route: z.string().nullable(),
+  httpStatus: z.number().nullable(),
+  operation: z.string().nullable(),
+  release: z.string().nullable(),
+  attributes: z.record(z.unknown()).default({}),
+});
+
 /** Strips per-request noise (ids, numbers) so the same bug always gets the same message. */
 export function messageTemplate(message: string): string {
   return message
@@ -137,6 +155,40 @@ export function normalize(source: string, payload: unknown): NormalizedEvent {
         httpStatus: e.httpStatus,
         spanId: e.spanId,
         stack: e.stack,
+      },
+    };
+  }
+  if (source === 'ingest_error') {
+    const p = ingestErrorPayloadSchema.safeParse(payload);
+    if (!p.success) throw new PermanentIngestError('invalid_payload', p.error.message);
+    const e = p.data;
+    const where = e.route ?? e.operation;
+    return {
+      kind: 'error',
+      serviceName: e.serviceName,
+      environment: e.environment,
+      errorType: e.errorType,
+      message: e.message,
+      title: `${e.errorType}: ${e.message}`.slice(0, 160) + (where ? ` (${where})` : ''),
+      fingerprint: errorFingerprint({
+        serviceName: e.serviceName,
+        environment: e.environment,
+        errorType: e.errorType,
+        message: e.message,
+        topFrame: e.stack[0],
+        route: e.route,
+      }),
+      traceId: e.traceId,
+      occurredAt: new Date(e.occurredAt),
+      attributes: {
+        operation: e.operation,
+        httpRoute: e.route,
+        httpStatus: e.httpStatus,
+        spanId: e.spanId,
+        stack: e.stack,
+        way: e.way,
+        release: e.release,
+        ...e.attributes,
       },
     };
   }

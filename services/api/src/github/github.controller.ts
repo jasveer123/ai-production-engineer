@@ -4,9 +4,11 @@ import {
   connectGitHubSchema,
   type ConnectGitHubInput,
   type GitHubAppInfo,
+  type GitHubSelectView,
   type Integration,
   type RepoCommit,
   type RepositoryAccess,
+  type GitHubOverview,
 } from '@ape/api-contracts';
 import { Actor } from '../common/actor.decorator';
 import type { ActorContext } from '../common/request-context';
@@ -26,8 +28,8 @@ export class GitHubController {
 
   @Get('github/app')
   @MinRole('admin')
-  app(): Promise<GitHubAppInfo> {
-    return this.github.appInfo();
+  app(@Actor() actor: ActorContext): Promise<GitHubAppInfo> {
+    return this.github.appInfo(actor);
   }
 
   @Post('github/connect')
@@ -36,8 +38,24 @@ export class GitHubController {
     @Actor() actor: ActorContext,
     @Body(new ZodValidationPipe(connectGitHubSchema)) body: ConnectGitHubInput,
   ): Promise<Integration> {
-    const row = await this.github.connect(actor, body.installationId, body.name ?? 'GitHub');
+    const row = await this.github.connect(
+      actor,
+      body.installationId,
+      body.name ?? 'GitHub',
+      body.repositories,
+    );
     return this.integrations.toDto(row);
+  }
+
+  @Get('github/select')
+  @MinRole('admin')
+  select(@Actor() actor: ActorContext): Promise<GitHubSelectView> {
+    return this.github.selectView(actor);
+  }
+
+  @Get('github/overview')
+  overview(@Actor() actor: ActorContext): Promise<GitHubOverview> {
+    return this.github.overview(actor);
   }
 
   @Get('github/repository-access')

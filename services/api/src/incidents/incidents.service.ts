@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, gte, lt, lte, notInArray, inArray, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, lt, lte, ne, notInArray, inArray, type SQL } from 'drizzle-orm';
 import {
   CLOSED_STATUSES,
   type ApprovalPolicyInput,
@@ -91,15 +91,27 @@ export class IncidentsService {
   /** Incident events plus deploys of the same service around the incident, newest first. */
   async timeline(actor: ActorContext, id: string): Promise<TimelineEntry[]> {
     const incident = await this.get(actor, id);
-    const events = await this.db
-      .select({ e: incidentEvents, actorEmail: users.email })
-      .from(incidentEvents)
-      .leftJoin(users, eq(users.id, incidentEvents.actorId))
-      .where(
-        and(eq(incidentEvents.incidentId, id), eq(incidentEvents.workspaceId, actor.workspaceId)),
-      )
-      .orderBy(desc(incidentEvents.occurredAt))
-      .limit(200);
+    // Repeated errors are capped to the newest 200; every other step (opened, status changes, AI,
+    // fix, recovery) is always returned so a busy incident never loses its history (FR-05).
+    const read = (kind: SQL, limit: number) =>
+      this.db
+        .select({ e: incidentEvents, actorEmail: users.email })
+        .from(incidentEvents)
+        .leftJoin(users, eq(users.id, incidentEvents.actorId))
+        .where(
+          and(
+            eq(incidentEvents.incidentId, id),
+            eq(incidentEvents.workspaceId, actor.workspaceId),
+            kind,
+          ),
+        )
+        .orderBy(desc(incidentEvents.occurredAt))
+        .limit(limit);
+    const [steps, errors] = await Promise.all([
+      read(ne(incidentEvents.kind, 'error'), 500),
+      read(eq(incidentEvents.kind, 'error'), 200),
+    ]);
+    const events = [...steps, ...errors];
 
     const deploys =
       incident.serviceName && incident.environment

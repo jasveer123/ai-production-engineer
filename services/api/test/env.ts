@@ -21,4 +21,7 @@ Object.assign(process.env, {
   GITHUB_APP_ID: '1',
   GITHUB_APP_PRIVATE_KEY_PATH: '/nonexistent/test.pem', // tests inject a fake client
   GITHUB_WEBHOOK_SECRET: 'test-webhook-secret-not-real',
+  SENTRY_APP_SLUG: 'ape-test',
+  SENTRY_CLIENT_ID: 'sentry-client-id',
+  SENTRY_CLIENT_SECRET: 'sentry-client-secret-not-real',
 });

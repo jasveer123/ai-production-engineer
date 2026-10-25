@@ -11,8 +11,10 @@ export function Providers({ children }: { children: ReactNode }) {
         defaultOptions: {
           queries: {
             staleTime: 15_000,
-            // Don't retry auth/permission errors; they won't fix themselves.
-            retry: (count, err) => !(err instanceof ApiError && err.status < 500) && count < 2,
+            refetchOnWindowFocus: true,
+            // 4xx answers will not change on retry.
+            retry: (count, err) =>
+              !(err instanceof ApiError && err.status >= 400 && err.status < 500) && count < 2,
           },
         },
       }),

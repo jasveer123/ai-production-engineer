@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, notInArray } from 'drizzle-orm';
 import type {
   CreateIntegrationInput,
   DeadLetter,
@@ -90,8 +90,15 @@ export class IntegrationsService {
       .where(
         and(
           eq(integrations.workspaceId, actor.workspaceId),
-          // Alert sources have their own page (Phase 10).
-          ne(integrations.provider, 'alert_source'),
+          // Alert sources, log readers and the internal ingest owner have their own pages.
+          notInArray(integrations.provider, [
+            'alert_source',
+            'log_reader',
+            'ingest',
+            'sentry_app',
+            'heroku_oauth',
+            'aws_setup',
+          ]),
         ),
       )
       .orderBy(asc(integrations.createdAt));

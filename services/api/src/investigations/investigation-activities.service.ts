@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import type {
   CollectEvidenceResult,
   EvidenceActivities,
@@ -23,6 +23,7 @@ import {
   type IncidentStatus,
 } from '../db/schema';
 import { canTransition } from '../incidents/lifecycle';
+import { UsageService } from '../usage/usage.service';
 import { EvidenceCollector } from './evidence-collector.service';
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -55,6 +56,9 @@ interface StoredReport {
   };
 }
 
+/** statusReason prefix of a start the usage limits blocked. */
+const BLOCKED = 'usage_limit: ';
+
 const CONFIDENCE = { high: '0.80', medium: '0.50', low: '0.20' } as const;
 
 /**
@@ -68,6 +72,7 @@ export class InvestigationActivities implements EvidenceActivities {
     private readonly collector: EvidenceCollector,
     private readonly artifacts: ArtifactStore,
     private readonly audit: AuditService,
+    private readonly usage: UsageService,
   ) {}
 
   /** Moves the incident along the lifecycle if allowed, recording history like a user change. */
@@ -114,9 +119,56 @@ export class InvestigationActivities implements EvidenceActivities {
     );
   }
 
-  async startInvestigation(input: StartInvestigationInput): Promise<{ investigationId: string }> {
+  async startInvestigation(
+    input: StartInvestigationInput,
+  ): Promise<{ investigationId: string; blocked?: string }> {
     const runKey = `${input.workflowId}:${input.runId}`;
     return this.db.transaction(async (tx) => {
+      const [done] = await tx
+        .select({
+          id: investigations.id,
+          status: investigations.status,
+          reason: investigations.statusReason,
+        })
+        .from(investigations)
+        .where(
+          and(eq(investigations.workflowId, runKey), eq(investigations.attempt, input.attempt)),
+        );
+      if (done) {
+        const blocked = done.status === 'failed' && done.reason?.startsWith(BLOCKED);
+        return blocked
+          ? { investigationId: done.id, blocked: done.reason!.slice(BLOCKED.length) }
+          : { investigationId: done.id };
+      }
+      // FR-16: one start at a time per workspace, so two starts cannot both pass the limits.
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.workspaceId}))`);
+      const blocked = await this.usage.blockedReason(input.workspaceId, tx);
+      if (blocked) {
+        const [row] = await tx
+          .insert(investigations)
+          .values({
+            workspaceId: input.workspaceId,
+            incidentId: input.incidentId,
+            workflowId: runKey,
+            attempt: input.attempt,
+            status: 'failed',
+            statusReason: `${BLOCKED}${blocked}`,
+            requestNote: input.note,
+            completedAt: new Date(),
+          })
+          .returning({ id: investigations.id });
+        await this.usage.recordBlocked(
+          {
+            workspaceId: input.workspaceId,
+            incidentId: input.incidentId,
+            reason: blocked,
+            actorId: null,
+            correlationId: runKey,
+          },
+          tx,
+        );
+        return { investigationId: row!.id, blocked };
+      }
       const inserted = await tx
         .insert(investigations)
         .values({

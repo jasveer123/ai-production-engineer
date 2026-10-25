@@ -1,35 +1,57 @@
 import type { ApiError as ApiErrorBody } from '@ape/api-contracts';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(
+  /\/$/,
+  '',
+);
 
 export class ApiError extends Error {
-  constructor(
-    readonly status: number,
-    readonly body: ApiErrorBody,
-  ) {
-    super(body.message);
+  readonly status: number;
+  readonly code: string;
+  readonly details: unknown;
+
+  constructor(status: number, body: Partial<ApiErrorBody>) {
+    super(body.message ?? `Request failed (${status})`);
+    this.status = status;
+    this.code = body.code ?? 'error';
+    this.details = body.details;
   }
 }
 
-/** Fetch wrapper: sends the session cookie and turns error responses into ApiError. */
-export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
-    ...init,
-    credentials: 'include',
-    headers: { 'content-type': 'application/json', ...init.headers },
-  });
-  if (res.status === 204) return undefined as T;
-  const body: unknown = await res.json().catch(() => null);
-  if (!res.ok) {
-    const err = (body ?? {}) as Partial<ApiErrorBody>;
-    throw new ApiError(res.status, {
-      code: err.code ?? 'error',
-      message: err.message ?? `Request failed (${res.status})`,
-      correlationId: err.correlationId ?? 'unknown',
-      details: err.details,
+/** Fetch wrapper: sends the session cookie, parses JSON, and turns error responses into ApiError. */
+export async function api<T>(
+  path: string,
+  init: RequestInit & { json?: unknown } = {},
+): Promise<T> {
+  const { json, ...rest } = init;
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, {
+      ...rest,
+      credentials: 'include',
+      headers: {
+        ...(json !== undefined ? { 'content-type': 'application/json' } : {}),
+        ...rest.headers,
+      },
+      body: json !== undefined ? JSON.stringify(json) : rest.body,
+    });
+  } catch {
+    throw new ApiError(0, {
+      code: 'network',
+      message: 'Could not reach the server. Check your connection and try again.',
     });
   }
+  if (res.status === 204) return undefined as T;
+  const body: unknown = await res.json().catch(() => null);
+  if (!res.ok) throw new ApiError(res.status, (body ?? {}) as Partial<ApiErrorBody>);
   return body as T;
 }
 
 export const apiUrl = (path: string) => `${API_URL}${path}`;
+
+/** A user-facing message for any thrown value. */
+export function errorMessage(err: unknown): string {
+  if (err instanceof ApiError) return err.message;
+  if (err instanceof Error) return err.message;
+  return 'Something went wrong. Try again.';
+}

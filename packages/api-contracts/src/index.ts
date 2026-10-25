@@ -18,10 +18,71 @@ export type ApiError = z.infer<typeof apiErrorSchema>;
 export const devLoginSchema = z.object({ email: z.string().email() });
 export type DevLoginInput = z.infer<typeof devLoginSchema>;
 
+export const PASSWORD_MIN = 10;
+export const PASSWORD_MAX = 128;
+export const passwordSchema = z
+  .string()
+  .min(PASSWORD_MIN, `Use at least ${PASSWORD_MIN} characters`)
+  .max(PASSWORD_MAX, `Use at most ${PASSWORD_MAX} characters`);
+const emailSchema = z.string().trim().toLowerCase().email('Enter a valid email address').max(254);
+
+export const registerSchema = z.object({
+  name: z.string().trim().min(1, 'Enter your name').max(100),
+  email: emailSchema,
+  password: passwordSchema,
+  /** From an invite link: proves the email and joins that workspace. */
+  inviteToken: z.string().min(20).max(200).optional(),
+});
+export type RegisterInput = z.infer<typeof registerSchema>;
+
+export const loginSchema = z.object({
+  email: emailSchema,
+  password: z.string().min(1, 'Enter your password').max(PASSWORD_MAX),
+});
+export type LoginInput = z.infer<typeof loginSchema>;
+
+export const forgotPasswordSchema = z.object({ email: emailSchema });
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(20).max(200),
+  password: passwordSchema,
+});
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().max(PASSWORD_MAX).optional(),
+  newPassword: passwordSchema,
+});
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
+export const tokenSchema = z.object({ token: z.string().min(20).max(200) });
+export type TokenInput = z.infer<typeof tokenSchema>;
+
+export const updateProfileSchema = z.object({ name: z.string().trim().min(1).max(100) });
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+
 export interface Me {
-  user: { id: string; email: string; name: string | null; avatarUrl: string | null };
+  user: {
+    id: string;
+    email: string;
+    name: string | null;
+    avatarUrl: string | null;
+    emailVerified: boolean;
+    hasPassword: boolean;
+  };
   workspaces: { id: string; name: string; role: Role }[];
-  authProviders: { github: boolean; devLogin: boolean };
+  authProviders: { password: boolean; github: boolean; devLogin: boolean };
+}
+
+/** What an invite link points at, shown before the invitee registers or signs in. */
+export interface InvitationPreview {
+  email: string;
+  role: Role;
+  workspaceName: string;
+  invitedBy: string | null;
+  /** True when an account with this email already exists: sign in instead of registering. */
+  accountExists: boolean;
 }
 
 // ----- Workspaces -----
@@ -57,6 +118,12 @@ export interface Invitation {
   email: string;
   role: Role;
   createdAt: string;
+  expiresAt: string | null;
+}
+
+/** Returned once when an invitation is created or re-sent. The link is never shown again. */
+export interface InvitationWithLink extends Invitation {
+  inviteUrl: string;
 }
 
 // ----- Services -----
@@ -74,6 +141,13 @@ export type CreateServiceInput = z.input<typeof createServiceSchema>;
 
 export const updateServiceSchema = createServiceSchema.partial();
 export type UpdateServiceInput = z.input<typeof updateServiceSchema>;
+
+/** A service name seen in this workspace's telemetry that has no service mapping yet (FR-03). */
+export interface DiscoveredService {
+  name: string;
+  environment: string;
+  lastReceivedAt: string;
+}
 
 export interface Service {
   id: string;
@@ -273,16 +347,58 @@ export type SeverityRule = z.infer<typeof severityRuleSchema>;
 export interface GitHubAppInfo {
   configured: boolean;
   slug: string | null;
+  /** Includes a signed state, so GitHub's redirect back connects to this workspace. */
   installUrl: string | null;
   /** Installations of the App that are not yet connected to any workspace. */
   installations: { id: number; account: string; repositorySelection: 'all' | 'selected' }[];
+  /**
+   * Installations already connected to another workspace. The workspace is named only when the
+   * caller is a member of it (otherwise null), so this does not reveal other tenants.
+   */
+  connectedElsewhere: {
+    id: number;
+    account: string;
+    workspaceId: string | null;
+    workspaceName: string | null;
+  }[];
 }
 
 export const connectGitHubSchema = z.object({
   installationId: z.number().int().positive(),
   name: z.string().trim().min(1).max(80).default('GitHub'),
+  /** Repositories this workspace may use. Omit to grant every repo the App installation can see. */
+  repositories: z
+    .array(z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, 'Use the form owner/repo'))
+    .min(1)
+    .max(100)
+    .optional(),
 });
 export type ConnectGitHubInput = z.input<typeof connectGitHubSchema>;
+
+export interface GitHubSelectRepo {
+  fullName: string;
+  defaultBranch: string;
+  private: boolean;
+}
+
+/** GitHub accounts this workspace can connect, with the repositories each installation granted. */
+export interface GitHubSelectView {
+  configured: boolean;
+  installUrl: string | null;
+  accounts: {
+    installationId: number;
+    account: string;
+    accountType: string | null;
+    avatarUrl: string;
+    repositorySelection: 'all' | 'selected';
+    repositories: GitHubSelectRepo[];
+    /** Already chosen for this workspace; all granted repos when not yet connected here. */
+    selected: string[];
+    connected: boolean;
+    /** This workspace's connection for the account, so it can be disconnected; null when not connected. */
+    integrationId: string | null;
+  }[];
+}
 
 export interface RepositoryAccess {
   repositoryFullName: string;
@@ -305,7 +421,7 @@ export type InvestigationStatus =
 export interface EvidenceRef {
   id: string;
   ref: string;
-  kind: 'error_event' | 'alert' | 'trace' | 'deploy' | 'code' | 'commit';
+  kind: 'error_event' | 'alert' | 'trace' | 'log' | 'deploy' | 'code' | 'commit';
   title: string;
   sourceReference: string;
   sourceUrl: string | null;
@@ -633,6 +749,9 @@ export const ALERT_SOURCE_KINDS = [
   'grafana',
   'sentry',
   'datadog',
+  'betterstack',
+  'cloudwatch',
+  'elasticsearch',
   'heartbeat',
 ] as const;
 export type AlertSourceKind = (typeof ALERT_SOURCE_KINDS)[number];
@@ -643,12 +762,24 @@ export const ALERT_SOURCE_LABELS: Record<AlertSourceKind, string> = {
   grafana: 'Grafana alerting',
   sentry: 'Sentry',
   datadog: 'Datadog',
+  betterstack: 'Better Stack',
+  cloudwatch: 'Amazon CloudWatch (SNS)',
+  elasticsearch: 'Elasticsearch / Kibana',
   heartbeat: 'Heartbeat monitor',
 };
 
 export const createAlertSourceSchema = z.discriminatedUnion('kind', [
   z.object({
-    kind: z.enum(['http', 'alertmanager', 'grafana', 'sentry', 'datadog']),
+    kind: z.enum([
+      'http',
+      'alertmanager',
+      'grafana',
+      'sentry',
+      'datadog',
+      'betterstack',
+      'cloudwatch',
+      'elasticsearch',
+    ]),
     name: z.string().trim().min(1).max(80),
   }),
   z.object({
@@ -806,3 +937,477 @@ export const alertListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(100),
 });
 export type AlertListQuery = z.input<typeof alertListQuerySchema>;
+
+// ----- Telemetry ingest (Ways 1-5) -----
+export const INGEST_WAYS = ['package', 'otlp', 'http', 'agent', 'drain'] as const;
+export type IngestWay = (typeof INGEST_WAYS)[number] | 'syslog';
+
+export const createIngestTokenSchema = z.object({ name: z.string().trim().min(1).max(80) });
+export type CreateIngestTokenInput = z.infer<typeof createIngestTokenSchema>;
+
+export interface IngestToken {
+  id: string;
+  name: string;
+  /** `ape_live_••••abcd`: the full token is only returned once. */
+  masked: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+}
+
+export interface IngestTokenWithSecret extends IngestToken {
+  token: string;
+}
+
+export type StreamState = 'receiving' | 'silent' | 'not_set_up';
+
+export interface IngestStream {
+  way: IngestWay;
+  serviceName: string;
+  environment: string;
+  host: string | null;
+  state: StreamState;
+  firstReceivedAt: string;
+  lastReceivedAt: string;
+  logCount: number;
+  spanCount: number;
+  errorCount: number;
+  metricCount: number;
+}
+
+export interface IngestOverview {
+  /** Base URL for every way, e.g. https://ingest.example.com (OTLP appends /v1/...). */
+  ingestUrl: string;
+  syslog: { host: string; port: number; tls: boolean } | null;
+  tokens: IngestToken[];
+  ways: { way: IngestWay; state: StreamState; lastReceivedAt: string | null }[];
+  streams: IngestStream[];
+}
+
+// ----- Logs -----
+export const LOG_LEVELS = ['trace', 'debug', 'info', 'warn', 'error', 'fatal'] as const;
+export type LogLevel = (typeof LOG_LEVELS)[number];
+
+export const logQuerySchema = z.object({
+  /** `level:error service:x env:prod trace:abc host:h "exact phrase" words` */
+  q: z.string().max(500).default(''),
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  /** Id of the last line of the previous page (newest first). */
+  before: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().min(1).max(500).default(100),
+});
+export type LogQuery = z.input<typeof logQuerySchema>;
+
+export interface LogLine {
+  id: number;
+  ts: string;
+  service: string;
+  environment: string;
+  level: LogLevel;
+  message: string;
+  attributes: Record<string, unknown>;
+  traceId: string | null;
+  spanId: string | null;
+  host: string | null;
+  way: IngestWay;
+}
+
+export interface LogSearchResult {
+  lines: LogLine[];
+  /** Counts per bucket over [from, to], oldest first. */
+  histogram: { at: string; total: number; errors: number }[];
+  nextBefore: number | null;
+  services: string[];
+}
+
+// ----- Connected tools (Ways 6-7) -----
+export const TOOL_IDS = [
+  'grafana',
+  'datadog',
+  'sentry',
+  'betterstack',
+  'cloudwatch',
+  'elasticsearch',
+] as const;
+export type ToolId = (typeof TOOL_IDS)[number];
+
+const httpsUrl = z.string().trim().url().max(500);
+const secret = z.string().trim().min(1).max(4000);
+
+/** Read-only credentials per tool. Secrets are stored encrypted and never returned. */
+export const connectReaderSchema = z.discriminatedUnion('tool', [
+  z.object({
+    tool: z.literal('grafana'),
+    /** Loki base URL, or Grafana URL + datasource proxy path. */
+    url: httpsUrl,
+    auth: z.enum(['bearer', 'basic']).default('bearer'),
+    username: z.string().trim().max(200).optional(),
+    token: secret,
+    orgId: z.string().trim().max(100).optional(),
+    /** Label that holds the service name, e.g. `service_name` or `app`. */
+    serviceLabel: z.string().trim().min(1).max(100).default('service_name'),
+  }),
+  z.object({
+    tool: z.literal('datadog'),
+    site: z
+      .enum([
+        'datadoghq.com',
+        'us3.datadoghq.com',
+        'us5.datadoghq.com',
+        'datadoghq.eu',
+        'ap1.datadoghq.com',
+        'ddog-gov.com',
+      ])
+      .default('datadoghq.com'),
+    apiKey: secret,
+    appKey: secret,
+  }),
+  z.object({
+    tool: z.literal('sentry'),
+    url: httpsUrl.default('https://sentry.io'),
+    organization: z.string().trim().min(1).max(100),
+    token: secret,
+  }),
+  z.object({
+    tool: z.literal('betterstack'),
+    /** "Connect remotely" ClickHouse HTTP endpoint. */
+    url: httpsUrl,
+    username: z.string().trim().min(1).max(200),
+    password: secret,
+    /** Source table, e.g. `t123456_myapp_logs`. */
+    table: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9_]+$/, 'Letters, digits and _ only')
+      .max(200),
+  }),
+  z.object({
+    tool: z.literal('cloudwatch'),
+    region: z
+      .string()
+      .trim()
+      .regex(/^[a-z]{2}(-[a-z]+)+-\d$/, 'e.g. eu-west-1'),
+    accessKeyId: z.string().trim().min(16).max(128),
+    secretAccessKey: secret,
+    /** Log groups to search, comma separated. */
+    logGroups: z.array(z.string().trim().min(1).max(512)).min(1).max(20),
+  }),
+  z.object({
+    tool: z.literal('elasticsearch'),
+    url: httpsUrl,
+    auth: z.enum(['apikey', 'basic']).default('apikey'),
+    username: z.string().trim().max(200).optional(),
+    token: secret,
+    index: z.string().trim().min(1).max(200).default('logs-*'),
+    serviceField: z.string().trim().min(1).max(100).default('service.name'),
+  }),
+]);
+export type ConnectReaderInput = z.input<typeof connectReaderSchema>;
+
+export interface ToolView {
+  id: ToolId;
+  name: string;
+  description: string;
+  /** What Way 7 reads from this tool, e.g. "Loki logs". */
+  readsWhat: string;
+  alerts: {
+    enabled: boolean;
+    sourceId: string | null;
+    url: string | null;
+    lastReceivedAt: string | null;
+    lastError: string | null;
+  };
+  reader: {
+    status: 'not_connected' | 'connected' | 'error';
+    /** Non-secret settings, e.g. URL and organization. */
+    settings: Record<string, string>;
+    lastUsedAt: string | null;
+    lastError: string | null;
+  };
+}
+
+/** Turning alerts on returns the source token once, with setup text for that tool. */
+export interface ToolAlertsEnabled {
+  tool: ToolView;
+  token: string | null;
+  url: string;
+  setup: string;
+}
+
+export const toolAlertsSchema = z.object({ enabled: z.boolean() });
+export type ToolAlertsInput = z.infer<typeof toolAlertsSchema>;
+
+/** Logs from a connected tool, normalized; used by the AI and by "Test connection". */
+export interface ReaderLogLine {
+  ts: string;
+  level: string;
+  message: string;
+  service: string | null;
+  url: string | null;
+}
+
+// ----- One-click setup (ADR-024) -----
+export interface SetupCapabilities {
+  github: { configured: boolean };
+  /** "Sign in and approve" flows that are configured on this server. */
+  oauth: { sentry: boolean; vercel: boolean; heroku: boolean };
+  /** Base URL other tools send to. Cloud tools cannot reach localhost. */
+  publicUrl: string;
+  publicUrlIsLocal: boolean;
+  agent: { scriptUrl: string; kubernetesUrl: string };
+  syslog: { host: string; port: number; tls: boolean } | null;
+}
+
+const serviceName = z
+  .string()
+  .trim()
+  .min(1, 'Enter the service name')
+  .max(100)
+  .regex(/^[A-Za-z0-9._-]+$/, 'Letters, digits, dot, dash and underscore only');
+
+export const setupPrSchema = z.object({
+  repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, 'Use the form owner/repo'),
+  kind: z.enum(['agent', 'deploy']),
+  service: serviceName,
+  environment: z.string().trim().min(1).max(40).default('production'),
+  /** App folder inside a monorepo, e.g. "services/api". Detected when empty. */
+  directory: z.string().trim().max(200).optional(),
+});
+export type SetupPrInput = z.input<typeof setupPrSchema>;
+
+export interface SetupPrResult {
+  url: string;
+  number: number;
+  draft: boolean;
+  /** The pull request already existed from an earlier run. */
+  existing: boolean;
+  language: 'node' | 'python' | null;
+  done: string[];
+  todo: string[];
+}
+
+export const autoSetupSchema = z.discriminatedUnion('tool', [
+  z.object({
+    tool: z.literal('grafana'),
+    url: z.string().trim().url(),
+    token: z.string().trim().min(1).max(4000),
+    serviceLabel: z.string().trim().max(100).optional(),
+  }),
+  z.object({
+    tool: z.literal('datadog'),
+    site: z
+      .enum([
+        'datadoghq.com',
+        'us3.datadoghq.com',
+        'us5.datadoghq.com',
+        'datadoghq.eu',
+        'ap1.datadoghq.com',
+        'ddog-gov.com',
+      ])
+      .default('datadoghq.com'),
+    apiKey: z.string().trim().min(1).max(200),
+    appKey: z.string().trim().min(1).max(200),
+  }),
+  z.object({
+    tool: z.literal('elasticsearch'),
+    url: z.string().trim().url(),
+    kibanaUrl: z.string().trim().url().optional(),
+    adminApiKey: z.string().trim().min(1).max(4000),
+    index: z.string().trim().min(1).max(200).default('logs-*'),
+    serviceField: z.string().trim().min(1).max(100).default('service.name'),
+  }),
+  z.object({
+    tool: z.literal('betterstack'),
+    apiToken: z.string().trim().min(1).max(4000),
+    sourceName: z.string().trim().max(200).optional(),
+  }),
+]);
+export type AutoSetupInput = z.input<typeof autoSetupSchema>;
+
+export interface AutoSetupResult {
+  tool: ToolView;
+  done: string[];
+  todo: string[];
+}
+
+export const vercelDrainSchema = z.object({
+  accessToken: z.string().trim().min(1).max(4000),
+  teamId: z.string().trim().max(100).optional(),
+});
+export const herokuDrainSchema = z.object({
+  /** A Heroku API key; omit after "Sign in with Heroku". */
+  apiKey: z.string().trim().max(4000).optional(),
+  apps: z.array(z.string().trim().min(1).max(100)).min(1).max(50),
+});
+export const renderStreamSchema = z.object({ apiKey: z.string().trim().min(1).max(4000) });
+export type VercelDrainInput = z.input<typeof vercelDrainSchema>;
+export type HerokuDrainInput = z.input<typeof herokuDrainSchema>;
+export type RenderStreamInput = z.input<typeof renderStreamSchema>;
+
+export interface DrainSetupResult {
+  done: string[];
+  todo: string[];
+  failed: string[];
+}
+
+export const herokuAppsSchema = z.object({ apiKey: z.string().trim().max(4000).optional() });
+export interface HerokuApps {
+  apps: string[];
+}
+
+export interface OAuthStart {
+  url: string;
+}
+
+export const oauthCallbackSchema = z.object({
+  state: z.string().min(10).max(2000),
+  code: z.string().max(2000).optional(),
+  installationId: z.string().max(200).optional(),
+  configurationId: z.string().max(200).optional(),
+  teamId: z.string().max(200).optional(),
+});
+export type OAuthCallbackInput = z.infer<typeof oauthCallbackSchema>;
+
+export interface OAuthCallbackResult {
+  provider: 'sentry' | 'vercel' | 'heroku' | 'github';
+  done: string[];
+  todo: string[];
+  /** Heroku: choose which apps get a drain next. */
+  herokuApps?: string[];
+  /** GitHub: pick repositories for this workspace after the App install callback. */
+  githubInstallationId?: number;
+}
+
+export const githubSetupCallbackSchema = z.object({
+  installationId: z.coerce.number().int().positive(),
+  state: z.string().min(10).max(2000),
+});
+export type GitHubSetupCallbackInput = z.input<typeof githubSetupCallbackSchema>;
+
+export interface AwsSetupStart {
+  command: string;
+  templateUrl: string;
+  expiresAt: string;
+}
+
+/** What the connected GitHub App installations can do, refreshed from GitHub. */
+export interface GitHubOverview {
+  configured: boolean;
+  installations: {
+    integrationId: string;
+    installationId: number;
+    account: string;
+    status: 'connected' | 'error' | 'pending' | 'disconnected';
+    lastError: string | null;
+    repositorySelection: 'all' | 'selected' | null;
+    repositories: string[];
+    permissions: Record<string, string>;
+    /** Where the account owner adds repositories to the installation. */
+    manageUrl: string;
+  }[];
+  /** Permissions each automation needs that the App does not have. */
+  missing: { setupPullRequest: string[]; deployWorkflow: string[] };
+  /** Where the App owner changes the App's permissions. */
+  appPermissionsUrl: string | null;
+  /** Repositories set on Services that no installation can read. */
+  unreachableServiceRepos: string[];
+}
+
+// ----- Deploys -----
+export const deploymentListQuerySchema = z.object({
+  /** Telemetry service name, as the deploy marker reported it. */
+  service: z.string().trim().min(1).max(100).optional(),
+  environment: z.string().trim().min(1).max(40).optional(),
+  before: z.string().datetime().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+export type DeploymentListQuery = z.input<typeof deploymentListQuerySchema>;
+
+/** One deploy marker received by a deploy webhook, newest first. */
+export interface Deployment {
+  id: string;
+  serviceId: string | null;
+  serviceName: string;
+  environment: string;
+  commitSha: string;
+  version: string | null;
+  deployedAt: string;
+  /** Name of the deploy webhook that sent it, or null if that webhook was deleted. */
+  integrationName: string | null;
+}
+
+/** One deploy, its neighbours for the same service and environment, and what opened after it. */
+export interface DeploymentDetail extends Deployment {
+  previous: Deployment | null;
+  next: Deployment | null;
+  /** Incidents of this service and environment first seen after this deploy, before the next. */
+  incidents: Pick<Incident, 'id' | 'title' | 'severity' | 'status' | 'firstSeenAt'>[];
+  repositoryFullName: string | null;
+}
+
+// ----- Business impact -----
+export const serviceValueSchema = z.object({
+  /** Business value of one successful request; null clears it. */
+  valuePerRequest: z.number().positive().max(1_000_000).nullable(),
+  currency: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z]{3}$/, 'Use a 3-letter currency code like USD or INR')
+    .default('USD'),
+});
+export type ServiceValueInput = z.input<typeof serviceValueSchema>;
+
+export const businessImpactQuerySchema = z.object({
+  days: z.coerce.number().int().min(1).max(90).default(7),
+});
+export type BusinessImpactQuery = z.input<typeof businessImpactQuerySchema>;
+
+export interface ServiceImpact {
+  serviceId: string;
+  serviceName: string;
+  environment: string;
+  valuePerRequest: number | null;
+  currency: string | null;
+  /** Distinct failed traces: error spans plus incident error events, each trace counted once. */
+  failedRequests: number;
+  errorSpanTraces: number;
+  incidentErrorEvents: number;
+  incidents: number;
+  /** failedRequests × valuePerRequest, or null when no value is set. */
+  impact: number | null;
+}
+
+export interface BusinessImpact {
+  from: string;
+  to: string;
+  days: number;
+  services: ServiceImpact[];
+}
+
+// ----- Usage and limits (FR-16) -----
+export const workspaceLimitsSchema = z.object({
+  monthlyAiBudgetUsd: z.number().min(0).max(1_000_000).nullable(),
+  maxConcurrentInvestigations: z.number().int().min(1).max(100).nullable(),
+});
+export type WorkspaceLimits = z.infer<typeof workspaceLimitsSchema>;
+
+export interface UsageMonth {
+  /** UTC month, `YYYY-MM`. */
+  month: string;
+  investigations: number;
+  inputTokens: number;
+  outputTokens: number;
+  aiCostUsd: number;
+  sandboxMinutes: number;
+}
+
+export interface UsageSummary {
+  /** Last 6 UTC months, newest first. Months with no usage are included as zeros. */
+  months: UsageMonth[];
+  limits: WorkspaceLimits;
+  runningInvestigations: number;
+  /** Why a new investigation would be blocked right now, or null. */
+  blockedReason: string | null;
+}

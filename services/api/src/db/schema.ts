@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
   bigserial,
   boolean,
   index,
@@ -63,6 +64,11 @@ export const users = pgTable(
     avatarUrl: text('avatar_url'),
     identityProvider: text('identity_provider').notNull(),
     identityProviderId: text('identity_provider_id').notNull(),
+    /** scrypt hash (`scrypt$N$r$p$salt$hash`); null for accounts that only use GitHub or dev login. */
+    passwordHash: text('password_hash'),
+    emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
+    failedLoginCount: integer('failed_login_count').notNull().default(0),
+    lockedUntil: timestamp('locked_until', { withTimezone: true }),
     ...timestamps(),
   },
   (t) => [
@@ -91,6 +97,9 @@ export const workspaces = pgTable('workspaces', {
   plan: text('plan').notNull().default('free'),
   status: workspaceStatusEnum('status').notNull().default('active'),
   settings: jsonb('settings').$type<WorkspaceSettings>().notNull().default({}),
+  /** FR-16 limits checked before any investigation starts. Null means no limit. */
+  aiBudgetUsd: numeric('ai_budget_usd', { precision: 12, scale: 2 }),
+  maxConcurrentInvestigations: integer('max_concurrent_investigations'),
   ...timestamps(),
 });
 
@@ -121,9 +130,35 @@ export const workspaceInvitations = pgTable(
     invitedBy: uuid('invited_by').references(() => users.id, { onDelete: 'set null' }),
     acceptedAt: timestamp('accepted_at', { withTimezone: true }),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    /** SHA-256 of the invite link token. The link proves the invitee controls the email. */
+    tokenHash: text('token_hash'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
     ...timestamps(),
   },
-  (t) => [index('workspace_invitations_email_idx').on(sql`lower(${t.email})`)],
+  (t) => [
+    index('workspace_invitations_email_idx').on(sql`lower(${t.email})`),
+    uniqueIndex('workspace_invitations_token_key').on(t.tokenHash),
+  ],
+);
+
+/** Single-use, expiring links (password reset, email verification). Only the hash is stored. */
+export const authTokens = pgTable(
+  'auth_tokens',
+  {
+    id: id(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(), // password_reset | email_verify
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex('auth_tokens_hash_key').on(t.tokenHash),
+    index('auth_tokens_user_idx').on(t.userId, t.kind),
+  ],
 );
 
 // ---------- Integrations & services ----------
@@ -161,6 +196,9 @@ export const services = pgTable(
     integrationId: uuid('integration_id').references(() => integrations.id, {
       onDelete: 'set null',
     }),
+    /** Business value of one successful request, set by an admin. Null: no money figures. */
+    valuePerRequest: numeric('value_per_request', { precision: 14, scale: 4 }),
+    valueCurrency: text('value_currency'),
     ...timestamps(),
   },
   (t) => [uniqueIndex('services_name_env_key').on(t.workspaceId, t.name, t.environment)],
@@ -304,6 +342,113 @@ export const deployments = pgTable(
       t.deployedAt,
     ),
   ],
+);
+
+// ---------- Telemetry ingest (Ways 1-5) ----------
+
+/** Workspace ingest tokens (`ape_live_...`). Only the SHA-256 is stored; `last4` is for display. */
+export const ingestTokens = pgTable(
+  'ingest_tokens',
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    name: text('name').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    last4: text('last4').notNull(),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex('ingest_tokens_hash_key').on(t.tokenHash),
+    index('ingest_tokens_workspace_idx').on(t.workspaceId),
+  ],
+);
+
+/** Redacted log lines from every way. Retention is LOG_RETENTION_DAYS. */
+export const logRecords = pgTable(
+  'log_records',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    workspaceId: workspaceRef(),
+    ts: timestamp('ts', { withTimezone: true }).notNull(),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+    service: text('service').notNull(),
+    environment: text('environment').notNull(),
+    level: text('level').notNull(), // trace | debug | info | warn | error | fatal
+    message: text('message').notNull(),
+    attributes: jsonb('attributes').$type<Record<string, unknown>>().notNull().default({}),
+    traceId: text('trace_id'),
+    spanId: text('span_id'),
+    host: text('host'),
+    /** package | otlp | http | agent | drain | syslog */
+    way: text('way').notNull(),
+    /** Source-provided id (Vercel log id, Heroku frame + index) so retries do not duplicate. */
+    dedupKey: text('dedup_key'),
+  },
+  (t) => [
+    index('log_records_workspace_ts_idx').on(t.workspaceId, t.ts),
+    index('log_records_service_ts_idx').on(t.workspaceId, t.service, t.ts),
+    index('log_records_trace_idx').on(t.workspaceId, t.traceId),
+    uniqueIndex('log_records_dedup_key')
+      .on(t.workspaceId, t.dedupKey)
+      .where(sql`${t.dedupKey} is not null`),
+  ],
+);
+
+/** Spans received over OTLP, so the AI can read a whole trace without a tracing backend. */
+export const spans = pgTable(
+  'spans',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    workspaceId: workspaceRef(),
+    traceId: text('trace_id').notNull(),
+    spanId: text('span_id').notNull(),
+    parentSpanId: text('parent_span_id'),
+    service: text('service').notNull(),
+    environment: text('environment').notNull(),
+    name: text('name').notNull(),
+    kind: integer('kind').notNull().default(0),
+    startTime: timestamp('start_time', { withTimezone: true }).notNull(),
+    durationMs: numeric('duration_ms', { precision: 14, scale: 3 }).notNull(),
+    statusCode: integer('status_code').notNull().default(0), // 0 unset | 1 ok | 2 error
+    statusMessage: text('status_message'),
+    attributes: jsonb('attributes').$type<Record<string, unknown>>().notNull().default({}),
+    events: jsonb('events').$type<SpanEvent[]>().notNull().default([]),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('spans_key').on(t.workspaceId, t.traceId, t.spanId),
+    index('spans_workspace_time_idx').on(t.workspaceId, t.startTime),
+  ],
+);
+
+export interface SpanEvent {
+  name: string;
+  time: string;
+  attributes: Record<string, unknown>;
+}
+
+/** One row per (way, service, environment): drives Receiving / Silent / Not set up. */
+export const ingestStreams = pgTable(
+  'ingest_streams',
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    way: text('way').notNull(),
+    serviceName: text('service_name').notNull(),
+    environment: text('environment').notNull(),
+    host: text('host'),
+    firstReceivedAt: timestamp('first_received_at', { withTimezone: true }).notNull(),
+    lastReceivedAt: timestamp('last_received_at', { withTimezone: true }).notNull(),
+    logCount: bigint('log_count', { mode: 'number' }).notNull().default(0),
+    spanCount: bigint('span_count', { mode: 'number' }).notNull().default(0),
+    errorCount: bigint('error_count', { mode: 'number' }).notNull().default(0),
+    metricCount: bigint('metric_count', { mode: 'number' }).notNull().default(0),
+    ...timestamps(),
+  },
+  (t) => [uniqueIndex('ingest_streams_key').on(t.workspaceId, t.way, t.serviceName, t.environment)],
 );
 
 // ---------- Alerts (Phase 10) ----------

@@ -370,7 +370,7 @@ export async function incidentWorkflow(input: IncidentWorkflowInput): Promise<st
     const note: string | null = more ? (more as Actor & { note: string | null }).note : null;
     more = null;
 
-    const { investigationId } = await evidence.startInvestigation({
+    const { investigationId, blocked } = await evidence.startInvestigation({
       ...input,
       workflowId: workflowInfo().workflowId,
       runId: workflowInfo().runId,
@@ -378,30 +378,32 @@ export async function incidentWorkflow(input: IncidentWorkflowInput): Promise<st
       note,
     });
 
-    try {
-      const bundle = await evidence.collectEvidence({ investigationId });
-      const result = await ai.investigate({
-        investigationId,
-        workspaceId: input.workspaceId,
-        bundleRef: bundle.bundleRef,
-        promptVersion: PROMPT_VERSION,
-      });
-      await evidence.publishReport({ investigationId, result });
-    } catch (err) {
-      const cancelled = isCancellation(err);
-      // Record the outcome even while the workflow itself is being cancelled.
-      await CancellationScope.nonCancellable(() =>
-        evidence.markInvestigation({
+    // A start blocked by usage limits skips the AI run and waits for a new decision.
+    if (!blocked)
+      try {
+        const bundle = await evidence.collectEvidence({ investigationId });
+        const result = await ai.investigate({
           investigationId,
-          status: cancelled ? 'cancelled' : 'failed',
-          reason: err instanceof Error ? err.message : String(err),
-        }),
-      );
-      if (cancelled) {
-        state.phase = 'cancelled';
-        throw err;
+          workspaceId: input.workspaceId,
+          bundleRef: bundle.bundleRef,
+          promptVersion: PROMPT_VERSION,
+        });
+        await evidence.publishReport({ investigationId, result });
+      } catch (err) {
+        const cancelled = isCancellation(err);
+        // Record the outcome even while the workflow itself is being cancelled.
+        await CancellationScope.nonCancellable(() =>
+          evidence.markInvestigation({
+            investigationId,
+            status: cancelled ? 'cancelled' : 'failed',
+            reason: err instanceof Error ? err.message : String(err),
+          }),
+        );
+        if (cancelled) {
+          state.phase = 'cancelled';
+          throw err;
+        }
       }
-    }
 
     state.phase = 'awaiting_decision';
     await condition(() => more !== null || approved !== null || dismissed !== null);

@@ -161,6 +161,28 @@ function parseSentry(payload: unknown, now: Date): ParsedAlert[] {
   };
   const issue = p?.data?.issue;
   const event = p?.data?.event;
+  // Metric alerts from the Sentry app: { action, data: { metric_alert, description_title } }.
+  const metric = p?.data as
+    | { metric_alert?: Record<string, unknown>; description_title?: string; web_url?: string }
+    | undefined;
+  if (!issue && !event && metric?.metric_alert) {
+    const title =
+      text(metric.description_title, 300) ??
+      text(metric.metric_alert.title, 300) ??
+      'Sentry metric alert';
+    return [
+      {
+        dedupKey: prim(metric.metric_alert.id) || hash(title),
+        status: p.action === 'resolved' ? 'resolved' : 'firing',
+        title,
+        description: null,
+        severity: p.action === 'critical' ? 'critical' : p.action === 'warning' ? 'medium' : 'high',
+        labels: {},
+        sourceUrl: url(metric.web_url),
+        occurredAt: now,
+      },
+    ];
+  }
   if (!issue && !event) throw invalid('Expected a Sentry webhook with data.issue or data.event');
   const tags = Object.fromEntries(
     (Array.isArray(event?.tags) ? event.tags : [])
@@ -220,6 +242,121 @@ function parseDatadog(payload: unknown, now: Date): ParsedAlert[] {
   ];
 }
 
+// ----- Better Stack Uptime (incident webhooks) -----
+
+function parseBetterStack(payload: unknown, now: Date): ParsedAlert[] {
+  const p = payload as {
+    data?: { id?: unknown; type?: string; attributes?: Record<string, unknown> };
+  };
+  const a = p?.data?.attributes;
+  if (!a) throw invalid('Expected a Better Stack webhook with data.attributes');
+  const name = text(a.name, 300) ?? text(a.url, 300) ?? 'Better Stack incident';
+  const cause = text(a.cause, 2000);
+  const resolved = Boolean(a.resolved_at) || prim(a.status).toLowerCase() === 'resolved';
+  return [
+    {
+      dedupKey: prim(p.data?.id) || hash(name),
+      status: resolved ? 'resolved' : 'firing',
+      title: cause ? `${name}: ${cause}`.slice(0, 300) : name,
+      description: cause,
+      severity: mapSeverity(a.severity ?? 'high'),
+      labels: flatten({ url: a.url, monitor: a.monitor_id ?? a.name, team: a.team_name }),
+      sourceUrl: url(a.incident_url) ?? url(a.url),
+      occurredAt: date(resolved ? a.resolved_at : a.started_at, now),
+    },
+  ];
+}
+
+// ----- Amazon CloudWatch alarms delivered through SNS -----
+
+function parseCloudWatch(payload: unknown, now: Date): ParsedAlert[] {
+  const env = payload as { Type?: string; Message?: unknown; MessageId?: string };
+  let msg: Record<string, unknown> | null = null;
+  if (typeof env?.Message === 'string') {
+    try {
+      msg = JSON.parse(env.Message) as Record<string, unknown>;
+    } catch {
+      msg = null;
+    }
+  } else if (env && typeof env === 'object' && 'AlarmName' in env) {
+    msg = env; // already unwrapped (EventBridge or raw delivery)
+  }
+  if (!msg || !text(msg.AlarmName, 300))
+    throw invalid('Expected an SNS notification whose Message is a CloudWatch alarm');
+  const name = text(msg.AlarmName, 300)!;
+  const state = prim(msg.NewStateValue).toUpperCase();
+  const trigger = (msg.Trigger ?? {}) as {
+    MetricName?: string;
+    Namespace?: string;
+    Dimensions?: { name?: string; value?: string }[];
+  };
+  const dims = Object.fromEntries(
+    (trigger.Dimensions ?? []).map((d) => [String(d.name), String(d.value)]),
+  );
+  const region = text(msg.Region, 100);
+  const arnRegion = /^arn:aws[\w-]*:cloudwatch:([a-z0-9-]+):/.exec(prim(msg.AlarmArn))?.[1];
+  return [
+    {
+      dedupKey: text(msg.AlarmArn, 300) ?? hash(name),
+      status: state === 'OK' ? 'resolved' : 'firing',
+      title: name,
+      description:
+        [text(msg.AlarmDescription, 2000), text(msg.NewStateReason, 4000)]
+          .filter(Boolean)
+          .join('\n\n') || null,
+      severity: state === 'INSUFFICIENT_DATA' ? 'low' : mapSeverity(dims.severity ?? 'high'),
+      labels: flatten({
+        ...dims,
+        state,
+        metric: trigger.MetricName,
+        namespace: trigger.Namespace,
+        region,
+      }),
+      sourceUrl: arnRegion
+        ? `https://${arnRegion}.console.aws.amazon.com/cloudwatch/home?region=${arnRegion}#alarmsV2:alarm/${encodeURIComponent(name)}`
+        : null,
+      occurredAt: date(msg.StateChangeTime, now),
+    },
+  ];
+}
+
+// ----- Elasticsearch / Kibana rules (webhook connector with the template on the setup page) -----
+
+function parseElasticsearch(payload: unknown, now: Date): ParsedAlert[] {
+  const p = payload as Record<string, unknown>;
+  const title = text(p?.rule_name ?? p?.title ?? p?.name, 300);
+  if (!title) throw invalid('Expected a Kibana webhook body with at least `rule_name`');
+  const status = prim(p.status ?? p.action_group).toLowerCase();
+  const tags = Array.isArray(p.tags)
+    ? p.tags.map(String)
+    : prim(p.tags)
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean);
+  return [
+    {
+      dedupKey:
+        [text(p.rule_id, 200), text(p.alert_id, 200)].filter(Boolean).join(':') || hash(title),
+      status: ['recovered', 'resolved', 'ok', 'inactive'].includes(status) ? 'resolved' : 'firing',
+      title,
+      description: text(p.reason ?? p.message, 10_000),
+      severity: mapSeverity(p.severity ?? 'high'),
+      labels: flatten({
+        ...Object.fromEntries(
+          tags.map((t) => {
+            const i = t.indexOf(':');
+            return i > 0 ? [t.slice(0, i), t.slice(i + 1)] : [t, 'true'];
+          }),
+        ),
+        ...(p.service ? { service: p.service } : {}),
+        ...(p.environment ? { environment: p.environment } : {}),
+      }),
+      sourceUrl: url(p.url ?? p.rule_url),
+      occurredAt: date(p.date ?? p.timestamp, now),
+    },
+  ];
+}
+
 // ----- Heartbeat (written by the platform when a ping is missed or resumes) -----
 
 function parseHeartbeat(payload: unknown, now: Date): ParsedAlert[] {
@@ -253,6 +390,12 @@ export function parseAlerts(kind: string, payload: unknown, now = new Date()): P
       return parseSentry(payload, now);
     case 'datadog':
       return parseDatadog(payload, now);
+    case 'betterstack':
+      return parseBetterStack(payload, now);
+    case 'cloudwatch':
+      return parseCloudWatch(payload, now);
+    case 'elasticsearch':
+      return parseElasticsearch(payload, now);
     case 'heartbeat':
       return parseHeartbeat(payload, now);
     default:

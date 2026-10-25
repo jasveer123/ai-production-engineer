@@ -1,0 +1,60 @@
+{
+  "name": "@ape/agent",
+  "version": "0.1.0",
+  "description": "Send logs, errors and traces from Node.js apps to AI Production Engineer",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./register": "./dist/cjs/register.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "sideEffects": [
+    "./dist/cjs/register.js"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.cjs.json && tsc -p tsconfig.esm.json && node scripts/mark-esm.mjs",
+    "typecheck": "tsc -p tsconfig.cjs.json --noEmit",
+    "lint": "echo \"lint via root prettier\"",
+    "test": "pnpm build && node --test test/*.test.mts"
+  },
+  "peerDependencies": {
+    "@opentelemetry/api": ">=1.4",
+    "@opentelemetry/sdk-node": ">=0.50",
+    "@opentelemetry/exporter-trace-otlp-http": ">=0.50"
+  },
+  "peerDependenciesMeta": {
+    "@opentelemetry/api": {
+      "optional": true
+    },
+    "@opentelemetry/sdk-node": {
+      "optional": true
+    },
+    "@opentelemetry/exporter-trace-otlp-http": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -25,6 +25,34 @@ export const apiEnvSchema = z
     GITHUB_OAUTH_CLIENT_SECRET: z.string().optional(),
     // Local-only email login. Refused at startup when NODE_ENV=production.
     AUTH_DEV_LOGIN: booleanFlag.default('false'),
+    // Email for account links. Without RESEND_API_KEY mail is written to the API log (local dev).
+    MAIL_FROM: z.string().min(3).default('AI Production Engineer <no-reply@localhost>'),
+    RESEND_API_KEY: z.string().optional(),
+    // Telemetry ingest (Ways 1-5). PUBLIC_INGEST_URL defaults to PUBLIC_API_URL.
+    PUBLIC_INGEST_URL: z.string().url().optional(),
+    INGEST_MAX_BODY_MB: z.coerce.number().int().min(1).max(50).default(10),
+    LOG_RETENTION_DAYS: z.coerce.number().int().min(1).max(365).default(7),
+    // Syslog receiver for Render log streams and rsyslog. TLS when both cert paths are set.
+    SYSLOG_ENABLED: booleanFlag.default('true'),
+    SYSLOG_PORT: z.coerce.number().int().positive().default(6514),
+    SYSLOG_PUBLIC_HOST: z.string().min(1).default('localhost'),
+    SYSLOG_TLS_CERT_PATH: z.string().optional(),
+    SYSLOG_TLS_KEY_PATH: z.string().optional(),
+    // One-click setup (ADR-024). Each provider is optional; without it the UI offers paste-a-key.
+    // Sentry public integration (Settings > Developer Settings > Public Integration).
+    SENTRY_URL: z.string().url().default('https://sentry.io'),
+    SENTRY_APP_SLUG: z.string().optional(),
+    SENTRY_CLIENT_ID: z.string().optional(),
+    SENTRY_CLIENT_SECRET: z.string().optional(),
+    // Vercel integration (Integrations Console). Redirect URL: <WEB_URL>/integrations/callback/vercel/
+    VERCEL_INTEGRATION_SLUG: z.string().optional(),
+    VERCEL_CLIENT_ID: z.string().optional(),
+    VERCEL_CLIENT_SECRET: z.string().optional(),
+    // Heroku OAuth client (dashboard > Account > Applications). Callback: <WEB_URL>/integrations/callback/heroku/
+    HEROKU_CLIENT_ID: z.string().optional(),
+    HEROKU_CLIENT_SECRET: z.string().optional(),
+    // Audience GitHub Actions OIDC tokens must carry to send deploy markers without a secret.
+    GITHUB_OIDC_AUDIENCE: z.string().min(1).default('ape'),
     // Public base URL of this API, used to show webhook URLs to users.
     PUBLIC_API_URL: z.string().url().default('http://localhost:4000'),
     // AES-256-GCM key for locally stored integration secrets: 64 hex chars (`openssl rand -hex 32`).

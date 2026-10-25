@@ -1,0 +1,378 @@
+'use client';
+
+import {
+  ALERT_SOURCE_KINDS,
+  ALERT_SOURCE_LABELS,
+  type AlertSource,
+  type AlertSourceKind,
+  type AlertSourceWithToken,
+  type CreateAlertSourceInput,
+} from '@ape/api-contracts';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { Badge, type BadgeTone } from '@/components/ui/badge';
+import { Banner } from '@/components/ui/banner';
+import { Button } from '@/components/ui/button';
+import { CodeSnippet, TokenField } from '@/components/ui/code-snippet';
+import { Dialog } from '@/components/ui/dialog';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Field, FormError, Input, Select } from '@/components/ui/form';
+import { Table, Td, Th, Tr } from '@/components/ui/table';
+import { useSession } from '@/features/auth/session';
+import { api, errorMessage } from '@/lib/api';
+import { formatAgo } from '@/lib/format';
+import { alertsKey, useAlertSources } from '../queries';
+import { setupSnippet } from '../setup';
+
+const STATUS_TONE: Record<AlertSource['status'], BadgeTone> = {
+  pending: 'warn',
+  connected: 'ok',
+  error: 'danger',
+  disconnected: 'neutral',
+};
+const STATUS_TEXT: Record<AlertSource['status'], string> = {
+  pending: 'Waiting for first alert',
+  connected: 'Receiving',
+  error: 'Error',
+  disconnected: 'Disconnected',
+};
+const BEAT_TONE = { pending: 'warn', up: 'ok', down: 'danger' } as const;
+const BEAT_TEXT = { pending: 'Waiting for first ping', up: 'Up', down: 'Down' } as const;
+
+const every = (s: number) =>
+  s % 3600 === 0 ? `${s / 3600}h` : s % 60 === 0 ? `${s / 60}m` : `${s}s`;
+
+export function SourcesView() {
+  const { workspace, can } = useSession();
+  const ws = workspace.id;
+  const qc = useQueryClient();
+  const isAdmin = can('admin');
+  const sources = useAlertSources();
+  const [creating, setCreating] = useState<AlertSourceKind | null>(null);
+  const [revealed, setRevealed] = useState<AlertSourceWithToken | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const refresh = () => qc.invalidateQueries({ queryKey: alertsKey(ws) });
+
+  const rotate = useMutation({
+    mutationFn: (id: string) =>
+      api<AlertSourceWithToken>(`/workspaces/${ws}/alert-sources/${id}/rotate-token`, {
+        method: 'POST',
+      }),
+    onSuccess: (s) => (setActionError(null), setRevealed(s), refresh()),
+    onError: (e) => setActionError(errorMessage(e)),
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => api(`/workspaces/${ws}/alert-sources/${id}`, { method: 'DELETE' }),
+    onSuccess: () => (setActionError(null), refresh()),
+    onError: (e) => setActionError(errorMessage(e)),
+  });
+
+  const actions = (s: AlertSource) =>
+    isAdmin && (
+      <Td className="text-right">
+        <div className="flex justify-end gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={rotate.isPending}
+            onClick={() =>
+              window.confirm(
+                `Rotate the token for ${s.name}? The current one stops working right away.`,
+              ) && rotate.mutate(s.id)
+            }
+          >
+            Rotate token
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            disabled={remove.isPending}
+            onClick={() =>
+              window.confirm(
+                `Delete ${s.name}? Its token stops working. Alerts already received stay.`,
+              ) && remove.mutate(s.id)
+            }
+          >
+            Delete
+          </Button>
+        </div>
+      </Td>
+    );
+
+  const addButtons = isAdmin ? (
+    <div className="flex flex-wrap gap-2">
+      <Button onClick={() => setCreating('http')}>Add alert source</Button>
+      <Button variant="secondary" onClick={() => setCreating('heartbeat')}>
+        Add heartbeat
+      </Button>
+    </div>
+  ) : null;
+
+  const tools = sources.data?.filter((s) => s.kind !== 'heartbeat') ?? [];
+  const beats = sources.data?.filter((s) => s.kind === 'heartbeat') ?? [];
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="m-0 max-w-[62ch] text-[13px] text-ink-muted">
+          Each source gets its own URL and token. Heartbeats expect a ping on a schedule and fire an
+          alert when one is missed.
+        </p>
+        {addButtons ?? (
+          <span className="text-[13px] text-ink-muted">Only admins can change alert sources.</span>
+        )}
+      </div>
+      {actionError && (
+        <Banner tone="danger" title="That did not work.">
+          {actionError}
+        </Banner>
+      )}
+
+      {sources.isPending ? (
+        <p className="text-ink-muted">Loading alert sources…</p>
+      ) : sources.isError ? (
+        <Banner tone="danger" title="Could not load alert sources.">
+          {errorMessage(sources.error)}
+        </Banner>
+      ) : sources.data.length === 0 ? (
+        <EmptyState icon="radio" title="No alert sources yet" action={addButtons}>
+          {isAdmin
+            ? 'Add Prometheus, Grafana, Sentry, Datadog or any tool that can POST JSON. You get a URL and token with ready-to-paste setup.'
+            : 'An admin connects the tools that send alerts.'}
+        </EmptyState>
+      ) : (
+        <>
+          {tools.length > 0 && (
+            <Table label="Alert sources">
+              <thead>
+                <tr>
+                  <Th>Source</Th>
+                  <Th>Status</Th>
+                  <Th>Last alert</Th>
+                  {isAdmin && <Th className="text-right">Actions</Th>}
+                </tr>
+              </thead>
+              <tbody>
+                {tools.map((s) => (
+                  <Tr key={s.id}>
+                    <Td>
+                      <div className="font-semibold">{s.name}</div>
+                      <div className="text-[13px] text-ink-muted">
+                        {ALERT_SOURCE_LABELS[s.kind]}
+                      </div>
+                    </Td>
+                    <Td>
+                      <Badge tone={STATUS_TONE[s.status]}>{STATUS_TEXT[s.status]}</Badge>
+                      {s.lastError && (
+                        <div className="mt-1 text-[13px] text-danger">{s.lastError}</div>
+                      )}
+                    </Td>
+                    <Td className="text-[13px] text-ink-muted">{formatAgo(s.lastReceivedAt)}</Td>
+                    {actions(s)}
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+          {beats.length > 0 && (
+            <Table label="Heartbeats">
+              <thead>
+                <tr>
+                  <Th>Heartbeat</Th>
+                  <Th>State</Th>
+                  <Th>Expected every</Th>
+                  <Th>Last ping</Th>
+                  {isAdmin && <Th className="text-right">Actions</Th>}
+                </tr>
+              </thead>
+              <tbody>
+                {beats.map((s) => (
+                  <Tr key={s.id}>
+                    <Td className="font-semibold">{s.name}</Td>
+                    <Td>
+                      {s.heartbeat && (
+                        <Badge tone={BEAT_TONE[s.heartbeat.state]}>
+                          {BEAT_TEXT[s.heartbeat.state]}
+                        </Badge>
+                      )}
+                    </Td>
+                    <Td className="text-[13px] text-ink-muted">
+                      {s.heartbeat &&
+                        `${every(s.heartbeat.intervalSeconds)} + ${every(s.heartbeat.graceSeconds)} grace`}
+                    </Td>
+                    <Td className="text-[13px] text-ink-muted">
+                      {formatAgo(s.heartbeat?.lastPingAt ?? null)}
+                    </Td>
+                    {actions(s)}
+                  </Tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </>
+      )}
+
+      {isAdmin && creating && (
+        <CreateSourceDialog
+          heartbeat={creating === 'heartbeat'}
+          workspaceId={ws}
+          onClose={() => setCreating(null)}
+          onCreated={(s) => {
+            setCreating(null);
+            setRevealed(s);
+            void refresh();
+          }}
+        />
+      )}
+      {revealed && <RevealDialog source={revealed} onClose={() => setRevealed(null)} />}
+    </>
+  );
+}
+
+function CreateSourceDialog({
+  heartbeat,
+  workspaceId,
+  onClose,
+  onCreated,
+}: {
+  heartbeat: boolean;
+  workspaceId: string;
+  onClose: () => void;
+  onCreated: (s: AlertSourceWithToken) => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const create = useMutation({
+    mutationFn: (body: CreateAlertSourceInput) =>
+      api<AlertSourceWithToken>(`/workspaces/${workspaceId}/alert-sources`, {
+        method: 'POST',
+        json: body,
+      }),
+    onSuccess: onCreated,
+    onError: (e) => setError(errorMessage(e)),
+  });
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={heartbeat ? 'Add a heartbeat' : 'Add an alert source'}
+      description={
+        heartbeat
+          ? 'For cron jobs and workers: if a ping does not arrive in time, an alert fires.'
+          : 'You get a URL and token to paste into the tool. The token is shown once.'
+      }
+    >
+      <form
+        className="grid gap-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setError(null);
+          const f = new FormData(e.currentTarget);
+          const name = String(f.get('name')).trim();
+          create.mutate(
+            heartbeat
+              ? {
+                  kind: 'heartbeat',
+                  name,
+                  intervalSeconds: Number(f.get('interval')) * 60,
+                  graceSeconds: Number(f.get('grace')) * 60,
+                }
+              : { kind: String(f.get('kind')) as Exclude<AlertSourceKind, 'heartbeat'>, name },
+          );
+        }}
+      >
+        {!heartbeat && (
+          <Field id="source-kind" label="Tool">
+            <Select id="source-kind" name="kind" defaultValue="http">
+              {ALERT_SOURCE_KINDS.filter((k) => k !== 'heartbeat').map((k) => (
+                <option key={k} value={k}>
+                  {ALERT_SOURCE_LABELS[k]}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
+        <Field id="source-name" label="Name">
+          <Input
+            id="source-name"
+            name="name"
+            required
+            maxLength={80}
+            placeholder={heartbeat ? 'nightly-billing-job' : 'Production Alertmanager'}
+          />
+        </Field>
+        {heartbeat && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field id="beat-interval" label="Expect a ping every (minutes)">
+              <Input
+                id="beat-interval"
+                name="interval"
+                type="number"
+                required
+                min={1}
+                max={10080}
+                defaultValue={60}
+              />
+            </Field>
+            <Field id="beat-grace" label="Grace (minutes)">
+              <Input
+                id="beat-grace"
+                name="grace"
+                type="number"
+                required
+                min={0}
+                max={1440}
+                defaultValue={5}
+              />
+            </Field>
+          </div>
+        )}
+        <FormError>{error}</FormError>
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={create.isPending}>
+            {create.isPending ? 'Creating…' : 'Create'}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+/** The token exists only in this response, so this is the one chance to copy it. */
+function RevealDialog({ source, onClose }: { source: AlertSourceWithToken; onClose: () => void }) {
+  return (
+    <Dialog
+      open
+      wide
+      onClose={onClose}
+      title={`Set up ${source.name}`}
+      description="Copy the token now. It is shown only once; rotate it if it is lost."
+    >
+      <div className="grid gap-4">
+        <TokenField
+          label="Token"
+          masked={source.token}
+          full={source.token}
+          help="Send it as Authorization: Bearer, an X-Ape-Token header, or ?token=."
+        />
+        <TokenField
+          label="URL"
+          masked={source.url}
+          full={source.url}
+          help="Where the tool sends alerts."
+        />
+        <CodeSnippet
+          label={ALERT_SOURCE_LABELS[source.kind]}
+          code={setupSnippet(source.kind, source.url, source.token)}
+          wrap
+        />
+        <div className="flex justify-end">
+          <Button onClick={onClose}>Done</Button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
