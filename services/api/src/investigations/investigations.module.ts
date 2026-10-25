@@ -8,6 +8,7 @@ import { ToolsModule } from '../tools/tools.module';
 import { UsageModule } from '../usage/usage.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { FixActivitiesService } from '../fixes/fix-activities.service';
+import { FixPreparer } from '../fixes/fix-preparer.service';
 import { FixesService } from '../fixes/fixes.service';
 import { GitHubWebhookController } from '../pulls/github-webhook.controller';
 import { PrActivitiesService } from '../pulls/pr-activities.service';
@@ -40,6 +41,7 @@ import { VerifyActivitiesService } from '../verification/verify-activities.servi
     InvestigationActivities,
     InvestigationsService,
     FixActivitiesService,
+    FixPreparer,
     FixesService,
     PrActivitiesService,
     PullSyncService,
