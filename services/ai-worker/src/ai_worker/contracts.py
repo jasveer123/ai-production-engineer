@@ -5,15 +5,15 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class _Camel(BaseModel):
-    """Temporal's TypeScript client sends camelCase JSON."""
-
-    model_config = ConfigDict(populate_by_name=True, alias_generator=lambda s: _to_camel(s))
-
-
 def _to_camel(name: str) -> str:
     head, *rest = name.split("_")
     return head + "".join(p.title() for p in rest)
+
+
+class _Camel(BaseModel):
+    """Temporal's TypeScript client sends camelCase JSON."""
+
+    model_config = ConfigDict(populate_by_name=True, alias_generator=_to_camel)
 
 
 class InvestigateInput(_Camel):

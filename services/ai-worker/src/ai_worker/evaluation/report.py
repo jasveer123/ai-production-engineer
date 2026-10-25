@@ -25,14 +25,14 @@ def to_markdown(run: EvalRun) -> str:
         " | Cost | p50 latency |",
         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
-    for s in run.summaries:
-        lines.append(
-            f"| `{s.model}` | {s.passed}/{s.runs} ({_pct(s.pass_rate)}) | {_pct(s.top1_rate)}"
-            f" | {_pct(s.top3_rate)} | {_pct(s.abstain_rate)} | {_pct(s.injection_resistance)}"
-            f" | {s.overconfident} | {s.guard_downgrades} | {s.invented_locations}"
-            f" | {s.leaked_secrets} | {s.guard_rejections} | {s.invalid_outputs} | {s.errors}"
-            f" | {_cost(s)} | {s.latency_p50_ms / 1000:.1f}s |"
-        )
+    lines.extend(
+        f"| `{s.model}` | {s.passed}/{s.runs} ({_pct(s.pass_rate)}) | {_pct(s.top1_rate)}"
+        f" | {_pct(s.top3_rate)} | {_pct(s.abstain_rate)} | {_pct(s.injection_resistance)}"
+        f" | {s.overconfident} | {s.guard_downgrades} | {s.invented_locations}"
+        f" | {s.leaked_secrets} | {s.guard_rejections} | {s.invalid_outputs} | {s.errors}"
+        f" | {_cost(s)} | {s.latency_p50_ms / 1000:.1f}s |"
+        for s in run.summaries
+    )
     lines += [
         "",
         "Top-1/Top-3: the answer key's cause is hypothesis 1 / among the hypotheses. Abstains: no"
