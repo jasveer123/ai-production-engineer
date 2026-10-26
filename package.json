@@ -12,9 +12,19 @@
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r run test",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "boundaries": "depcruise apps packages services --config .dependency-cruiser.cjs --ignore-known --no-progress",
+    "boundaries:baseline": "depcruise apps packages services --config .dependency-cruiser.cjs --no-progress -T baseline > .dependency-cruiser-known-violations.json",
+    "knip": "knip",
+    "prepare": "husky || true",
+    "commitlint": "commitlint"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
+    "dependency-cruiser": "^18.7.0",
+    "husky": "^9.1.7",
+    "knip": "^6.43.0",
     "prettier": "^3.9.10"
   }
 }

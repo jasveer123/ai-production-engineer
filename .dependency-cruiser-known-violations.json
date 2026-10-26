@@ -1,0 +1,1192 @@
+[
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/account/account-view.tsx",
+    "to": "apps/web/src/features/auth/components/password-field.tsx",
+    "unresolvedTo": "@/features/auth/components/password-field",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/account/account-view.tsx",
+    "to": "apps/web/src/features/auth/roles.ts",
+    "unresolvedTo": "@/features/auth/roles",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/account/account-view.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/account/account-view.tsx",
+    "to": "apps/web/src/features/auth/use-auth-action.ts",
+    "unresolvedTo": "@/features/auth/use-auth-action",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/account/audit-view.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/alerts/components/alerts-list.tsx",
+    "to": "apps/web/src/features/incidents/components/incident-badges.tsx",
+    "unresolvedTo": "@/features/incidents/components/incident-badges",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/alerts/components/routes-view.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/alerts/components/routes-view.tsx",
+    "to": "apps/web/src/features/incidents/components/incident-badges.tsx",
+    "unresolvedTo": "@/features/incidents/components/incident-badges",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/alerts/components/sources-view.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/alerts/queries.ts",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/business/business-view.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/changes/change-detail.tsx",
+    "to": "apps/web/src/features/deploys/queries.ts",
+    "unresolvedTo": "@/features/deploys/queries",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/changes/change-detail.tsx",
+    "to": "apps/web/src/features/services/queries.ts",
+    "unresolvedTo": "@/features/services/queries",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/changes/changes-view.tsx",
+    "to": "apps/web/src/features/deploys/queries.ts",
+    "unresolvedTo": "@/features/deploys/queries",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/changes/changes-view.tsx",
+    "to": "apps/web/src/features/services/queries.ts",
+    "unresolvedTo": "@/features/services/queries",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/changes/queries.ts",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/deploys/deploy-detail.tsx",
+    "to": "apps/web/src/features/incidents/components/incident-status-badge.tsx",
+    "unresolvedTo": "@/features/incidents/components/incident-status-badge",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/deploys/deploys-view.tsx",
+    "to": "apps/web/src/features/services/queries.ts",
+    "unresolvedTo": "@/features/services/queries",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/deploys/queries.ts",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/fixes/components/fixes-view.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/fixes/queries.ts",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/fixes/queries.ts",
+    "to": "apps/web/src/features/incidents/queries.ts",
+    "unresolvedTo": "@/features/incidents/queries",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/incidents/components/incident-fix.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/incidents/components/incident-header.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/incidents/components/incident-logs.tsx",
+    "to": "apps/web/src/features/logs/components/live-log-explorer.tsx",
+    "unresolvedTo": "@/features/logs/components/live-log-explorer",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/incidents/components/incident-logs.tsx",
+    "to": "apps/web/src/features/logs/components/log-viewer.tsx",
+    "unresolvedTo": "@/features/logs/components/log-viewer",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/incidents/components/incident-report.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/incidents/components/incidents-view.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/incidents/components/incidents-view.tsx",
+    "to": "apps/web/src/features/services/queries.ts",
+    "unresolvedTo": "@/features/services/queries",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/incidents/queries.ts",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/integrations/components/code-cards.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/integrations/components/code-cards.tsx",
+    "to": "apps/web/src/features/setup/components/github-connect-flow.tsx",
+    "unresolvedTo": "@/features/setup/components/github-connect-flow",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/integrations/components/code-cards.tsx",
+    "to": "apps/web/src/features/setup/components/setup-pr-panel.tsx",
+    "unresolvedTo": "@/features/setup/components/setup-pr-panel",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/integrations/components/code-cards.tsx",
+    "to": "apps/web/src/features/setup/queries.ts",
+    "unresolvedTo": "@/features/setup/queries",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/integrations/components/setup-view.tsx",
+    "to": "apps/web/src/features/setup/components/automatic-setup.tsx",
+    "unresolvedTo": "@/features/setup/components/automatic-setup",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/integrations/components/token-panel.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/integrations/components/tool-card.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/integrations/components/tool-card.tsx",
+    "to": "apps/web/src/features/setup/components/tool-auto-setup.tsx",
+    "unresolvedTo": "@/features/setup/components/tool-auto-setup",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/integrations/queries.ts",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/logs/components/live-log-explorer.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/members/members-view.tsx",
+    "to": "apps/web/src/features/auth/roles.ts",
+    "unresolvedTo": "@/features/auth/roles",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/members/members-view.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/members/members-view.tsx",
+    "to": "apps/web/src/features/workspace/fixtures.ts",
+    "unresolvedTo": "@/features/workspace/fixtures",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/overview/components/overview-view.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/overview/components/overview-view.tsx",
+    "to": "apps/web/src/features/incidents/components/incident-badges.tsx",
+    "unresolvedTo": "@/features/incidents/components/incident-badges",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/overview/components/overview-view.tsx",
+    "to": "apps/web/src/features/incidents/components/incident-status-badge.tsx",
+    "unresolvedTo": "@/features/incidents/components/incident-status-badge",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/overview/components/overview-view.tsx",
+    "to": "apps/web/src/features/incidents/queries.ts",
+    "unresolvedTo": "@/features/incidents/queries",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/overview/components/overview-view.tsx",
+    "to": "apps/web/src/features/integrations/queries.ts",
+    "unresolvedTo": "@/features/integrations/queries",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/overview/components/overview-view.tsx",
+    "to": "apps/web/src/features/services/queries.ts",
+    "unresolvedTo": "@/features/services/queries",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/quality/queries.ts",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/realtime/live-indicator.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/services/queries.ts",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/services/services-view.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/services/services-view.tsx",
+    "to": "apps/web/src/features/setup/queries.ts",
+    "unresolvedTo": "@/features/setup/queries",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/settings/notification-channels.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/settings/queries.ts",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/settings/settings-view.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/settings/settings-view.tsx",
+    "to": "apps/web/src/features/incidents/components/incident-badges.tsx",
+    "unresolvedTo": "@/features/incidents/components/incident-badges",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/setup/components/agent-install-panel.tsx",
+    "to": "apps/web/src/features/integrations/token-context.tsx",
+    "unresolvedTo": "@/features/integrations/token-context",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/setup/components/drain-panel.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/setup/components/github-connect-flow.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/setup/components/github-repo-select.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/setup/components/setup-callback.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/setup/components/setup-pr-panel.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/setup/components/setup-pr-panel.tsx",
+    "to": "apps/web/src/features/services/queries.ts",
+    "unresolvedTo": "@/features/services/queries",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/setup/components/setup-pr-panel.tsx",
+    "to": "apps/web/src/features/services/repo-options.ts",
+    "unresolvedTo": "@/features/services/repo-options",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/setup/components/tool-auto-setup.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/setup/queries.ts",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/usage/usage-view.tsx",
+    "to": "apps/web/src/features/auth/session.tsx",
+    "unresolvedTo": "@/features/auth/session",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "apps/web/src/features/usage/usage-view.tsx",
+    "to": "apps/web/src/features/business/money.ts",
+    "unresolvedTo": "@/features/business/money",
+    "dependencyTypes": [
+      "aliased",
+      "aliased-tsconfig",
+      "aliased-tsconfig-paths",
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "web-no-cross-feature-deep-imports"
+    }
+  }
+]
