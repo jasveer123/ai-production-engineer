@@ -1,8 +1,6 @@
 import type { AuditService } from '../audit/audit.service';
-import type { Database } from '../db/client';
+import type { Tx } from '../db/client';
 import { incidentEvents, incidents, outbox, type Severity } from '../db/schema';
-
-type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 
 export interface NewIncident {
   workspaceId: string;

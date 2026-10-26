@@ -33,6 +33,12 @@ export function summarizeChecks(
  * Keeps pull request status and CI checks in sync with GitHub, and tells the incident workflow
  * when a PR is merged or closed. GitHub is always re-read, so a webhook payload is only a hint.
  */
+const pullStatus = (pr: {
+  merged_at: string | null;
+  state: string;
+}): 'open' | 'merged' | 'closed' =>
+  pr.merged_at ? 'merged' : pr.state === 'closed' ? 'closed' : 'open';
+
 @Injectable()
 export class PullSyncService implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(PullSyncService.name);
@@ -86,23 +92,10 @@ export class PullSyncService implements OnApplicationBootstrap, OnApplicationShu
 
   async sync(row: PrRow): Promise<PrRow> {
     if (!row.number || !row.repositoryFullName) return row;
-    const repo = row.repositoryFullName;
-    const installationId = await this.github.installationFor(row.workspaceId, repo);
-    if (!installationId) return row; // access revoked: keep the last known state
-    const gh = this.github.gh();
-    let pr;
-    try {
-      pr = await gh.getPull(installationId, repo, row.number);
-    } catch (err) {
-      if (err instanceof GitHubError && err.status === 404) return row;
-      throw err;
-    }
-    const checks = await gh.checkRuns(installationId, repo, pr.head.sha);
-    const status: 'open' | 'merged' | 'closed' = pr.merged_at
-      ? 'merged'
-      : pr.state === 'closed'
-        ? 'closed'
-        : 'open';
+    const remote = await this.fetchRemote(row, row.number, row.repositoryFullName);
+    if (!remote) return row; // access revoked or PR gone: keep the last known state
+    const { pr, checks } = remote;
+    const status = pullStatus(pr);
     const checksStatus = summarizeChecks(checks);
     const [updated] = await this.db
       .update(pullRequests)
@@ -129,35 +122,56 @@ export class PullSyncService implements OnApplicationBootstrap, OnApplicationShu
     if (row.checksStatus !== checksStatus && checksStatus !== 'pending' && row.incidentId) {
       await this.event(row, `CI checks on PR #${row.number}: ${checksStatus}`, { checksStatus });
     }
-    if (row.status === 'open' && status !== 'open') {
-      // Only the sync that sees the transition reports it, so the workflow is signalled once.
-      if (row.incidentId) {
-        await this.event(row, `Pull request #${row.number} was ${status}`, {
-          status,
-          mergeCommitSha: updated.mergeCommitSha ?? null,
-        });
-        await this.temporal
-          .pullRequestStatus(row.incidentId, {
-            status,
-            number: row.number,
-            mergeCommitSha: updated.mergeCommitSha ?? null,
-          })
-          .catch((e: unknown) =>
-            this.logger.warn(`Could not signal the workflow: ${(e as Error).message}`),
-          );
-      }
-      await this.audit.record({
-        workspaceId: row.workspaceId,
-        actorType: 'system',
-        action: `pull_request.${status}`,
-        resourceType: 'pull_request',
-        resourceId: row.id,
-        outcome: 'success',
-        correlationId: `pr-sync-${row.id}`,
-        metadata: { repo: row.repositoryFullName, number: row.number },
-      });
-    }
+    if (row.status === 'open' && status !== 'open')
+      await this.reportTransition(row, updated, status);
     return updated;
+  }
+
+  /** The pull request and its check runs from GitHub; null when it can no longer be read. */
+  private async fetchRemote(row: PrRow, number: number, repo: string) {
+    const installationId = await this.github.installationFor(row.workspaceId, repo);
+    if (!installationId) return null;
+    const gh = this.github.gh();
+    try {
+      const pr = await gh.getPull(installationId, repo, number);
+      return { pr, checks: await gh.checkRuns(installationId, repo, pr.head.sha) };
+    } catch (err) {
+      if (err instanceof GitHubError && err.status === 404) return null;
+      throw err;
+    }
+  }
+
+  /** Only the sync that sees the transition reports it, so the workflow is signalled once. */
+  private async reportTransition(
+    row: PrRow,
+    updated: PrRow,
+    status: 'merged' | 'closed',
+  ): Promise<void> {
+    if (row.incidentId) {
+      await this.event(row, `Pull request #${row.number} was ${status}`, {
+        status,
+        mergeCommitSha: updated.mergeCommitSha ?? null,
+      });
+      await this.temporal
+        .pullRequestStatus(row.incidentId, {
+          status,
+          number: row.number!,
+          mergeCommitSha: updated.mergeCommitSha ?? null,
+        })
+        .catch((e: unknown) =>
+          this.logger.warn(`Could not signal the workflow: ${(e as Error).message}`),
+        );
+    }
+    await this.audit.record({
+      workspaceId: row.workspaceId,
+      actorType: 'system',
+      action: `pull_request.${status}`,
+      resourceType: 'pull_request',
+      resourceId: row.id,
+      outcome: 'success',
+      correlationId: `pr-sync-${row.id}`,
+      metadata: { repo: row.repositoryFullName, number: row.number },
+    });
   }
 
   private async event(row: PrRow, summary: string, attributes: Record<string, unknown>) {

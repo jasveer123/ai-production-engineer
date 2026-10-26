@@ -1,114 +1,40 @@
-import { createHash, createHmac } from 'node:crypto';
 import type { ConnectReaderInput, ReaderLogLine, ToolId } from '@ape/api-contracts';
+import {
+  asText,
+  basic,
+  call,
+  guessLevel,
+  trimBase,
+  type FetchFn,
+  type ReaderConfig,
+  type ReaderQuery,
+} from './reader-http';
+import { signAwsRequest } from './aws-sigv4';
 
-/**
- * Read-only log readers for Way 7. Each takes stored settings + secrets and answers one bounded
- * question: "lines for this service in this time window". They never write to the tool.
- */
-export interface ReaderQuery {
-  service: string | null;
-  environment: string | null;
-  from: Date;
-  to: Date;
-  limit: number;
-  /** Prefer error lines where the tool can filter cheaply. */
-  errorsOnly?: boolean;
-}
-
-export type ReaderConfig = { settings: Record<string, string>; secrets: Record<string, string> };
-
-export type FetchFn = typeof fetch;
-
-export class ReaderError extends Error {}
-
-const TIMEOUT_MS = 10_000;
-
-async function call(
-  fetchFn: FetchFn,
-  url: string,
-  init: RequestInit,
-  tool: string,
-): Promise<unknown> {
-  let res: Response;
-  try {
-    res = await fetchFn(url, {
-      ...init,
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      redirect: 'error',
-    });
-  } catch (err) {
-    const e = err as Error;
-    throw new ReaderError(
-      e.name === 'TimeoutError'
-        ? `${tool} did not answer within 10 seconds`
-        : `Could not reach ${tool}: ${e.message}`,
-    );
-  }
-  const body = await res.text();
-  if (res.status === 401 || res.status === 403)
-    throw new ReaderError(
-      `${tool} rejected the credentials (HTTP ${res.status}). Check the key and its read permission.`,
-    );
-  if (!res.ok) throw new ReaderError(`${tool} answered HTTP ${res.status}: ${body.slice(0, 200)}`);
-  if (!body.trim()) return null;
-  try {
-    return JSON.parse(body) as unknown;
-  } catch {
-    // ClickHouse JSONEachRow: one object per line.
-    return body
-      .split('\n')
-      .filter((l) => l.trim())
-      .map((l) => JSON.parse(l) as unknown);
-  }
-}
-
-/** Scalars as text, objects as JSON: log fields can be either. */
-const asText = (v: unknown): string =>
-  typeof v === 'string'
-    ? v
-    : typeof v === 'number' || typeof v === 'boolean'
-      ? String(v)
-      : JSON.stringify(v);
-
-const trimBase = (u: string) => u.replace(/\/+$/, '');
-const basic = (user: string, pass: string) =>
-  `Basic ${Buffer.from(`${user}:${pass}`).toString('base64')}`;
-const LEVEL_WORDS = /\b(fatal|panic|critical|error|err|exception|warn(?:ing)?|info|debug)\b/i;
-const guessLevel = (line: string, fallback = 'info') =>
-  LEVEL_WORDS.exec(line)?.[1]
-    ?.toLowerCase()
-    .replace(/^err$/, 'error')
-    .replace('warning', 'warn')
-    .replace('exception', 'error') ?? fallback;
+export { ReaderError } from './reader-http';
+export type { FetchFn, ReaderConfig, ReaderQuery } from './reader-http';
+export { signAwsRequest } from './aws-sigv4';
 
 // ---------- Grafana Loki ----------
 
-async function loki(cfg: ReaderConfig, q: ReaderQuery, fetchFn: FetchFn): Promise<ReaderLogLine[]> {
-  const { url, auth, username, orgId, serviceLabel } = cfg.settings;
-  const label = (serviceLabel || 'service_name').replace(/[^A-Za-z0-9_]/g, '');
+/** The LogQL selector for a service (or every stream), optionally narrowed to error lines. */
+function lokiQuery(label: string, q: ReaderQuery): string {
   const selector = q.service
     ? `{${label}="${q.service.replace(/["\\]/g, '\\$&')}"}`
     : `{${label}=~".+"}`;
-  const query = q.errorsOnly ? `${selector} |~ "(?i)(error|exception|fatal|panic)"` : selector;
-  const base = trimBase(url!);
-  const endpoint = /\/loki\/api\/v1$/.test(base)
-    ? `${base}/query_range`
-    : `${base}/loki/api/v1/query_range`;
-  const params = new URLSearchParams({
-    query,
-    start: String(BigInt(q.from.getTime()) * 1_000_000n),
-    end: String(BigInt(q.to.getTime()) * 1_000_000n),
-    limit: String(q.limit),
-    direction: 'backward',
-  });
-  const headers: Record<string, string> = {
-    Authorization:
-      auth === 'basic' ? basic(username ?? '', cfg.secrets.token!) : `Bearer ${cfg.secrets.token}`,
-  };
-  if (orgId) headers['X-Scope-OrgID'] = orgId;
-  const data = (await call(fetchFn, `${endpoint}?${params}`, { headers }, 'Loki')) as {
-    data?: { result?: { stream?: Record<string, string>; values?: [string, string][] }[] };
-  } | null;
+  return q.errorsOnly ? `${selector} |~ "(?i)(error|exception|fatal|panic)"` : selector;
+}
+
+const lokiEndpoint = (url: string): string => {
+  const base = trimBase(url);
+  return /\/loki\/api\/v1$/.test(base) ? `${base}/query_range` : `${base}/loki/api/v1/query_range`;
+};
+
+interface LokiResponse {
+  data?: { result?: { stream?: Record<string, string>; values?: [string, string][] }[] };
+}
+
+function lokiLines(data: LokiResponse | null, label: string): ReaderLogLine[] {
   const lines: ReaderLogLine[] = [];
   for (const r of data?.data?.result ?? []) {
     for (const [ns, line] of r.values ?? []) {
@@ -122,6 +48,30 @@ async function loki(cfg: ReaderConfig, q: ReaderQuery, fetchFn: FetchFn): Promis
     }
   }
   return lines;
+}
+
+async function loki(cfg: ReaderConfig, q: ReaderQuery, fetchFn: FetchFn): Promise<ReaderLogLine[]> {
+  const { url, auth, username, orgId, serviceLabel } = cfg.settings;
+  const label = (serviceLabel || 'service_name').replace(/[^A-Za-z0-9_]/g, '');
+  const params = new URLSearchParams({
+    query: lokiQuery(label, q),
+    start: String(BigInt(q.from.getTime()) * 1_000_000n),
+    end: String(BigInt(q.to.getTime()) * 1_000_000n),
+    limit: String(q.limit),
+    direction: 'backward',
+  });
+  const headers: Record<string, string> = {
+    Authorization:
+      auth === 'basic' ? basic(username ?? '', cfg.secrets.token!) : `Bearer ${cfg.secrets.token}`,
+  };
+  if (orgId) headers['X-Scope-OrgID'] = orgId;
+  const data = (await call(
+    fetchFn,
+    `${lokiEndpoint(url!)}?${params}`,
+    { headers },
+    'Loki',
+  )) as LokiResponse | null;
+  return lokiLines(data, label);
 }
 
 // ---------- Datadog ----------
@@ -271,52 +221,6 @@ async function betterstack(
 }
 
 // ---------- Amazon CloudWatch Logs (SigV4, FilterLogEvents) ----------
-
-const sha256hex = (s: string) => createHash('sha256').update(s).digest('hex');
-const hmac = (key: Buffer | string, s: string) => createHmac('sha256', key).update(s).digest();
-
-/** AWS Signature Version 4 for a JSON POST to `host` (service `logs`). */
-export function signAwsRequest(opts: {
-  region: string;
-  service: string;
-  host: string;
-  target: string;
-  body: string;
-  accessKeyId: string;
-  secretAccessKey: string;
-  now?: Date;
-}): Record<string, string> {
-  const now = opts.now ?? new Date();
-  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
-  const day = amzDate.slice(0, 8);
-  const headers: Record<string, string> = {
-    'content-type': 'application/x-amz-json-1.1',
-    host: opts.host,
-    'x-amz-date': amzDate,
-    'x-amz-target': opts.target,
-  };
-  const names = Object.keys(headers).sort();
-  const signedHeaders = names.join(';');
-  const canonicalRequest = [
-    'POST',
-    '/',
-    '', // no query string
-    names.map((k) => `${k}:${headers[k]}\n`).join(''),
-    signedHeaders,
-    sha256hex(opts.body),
-  ].join('\n');
-  const scope = `${day}/${opts.region}/${opts.service}/aws4_request`;
-  const toSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256hex(canonicalRequest)].join('\n');
-  const kDate = hmac(`AWS4${opts.secretAccessKey}`, day);
-  const kSigning = hmac(hmac(hmac(kDate, opts.region), opts.service), 'aws4_request');
-  const signature = createHmac('sha256', kSigning).update(toSign).digest('hex');
-  return {
-    'Content-Type': headers['content-type']!,
-    'X-Amz-Date': amzDate,
-    'X-Amz-Target': opts.target,
-    Authorization: `AWS4-HMAC-SHA256 Credential=${opts.accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
-  };
-}
 
 async function cloudwatch(
   cfg: ReaderConfig,

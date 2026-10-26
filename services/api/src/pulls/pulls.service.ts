@@ -75,7 +75,9 @@ export class PullsService {
       .where(and(eq(pullRequests.id, id), eq(pullRequests.workspaceId, actor.workspaceId)));
     if (!row) throw notFound('Pull request');
     await this.sync.sync(row);
-    const [r] = await this.query().where(eq(pullRequests.id, id));
+    const [r] = await this.query().where(
+      and(eq(pullRequests.id, id), eq(pullRequests.workspaceId, actor.workspaceId)),
+    );
     return this.view(r!);
   }
 }

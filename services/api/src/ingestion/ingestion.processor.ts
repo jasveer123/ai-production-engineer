@@ -4,7 +4,7 @@ import { CLOSED_STATUSES } from '@ape/api-contracts';
 import { AuditService } from '../audit/audit.service';
 import { ENV, type ApiEnv } from '../config/config.module';
 import { DB } from '../db/database.module';
-import type { Database } from '../db/client';
+import type { Database, Tx } from '../db/client';
 import {
   deployments,
   inboundEvents,
@@ -20,7 +20,6 @@ import { normalize, PermanentIngestError, type NormalizedEvent } from './normali
 import { openIncident } from './open-incident';
 import { ALERT_SOURCE_PREFIX, AlertProcessor } from '../alerts/alert-processor';
 
-type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 type InboundRow = typeof inboundEvents.$inferSelect;
 
 export const MAX_ATTEMPTS = 5;

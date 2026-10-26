@@ -41,6 +41,16 @@ interface ReaderRowConfig {
 
 export const isToolId = (v: string): v is ToolId => (TOOL_IDS as readonly string[]).includes(v);
 
+function readerView(reader: Row | undefined): ToolView['reader'] {
+  const rc = reader?.config as unknown as ReaderRowConfig | undefined;
+  return {
+    status: !reader ? 'not_connected' : reader.status === 'connected' ? 'connected' : 'error',
+    settings: rc?.settings ?? {},
+    lastUsedAt: rc?.lastUsedAt ?? null,
+    lastError: reader?.lastError ?? null,
+  };
+}
+
 @Injectable()
 export class ToolsService {
   private readonly logger = new Logger(ToolsService.name);
@@ -88,26 +98,24 @@ export class ToolsService {
       .filter((s) => (s.config as unknown as SourceConfig).kind === meta.alertKind)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
     const reader = readers.find((r) => (r.config as unknown as ReaderRowConfig).tool === id);
-    const rc = reader?.config as unknown as ReaderRowConfig | undefined;
-    const sourceDto = source ? this.alertSources.toDto(source) : null;
     return {
       id,
       name: meta.name,
       description: meta.description,
       readsWhat: meta.readsWhat,
-      alerts: {
-        enabled: Boolean(source),
-        sourceId: source?.id ?? null,
-        url: sourceDto?.url ?? null,
-        lastReceivedAt: sourceDto?.lastReceivedAt ?? null,
-        lastError: source?.lastError ?? null,
-      },
-      reader: {
-        status: !reader ? 'not_connected' : reader.status === 'connected' ? 'connected' : 'error',
-        settings: rc?.settings ?? {},
-        lastUsedAt: rc?.lastUsedAt ?? null,
-        lastError: reader?.lastError ?? null,
-      },
+      alerts: this.alertsView(source),
+      reader: readerView(reader),
+    };
+  }
+
+  private alertsView(source: Row | undefined): ToolView['alerts'] {
+    const dto = source ? this.alertSources.toDto(source) : null;
+    return {
+      enabled: Boolean(source),
+      sourceId: source?.id ?? null,
+      url: dto?.url ?? null,
+      lastReceivedAt: dto?.lastReceivedAt ?? null,
+      lastError: source?.lastError ?? null,
     };
   }
 
@@ -206,7 +214,12 @@ export class ToolsService {
             status: 'pending',
             lastError: null,
           })
-          .where(eq(integrations.id, existing.id));
+          .where(
+            and(
+              eq(integrations.id, existing.id),
+              eq(integrations.workspaceId, existing.workspaceId),
+            ),
+          );
       } else {
         await tx.insert(integrations).values({
           workspaceId: actor.workspaceId,
@@ -243,7 +256,10 @@ export class ToolsService {
           err instanceof ReaderError ? err.message : `Test failed: ${(err as Error).message}`,
       };
     }
-    await this.db.update(integrations).set(patch).where(eq(integrations.id, row.id));
+    await this.db
+      .update(integrations)
+      .set(patch)
+      .where(and(eq(integrations.id, row.id), eq(integrations.workspaceId, row.workspaceId)));
     await this.record(actor, 'log_reader.tested', id, { status: patch.status });
     return this.get(actor, id);
   }
@@ -257,7 +273,7 @@ export class ToolsService {
         await tx
           .update(integrations)
           .set({ status: 'disconnected', secretReference: null })
-          .where(eq(integrations.id, row.id));
+          .where(and(eq(integrations.id, row.id), eq(integrations.workspaceId, row.workspaceId)));
       });
       await this.record(actor, 'log_reader.disconnected', id);
     }
@@ -320,7 +336,7 @@ export class ToolsService {
             .set({
               config: sql`${integrations.config} || jsonb_build_object('lastUsedAt', ${new Date().toISOString()}::text)`,
             })
-            .where(eq(integrations.id, row.id));
+            .where(and(eq(integrations.id, row.id), eq(integrations.workspaceId, row.workspaceId)));
           return { tool, name: TOOL_CATALOG[tool].name, lines, error: null };
         } catch (err) {
           this.logger.warn(`Reader ${tool} failed during investigation: ${(err as Error).message}`);

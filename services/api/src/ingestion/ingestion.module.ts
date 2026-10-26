@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { GitHubController } from '../github/github.controller';
+import { GitHubSelectService } from '../github/github-select.service';
 import { GitHubService } from '../github/github.service';
+import { DeadLettersService } from '../integrations/dead-letters.service';
+import { IntegrationHealth } from '../integrations/integration-health.service';
 import { IntegrationsController } from '../integrations/integrations.controller';
 import { IntegrationsService } from '../integrations/integrations.service';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
@@ -20,7 +23,10 @@ import { JaegerPoller } from './jaeger.poller';
     JaegerPoller,
     IngestionWorker,
     IntegrationsService,
+    IntegrationHealth,
+    DeadLettersService,
     GitHubService,
+    GitHubSelectService,
   ],
   exports: [IngestionProcessor, JaegerPoller, GitHubService],
 })

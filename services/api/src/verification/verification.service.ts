@@ -40,7 +40,13 @@ export class VerificationService {
       const [pr] = await this.db
         .select({ number: pullRequests.number, sha: pullRequests.mergeCommitSha })
         .from(pullRequests)
-        .where(and(eq(pullRequests.incidentId, incidentId), eq(pullRequests.status, 'merged')))
+        .where(
+          and(
+            eq(pullRequests.incidentId, incidentId),
+            eq(pullRequests.workspaceId, actor.workspaceId),
+            eq(pullRequests.status, 'merged'),
+          ),
+        )
         .orderBy(desc(pullRequests.mergedAt))
         .limit(1);
       awaitingDeploy = { prNumber: pr?.number ?? null, mergeCommitSha: pr?.sha ?? null };

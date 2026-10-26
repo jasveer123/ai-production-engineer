@@ -6,7 +6,6 @@ import { ApiException } from '../common/errors';
 import {
   BadPayload,
   jsonLogsToBatch,
-  logplexToBatch,
   sdkErrorsToBatch,
   vercelToBatch,
   type Defaults,
@@ -14,6 +13,7 @@ import {
 import { IngestTokensService } from './ingest-tokens.service';
 import { logsToBatch, metricsToBatch, tracesToBatch } from './otlp';
 import { decodeLogs, decodeMetrics, decodeTraces } from './protobuf';
+import { logplexToBatch } from './syslog-format';
 import { TelemetryStore } from './telemetry-store.service';
 import type { Batch } from './types';
 

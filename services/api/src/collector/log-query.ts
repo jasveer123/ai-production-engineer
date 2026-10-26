@@ -32,45 +32,52 @@ export function parseLogQuery(input: string): ParsedLogQuery {
     ways: [],
     text: [],
   };
-  for (const raw of input.match(/"[^"]*"|\S+/g) ?? []) {
-    if (raw.startsWith('"')) {
-      const phrase = raw.slice(1, -1).trim();
-      if (phrase) q.text.push(phrase.toLowerCase());
-      continue;
-    }
-    const sep = raw.indexOf(':');
-    const key = sep > 0 ? raw.slice(0, sep).toLowerCase() : '';
-    const values =
-      sep > 0
-        ? raw
-            .slice(sep + 1)
-            .split(',')
-            .map((v) => v.trim())
-            .filter(Boolean)
-        : [];
-    if (key === 'level' && values.length) {
-      const levels = values.map((v) => LEVEL_ALIASES[v.toLowerCase()] ?? v.toLowerCase());
-      if (levels.every((l) => (LOG_LEVELS as readonly string[]).includes(l))) {
-        q.levels.push(...(levels as LogLevel[]));
-        continue;
-      }
-    }
-    const target =
-      key === 'service'
-        ? q.services
-        : key === 'env' || key === 'environment'
-          ? q.environments
-          : key === 'trace'
-            ? q.traceIds
-            : key === 'host'
-              ? q.hosts
-              : key === 'way'
-                ? q.ways
-                : null;
-    if (target && values.length) target.push(...values.map((v) => v.toLowerCase()));
-    else q.text.push(raw.toLowerCase());
-  }
+  for (const raw of input.match(/"[^"]*"|\S+/g) ?? []) addTerm(q, raw);
   return q;
+}
+
+type ListField = 'services' | 'environments' | 'traceIds' | 'hosts' | 'ways';
+const FILTER_FIELDS = new Map<string, ListField>([
+  ['service', 'services'],
+  ['env', 'environments'],
+  ['environment', 'environments'],
+  ['trace', 'traceIds'],
+  ['host', 'hosts'],
+  ['way', 'ways'],
+]);
+
+/** `key:a,b` as its key and comma-separated values; a bare word has an empty key. */
+function splitTerm(raw: string): { key: string; values: string[] } {
+  const sep = raw.indexOf(':');
+  if (sep <= 0) return { key: '', values: [] };
+  const values = raw
+    .slice(sep + 1)
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
+  return { key: raw.slice(0, sep).toLowerCase(), values };
+}
+
+/** Adds `level:` values when all of them are real levels; otherwise the term stays text. */
+function addLevels(q: ParsedLogQuery, values: string[]): boolean {
+  const levels = values.map((v) => LEVEL_ALIASES[v.toLowerCase()] ?? v.toLowerCase());
+  if (!values.length || !levels.every((l) => (LOG_LEVELS as readonly string[]).includes(l)))
+    return false;
+  q.levels.push(...(levels as LogLevel[]));
+  return true;
+}
+
+function addTerm(q: ParsedLogQuery, raw: string): void {
+  if (raw.startsWith('"')) {
+    const phrase = raw.slice(1, -1).trim();
+    if (phrase) q.text.push(phrase.toLowerCase());
+    return;
+  }
+  const { key, values } = splitTerm(raw);
+  if (key === 'level' && addLevels(q, values)) return;
+  const field = FILTER_FIELDS.get(key);
+  if (field && values.length) q[field].push(...values.map((v) => v.toLowerCase()));
+  else q.text.push(raw.toLowerCase());
 }
 
 /** Escapes `%`, `_` and `\` for ILIKE. */

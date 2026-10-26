@@ -1,6 +1,6 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { FetchFn } from '../tools/readers';
-import { ProvisionError } from './provisioners';
+import { ProvisionError } from './provisioner-http';
 
 /** Token exchanges for "sign in and approve" setups. Pure, with an injectable fetch. */
 

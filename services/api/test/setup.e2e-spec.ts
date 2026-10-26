@@ -15,7 +15,7 @@ import { GitHubAppClient, GitHubError, type GitHubPull } from '../src/github/git
 import { GitHubService } from '../src/github/github.service';
 import { IngestionProcessor } from '../src/ingestion/ingestion.processor';
 import { GITHUB_OIDC_ISSUER } from '../src/setup/github-oidc';
-import { SetupService } from '../src/setup/setup.service';
+import { SetupSupport } from '../src/setup/setup-support.service';
 import { ToolsService } from '../src/tools/tools.service';
 import { createTestApp, createWorkspace, loginAs, resetDatabase } from './helpers';
 
@@ -140,7 +140,7 @@ const fakeFetch = (routes: Route) =>
 describe('One-click setup (e2e)', () => {
   let app: INestApplication<App>;
   let gh: FakeGitHub;
-  let setup: SetupService;
+  let setup: SetupSupport;
   let tools: ToolsService;
   let owner: ReturnType<typeof request.agent>;
   let ws: string;
@@ -148,7 +148,7 @@ describe('One-click setup (e2e)', () => {
 
   beforeAll(async () => {
     app = await createTestApp();
-    setup = app.get(SetupService);
+    setup = app.get(SetupSupport);
     tools = app.get(ToolsService);
   });
   beforeEach(async () => {

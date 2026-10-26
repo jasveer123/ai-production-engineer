@@ -3,7 +3,7 @@ import { createServer, type Server, type Socket } from 'node:net';
 import { createServer as createTlsServer } from 'node:tls';
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ENV, type ApiEnv } from '../config/config.module';
-import { parseSyslog, syslogToken, syslogToLog } from './formats';
+import { parseSyslog, syslogToken, syslogToLog } from './syslog-format';
 import { IngestTokensService } from './ingest-tokens.service';
 import { TelemetryStore } from './telemetry-store.service';
 import { emptyBatch, type Batch } from './types';

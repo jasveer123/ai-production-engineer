@@ -173,7 +173,12 @@ export class NotificationsService {
         ...(input.minSeverity !== undefined && { minSeverity: input.minSeverity }),
         ...(input.enabled !== undefined && { enabled: input.enabled }),
       })
-      .where(eq(notificationChannels.id, before.id))
+      .where(
+        and(
+          eq(notificationChannels.id, before.id),
+          eq(notificationChannels.workspaceId, actor.workspaceId),
+        ),
+      )
       .returning();
     await this.record(actor, 'notification_channel.updated', id, { changes: input });
     return this.toDto(row!);
@@ -182,7 +187,14 @@ export class NotificationsService {
   async remove(actor: ActorContext, id: string): Promise<void> {
     const row = await this.find(actor, id);
     await this.db.transaction(async (tx) => {
-      await tx.delete(notificationChannels).where(eq(notificationChannels.id, row.id));
+      await tx
+        .delete(notificationChannels)
+        .where(
+          and(
+            eq(notificationChannels.id, row.id),
+            eq(notificationChannels.workspaceId, actor.workspaceId),
+          ),
+        );
       if (row.secretReference)
         await this.secrets.delete(actor.workspaceId, row.secretReference, tx);
     });

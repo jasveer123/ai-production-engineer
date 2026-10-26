@@ -28,7 +28,17 @@ import {
 import { GitHubError } from '../github/github-app';
 import { GitHubService } from '../github/github.service';
 import { hasRole } from '../workspaces/roles';
-import { branchName, commitMessage, prBody, prTitle, type PrBodyInput } from './pr-body';
+import {
+  branchName,
+  commitMessage,
+  prBody,
+  prBodyInput,
+  prTitle,
+  type PrBodyInput,
+} from './pr-body';
+
+/** A pull request the re-checks refused to open; reported to the workflow, not retried. */
+class PrBlocked extends Error {}
 
 const REQUIRED_PERMISSIONS: Record<string, string> = { contents: 'write', pull_requests: 'write' };
 
@@ -80,18 +90,79 @@ export class PrActivitiesService implements PrActivities {
     input: IncidentWorkflowInput & { fixProposalId: string; approvalId: string },
   ): Promise<PullRequestOutcome> {
     const corr = `pr-${input.fixProposalId}`;
-    const block = (reason: string) =>
-      this.blocked(input.workspaceId, input.fixProposalId, reason, corr);
-
     // Idempotency at our side: one PR row per fix proposal.
     const [already] = await this.db
       .select()
       .from(pullRequests)
-      .where(eq(pullRequests.fixProposalId, input.fixProposalId));
+      .where(
+        and(
+          eq(pullRequests.fixProposalId, input.fixProposalId),
+          eq(pullRequests.workspaceId, input.workspaceId),
+        ),
+      );
     if (already?.number && already.url)
       return { status: 'existing', number: already.number, url: already.url };
+    try {
+      return await this.open(input, corr);
+    } catch (err) {
+      if (!(err instanceof PrBlocked)) throw err;
+      return this.blocked(input.workspaceId, input.fixProposalId, err.message, corr);
+    }
+  }
 
+  private async open(
+    input: IncidentWorkflowInput & { fixProposalId: string; approvalId: string },
+    corr: string,
+  ): Promise<PullRequestOutcome> {
     // ---- Re-checks at execution time (the approval may be minutes or days old). ----
+    const approval = await this.requireApproval(input);
+    const member = await this.requireApprover(input.workspaceId, approval.actorId);
+    const fix = await this.requireValidatedFix(input, approval);
+    const { incident, service, repo } = await this.requireTarget(input, fix);
+    const installationId = await this.requireInstallation(input.workspaceId, repo);
+
+    // ---- Content: the exact files that passed validation (patched sources + regression test). ----
+    const overlayRef = `s3://${this.artifacts.bucket}/fixes/${fix.workspaceId}/${fix.id}/attempt-${fix.patchAttempts}/overlay.json`;
+    const overlay = await this.artifacts.getJson<{ files: Record<string, string> }>(overlayRef);
+    const bodyInput = await this.bodyInput(incident, fix, member.email);
+    const branch = branchName(incident.id, fix.version);
+    const base = service.defaultBranch;
+    if (branch === base) throw new PrBlocked('Refusing to write to the default branch');
+
+    // ---- Idempotent writes: reuse the branch and PR if a previous attempt created them. ----
+    const gh = this.github.gh();
+    const at = { installationId, repo };
+    const headSha = await this.ensureBranch(at, { branch, fix, overlay, bodyInput });
+    const existing = (await gh.listPullsForBranch(installationId, repo, branch))[0];
+    const pr =
+      existing ??
+      (await gh.createPull(installationId, repo, {
+        title: prTitle(bodyInput),
+        body: prBody(bodyInput),
+        head: branch,
+        base,
+      }));
+    await this.recordPullRequest({
+      input,
+      approval,
+      incident,
+      fix,
+      pr,
+      repo,
+      branch,
+      base,
+      headSha,
+      existing: Boolean(existing),
+      corr,
+    });
+    return { status: existing ? 'existing' : 'created', number: pr.number, url: pr.html_url };
+  }
+
+  private async requireApproval(input: {
+    workspaceId: string;
+    fixProposalId: string;
+    approvalId: string;
+  }) {
     const [approval] = await this.db
       .select()
       .from(approvals)
@@ -104,107 +175,150 @@ export class PrActivitiesService implements PrActivities {
           eq(approvals.decision, 'approved'),
         ),
       );
-    if (!approval) return block('No matching approval record');
+    if (!approval) throw new PrBlocked('No matching approval record');
+    return approval;
+  }
 
+  /** The approver must still be a member whose role meets the workspace policy. */
+  private async requireApprover(workspaceId: string, approverId: string) {
     const [ws] = await this.db
       .select({ settings: workspaces.settings })
       .from(workspaces)
-      .where(eq(workspaces.id, input.workspaceId));
+      .where(eq(workspaces.id, workspaceId));
     const minRole = ws?.settings.approvalPolicy?.prMinRole ?? DEFAULT_APPROVAL_POLICY.prMinRole;
     const [member] = await this.db
       .select({ role: workspaceMembers.role, email: users.email })
       .from(workspaceMembers)
       .innerJoin(users, eq(users.id, workspaceMembers.userId))
       .where(
-        and(
-          eq(workspaceMembers.workspaceId, input.workspaceId),
-          eq(workspaceMembers.userId, approval.actorId),
-        ),
+        and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, approverId)),
       );
-    if (!member) return block('The approver is no longer a member of this workspace');
+    if (!member) throw new PrBlocked('The approver is no longer a member of this workspace');
     if (!hasRole(member.role, minRole))
-      return block(`The approver's role (${member.role}) no longer meets the policy (${minRole})`);
+      throw new PrBlocked(
+        `The approver's role (${member.role}) no longer meets the policy (${minRole})`,
+      );
+    return member;
+  }
 
+  private async requireValidatedFix(
+    input: { workspaceId: string; fixProposalId: string },
+    approval: { artifactHash: string | null },
+  ) {
     const [fix] = await this.db
       .select()
       .from(fixProposals)
-      .where(eq(fixProposals.id, input.fixProposalId));
+      .where(
+        and(
+          eq(fixProposals.id, input.fixProposalId),
+          eq(fixProposals.workspaceId, input.workspaceId),
+        ),
+      );
     if (!fix || fix.status !== 'validated')
-      return block('The fix is no longer in a validated state');
+      throw new PrBlocked('The fix is no longer in a validated state');
     if (!fix.patchHash || fix.patchHash !== approval.artifactHash)
-      return block('The patch changed after it was approved');
+      throw new PrBlocked('The patch changed after it was approved');
+    return fix;
+  }
 
+  private async requireTarget(
+    input: { workspaceId: string; incidentId: string },
+    fix: typeof fixProposals.$inferSelect,
+  ) {
     const [incident] = await this.db
       .select()
       .from(incidents)
-      .where(eq(incidents.id, input.incidentId));
+      .where(and(eq(incidents.id, input.incidentId), eq(incidents.workspaceId, input.workspaceId)));
     const [service] = incident?.serviceId
-      ? await this.db.select().from(services).where(eq(services.id, incident.serviceId))
+      ? await this.db
+          .select()
+          .from(services)
+          .where(
+            and(eq(services.id, incident.serviceId), eq(services.workspaceId, input.workspaceId)),
+          )
       : [];
     const repo = fix.repositoryFullName ?? service?.repositoryFullName;
-    if (!incident || !repo || !service) return block('The incident has no mapped repository');
-    const installationId = await this.github.installationFor(input.workspaceId, repo);
-    if (!installationId) return block(`No connected GitHub installation can access ${repo}`);
-    const gh = this.github.gh();
+    if (!incident || !repo || !service)
+      throw new PrBlocked('The incident has no mapped repository');
+    return { incident, service, repo };
+  }
+
+  /** An installation that can write to the repository: present, not suspended, with permissions. */
+  private async requireInstallation(workspaceId: string, repo: string): Promise<number> {
+    const installationId = await this.github.installationFor(workspaceId, repo);
+    if (!installationId) throw new PrBlocked(`No connected GitHub installation can access ${repo}`);
     try {
-      const inst = await gh.getInstallation(installationId);
-      if (inst.suspended_at) return block('The GitHub App installation is suspended');
+      const inst = await this.github.gh().getInstallation(installationId);
+      if (inst.suspended_at) throw new PrBlocked('The GitHub App installation is suspended');
       const missing = Object.entries(REQUIRED_PERMISSIONS).filter(
         ([k, v]) => inst.permissions[k] !== v,
       );
       if (missing.length)
-        return block(`The GitHub App lacks ${missing.map(([k, v]) => `${k}:${v}`).join(', ')}`);
+        throw new PrBlocked(
+          `The GitHub App lacks ${missing.map(([k, v]) => `${k}:${v}`).join(', ')}`,
+        );
     } catch (err) {
       if (err instanceof GitHubError && err.status === 404)
-        return block('The GitHub App was uninstalled');
+        throw new PrBlocked('The GitHub App was uninstalled');
       throw err;
     }
+    return installationId;
+  }
 
-    // ---- Content: the exact files that passed validation (patched sources + regression test). ----
-    const overlayRef = `s3://${this.artifacts.bucket}/fixes/${fix.workspaceId}/${fix.id}/attempt-${fix.patchAttempts}/overlay.json`;
-    const overlay = await this.artifacts.getJson<{ files: Record<string, string> }>(overlayRef);
-    const bodyInput = await this.bodyInput(incident, fix, member.email);
-    const branch = branchName(incident.id, fix.version);
-    const base = service.defaultBranch;
-    if (branch === base) return block('Refusing to write to the default branch');
-
-    // ---- Idempotent writes: reuse the branch and PR if a previous attempt created them. ----
-    let headSha = await gh.getBranchSha(installationId, repo, branch);
-    if (!headSha) {
-      const baseCommit = await gh.getCommit(installationId, repo, fix.baseCommitSha);
-      const blobs = await Promise.all(
-        Object.entries(overlay.files).map(async ([path, content]) => ({
-          path,
-          sha: (await gh.createBlob(installationId, repo, content)).sha,
-        })),
-      );
-      const tree = await gh.createTree(installationId, repo, baseCommit.tree.sha, blobs);
-      const commit = await gh.createCommit(
-        installationId,
-        repo,
-        commitMessage(bodyInput),
-        tree.sha,
-        fix.baseCommitSha,
-      );
-      try {
-        await gh.createBranch(installationId, repo, branch, commit.sha);
-        headSha = commit.sha;
-      } catch (err) {
-        // A concurrent or earlier attempt created it first: use that branch.
-        if (!(err instanceof GitHubError && err.status === 422)) throw err;
-        headSha = await gh.getBranchSha(installationId, repo, branch);
-      }
+  /** Commits the validated files on a new branch, or reuses the branch an earlier attempt made. */
+  private async ensureBranch(
+    at: { installationId: number; repo: string },
+    change: {
+      branch: string;
+      fix: typeof fixProposals.$inferSelect;
+      overlay: { files: Record<string, string> };
+      bodyInput: PrBodyInput;
+    },
+  ): Promise<string | null> {
+    const { installationId, repo } = at;
+    const { branch, fix, overlay } = change;
+    const gh = this.github.gh();
+    const existing = await gh.getBranchSha(installationId, repo, branch);
+    if (existing) return existing;
+    const baseCommit = await gh.getCommit(installationId, repo, fix.baseCommitSha);
+    const blobs = await Promise.all(
+      Object.entries(overlay.files).map(async ([path, content]) => ({
+        path,
+        sha: (await gh.createBlob(installationId, repo, content)).sha,
+      })),
+    );
+    const tree = await gh.createTree(installationId, repo, baseCommit.tree.sha, blobs);
+    const commit = await gh.createCommit(
+      installationId,
+      repo,
+      commitMessage(change.bodyInput),
+      tree.sha,
+      fix.baseCommitSha,
+    );
+    try {
+      await gh.createBranch(installationId, repo, branch, commit.sha);
+      return commit.sha;
+    } catch (err) {
+      // A concurrent or earlier attempt created it first: use that branch.
+      if (!(err instanceof GitHubError && err.status === 422)) throw err;
+      return gh.getBranchSha(installationId, repo, branch);
     }
-    const existing = (await gh.listPullsForBranch(installationId, repo, branch))[0];
-    const pr =
-      existing ??
-      (await gh.createPull(installationId, repo, {
-        title: prTitle(bodyInput),
-        body: prBody(bodyInput),
-        head: branch,
-        base,
-      }));
+  }
 
+  private async recordPullRequest(r: {
+    input: IncidentWorkflowInput;
+    approval: typeof approvals.$inferSelect;
+    incident: typeof incidents.$inferSelect;
+    fix: typeof fixProposals.$inferSelect;
+    pr: Awaited<ReturnType<ReturnType<GitHubService['gh']>['createPull']>>;
+    repo: string;
+    branch: string;
+    base: string;
+    headSha: string | null;
+    existing: boolean;
+    corr: string;
+  }): Promise<void> {
+    const { input, approval, incident, fix, pr, repo, branch, base } = r;
     await this.db
       .insert(pullRequests)
       .values({
@@ -215,7 +329,7 @@ export class PrActivitiesService implements PrActivities {
         repositoryFullName: repo,
         branchName: branch,
         baseBranch: base,
-        headSha: pr.head.sha ?? headSha,
+        headSha: pr.head.sha ?? r.headSha,
         providerPrId: String(pr.id),
         number: pr.number,
         url: pr.html_url,
@@ -237,7 +351,7 @@ export class PrActivitiesService implements PrActivities {
       kind: 'fix',
       source: 'github',
       occurredAt: new Date(),
-      summary: `Pull request #${pr.number} ${existing ? 'found' : 'opened'} on ${repo} (${branch} → ${base})`,
+      summary: `Pull request #${pr.number} ${r.existing ? 'found' : 'opened'} on ${repo} (${branch} → ${base})`,
       sourceUrl: pr.html_url,
       attributes: { fixProposalId: fix.id, number: pr.number },
     });
@@ -249,17 +363,16 @@ export class PrActivitiesService implements PrActivities {
       resourceType: 'pull_request',
       resourceId: String(pr.number),
       outcome: 'success',
-      correlationId: corr,
+      correlationId: r.corr,
       metadata: {
         repo,
         branch,
         base,
         url: pr.html_url,
-        existing: Boolean(existing),
+        existing: r.existing,
         approvalId: approval.id,
       },
     });
-    return { status: existing ? 'existing' : 'created', number: pr.number, url: pr.html_url };
   }
 
   private async bodyInput(
@@ -279,44 +392,19 @@ export class PrActivitiesService implements PrActivities {
           .from(evidenceItems)
           .where(eq(evidenceItems.investigationId, fix.investigationId))
       : [];
-    const cited = new Set(top?.supportingEvidenceIds ?? []);
     const runs = await this.db
       .select()
       .from(validationRuns)
       .where(eq(validationRuns.fixProposalId, fix.id))
       .orderBy(desc(validationRuns.createdAt));
-    return {
-      incident: {
-        id: incident.id,
-        title: incident.title,
-        severity: incident.severity,
-        serviceName: incident.serviceName,
-        environment: incident.environment,
-        eventCount: incident.eventCount,
-      },
-      dashboardUrl: `${this.env.WEB_URL}/w/${incident.workspaceId}/incidents/${incident.id}`,
-      hypothesis: top
-        ? {
-            summary: top.summary,
-            rationale: top.confidenceRationale,
-            location: top.suspectedLocation as NonNullable<PrBodyInput['hypothesis']>['location'],
-          }
-        : null,
-      evidence: ev
-        .filter((e) => cited.has(e.id))
-        .sort((a, b) => Number(a.ref.slice(1)) - Number(b.ref.slice(1)))
-        .map((e) => ({ ref: e.ref, title: e.title, sourceUrl: e.sourceUrl })),
-      fix: {
-        version: fix.version,
-        explanation: fix.explanation,
-        diffStat: fix.diffStat ?? null,
-        baseCommitSha: fix.baseCommitSha,
-        testPath: fix.testPath,
-      },
-      runs: runs
-        .reverse()
-        .map((r) => ({ kind: r.kind, attempt: r.attempt, status: r.status, summary: r.summary })),
+    return prBodyInput({
+      incident,
+      fix,
+      top,
+      evidence: ev,
+      runs,
       approver,
-    };
+      webUrl: this.env.WEB_URL,
+    });
   }
 }
