@@ -1,56 +1,30 @@
 import { createHash } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type {
   ApplyPatchResult,
   FixActivities,
   IncidentWorkflowInput,
   PrepareFixResult,
   RunKind,
-  SandboxProfile,
 } from '@ape/temporal-workflows';
 import { AuditService } from '../audit/audit.service';
 import { ArtifactStore } from '../artifacts/artifact-store.service';
 import { DB } from '../db/database.module';
 import type { Database } from '../db/client';
 import {
-  deployments,
   fixProposals,
-  hypotheses,
   incidentEvents,
   incidents,
-  investigations,
-  services,
   usageRecords,
   validationRuns,
   type IncidentStatus,
 } from '../db/schema';
 import { GitHubService } from '../github/github.service';
 import { canTransition } from '../incidents/lifecycle';
-import { mapToRepoPath, parseFrames } from '../investigations/code-paths';
-import { redact } from '../investigations/redact';
+import { type FixContext } from './fix-context';
+import { PrepareFailed, FixPreparer } from './fix-preparer.service';
 import { applyEdits, type Edit } from './patch';
-
-const MAX_FILE_CHARS = 30_000;
-const MAX_TESTS = 3;
-
-/** Context the Python worker uses to write the test and the patch (stored in S3). */
-export interface FixContext {
-  version: 1;
-  fixProposalId: string;
-  repository: string;
-  sha: string;
-  profile: SandboxProfile;
-  incident: { title: string; serviceName: string | null; environment: string | null };
-  hypothesis: { summary: string; rationale: string | null; location: unknown };
-  stack: string[];
-  /** Source files the fix may edit (repo-relative path -> content). */
-  editable: Record<string, string>;
-  /** Existing tests and helpers, as examples of style and fixtures (read-only). */
-  tests: Record<string, string>;
-  packageJson: string;
-  testPath: string;
-}
 
 @Injectable()
 export class FixActivitiesService implements FixActivities {
@@ -59,210 +33,24 @@ export class FixActivitiesService implements FixActivities {
     private readonly artifacts: ArtifactStore,
     private readonly github: GitHubService,
     private readonly audit: AuditService,
+    private readonly preparer: FixPreparer,
   ) {}
 
   async prepareFix(
     input: IncidentWorkflowInput & { runKey: string; version: number },
   ): Promise<PrepareFixResult> {
-    const [incident] = await this.db
-      .select()
-      .from(incidents)
-      .where(eq(incidents.id, input.incidentId));
-    const [inv] = await this.db
-      .select()
-      .from(investigations)
-      .where(
-        and(
-          eq(investigations.incidentId, input.incidentId),
-          eq(investigations.status, 'completed'),
-        ),
-      )
-      .orderBy(desc(investigations.createdAt))
-      .limit(1);
-    const fail = async (
-      reason: string,
-      fixProposalId: string | null = null,
-    ): Promise<PrepareFixResult> => {
-      if (fixProposalId) await this.updateFix({ fixProposalId, status: 'error', reason });
-      return { ok: false, fixProposalId, reason };
-    };
-    if (!incident || !inv) return fail('No completed investigation to reproduce');
-    const [service] = incident.serviceId
-      ? await this.db.select().from(services).where(eq(services.id, incident.serviceId))
-      : [];
-    const repo = service?.repositoryFullName;
-    if (!repo) return fail('The service is not mapped to a repository');
-
-    // Idempotent per (workflow run, version): an activity retry reuses the row.
-    const [existing] = await this.db
-      .select()
-      .from(fixProposals)
-      .where(
-        and(eq(fixProposals.workflowRunKey, input.runKey), eq(fixProposals.version, input.version)),
-      );
-    const installationId = await this.github.installationFor(input.workspaceId, repo);
-    if (!installationId)
-      return fail(`No connected GitHub installation can read ${repo}`, existing?.id ?? null);
-    const gh = this.github.gh();
-
-    // Pin the exact code that failed: the deployed commit when known, else the branch head now.
-    const [deploy] = await this.db
-      .select()
-      .from(deployments)
-      .where(
-        and(
-          eq(deployments.workspaceId, input.workspaceId),
-          eq(deployments.serviceName, incident.serviceName ?? ''),
-        ),
-      )
-      .orderBy(desc(deployments.deployedAt))
-      .limit(1);
-    const sha =
-      existing?.baseCommitSha ??
-      (deploy && /^[0-9a-f]{40}$/i.test(deploy.commitSha)
-        ? deploy.commitSha
-        : (await gh.listCommits(installationId, repo, { sha: service.defaultBranch, limit: 1 }))[0]!
-            .sha);
-
-    const fix =
-      existing ??
-      (
-        await this.db
-          .insert(fixProposals)
-          .values({
-            workspaceId: input.workspaceId,
-            incidentId: input.incidentId,
-            investigationId: inv.id,
-            workflowRunKey: input.runKey,
-            version: input.version,
-            repositoryFullName: repo,
-            baseCommitSha: sha,
-            status: 'preparing',
-          })
-          .returning()
-      )[0]!;
-
-    const [top] = await this.db
-      .select()
-      .from(hypotheses)
-      .where(eq(hypotheses.investigationId, inv.id))
-      .orderBy(hypotheses.rank)
-      .limit(1);
-    const [errorEvent] = await this.db
-      .select()
-      .from(incidentEvents)
-      .where(and(eq(incidentEvents.incidentId, incident.id), eq(incidentEvents.kind, 'error')))
-      .orderBy(desc(incidentEvents.occurredAt))
-      .limit(1);
-    const stack = ((errorEvent?.attributes as { stack?: string[] } | undefined)?.stack ?? []).slice(
-      0,
-      8,
-    );
-
-    const { paths } = await gh.tree(installationId, repo, sha);
-    const repoPaths = new Set(paths);
-    const suspected = (top?.suspectedLocation as { file?: string } | null)?.file;
-    const candidates = [
-      ...(suspected && repoPaths.has(suspected) ? [suspected] : []),
-      ...parseFrames(stack)
-        .map((f) => mapToRepoPath(f.path, repoPaths))
-        .filter((p): p is string => !!p),
-    ];
-    const files = [...new Set(candidates)].slice(0, 3);
-    if (files.length === 0)
-      return fail('Could not map the failure to a file in the repository', fix.id);
-
-    const profile = service.sandbox ?? this.inferProfile(files[0]!, repoPaths);
-    if (!profile) return fail('Unsupported project: expected a pnpm workspace with vitest', fix.id);
-
-    const editable: Record<string, string> = {};
-    for (const f of files.filter((p) => p.startsWith(`${profile.packageDir}/`))) {
-      const content = await gh.fileContent(installationId, repo, f, sha);
-      if (content.length <= MAX_FILE_CHARS) editable[f] = content;
+    try {
+      return await this.preparer.prepare(input);
+    } catch (err) {
+      if (!(err instanceof PrepareFailed)) throw err;
+      if (err.fixProposalId)
+        await this.updateFix({
+          fixProposalId: err.fixProposalId,
+          status: 'error',
+          reason: err.message,
+        });
+      return { ok: false, fixProposalId: err.fixProposalId, reason: err.message };
     }
-    const testRoot = `${profile.packageDir}/${profile.testDir}/`;
-    const stems = files.map((f) =>
-      f
-        .split('/')
-        .pop()!
-        .replace(/\.[jt]sx?$/, ''),
-    );
-    const testFiles = paths
-      .filter((p) => p.startsWith(testRoot) && /\.[jt]s$/.test(p))
-      .sort(
-        (a, b) =>
-          Number(stems.some((s) => b.includes(s))) - Number(stems.some((s) => a.includes(s))),
-      )
-      .filter((p, i) => i < MAX_TESTS || /fixture|helper|setup/.test(p))
-      .slice(0, MAX_TESTS + 2);
-    const tests: Record<string, string> = {};
-    for (const t of testFiles)
-      tests[t] = (await gh.fileContent(installationId, repo, t, sha)).slice(0, MAX_FILE_CHARS);
-    const packageJson = await gh.fileContent(
-      installationId,
-      repo,
-      `${profile.packageDir}/package.json`,
-      sha,
-    );
-
-    const sourceRef = await this.artifacts.putBytes(
-      `sources/${input.workspaceId}/${repo}/${sha}.tar.gz`,
-      await gh.tarball(installationId, repo, sha),
-      'application/gzip',
-    );
-    const testPath = `${testRoot}ape-regression-${incident.id.slice(0, 8)}.test.ts`;
-    const context: FixContext = {
-      version: 1,
-      fixProposalId: fix.id,
-      repository: repo,
-      sha,
-      profile,
-      incident: {
-        title: incident.title,
-        serviceName: incident.serviceName,
-        environment: incident.environment,
-      },
-      hypothesis: {
-        summary: top?.summary ?? incident.title,
-        rationale: top?.confidenceRationale ?? null,
-        location: top?.suspectedLocation ?? null,
-      },
-      stack: stack.map((l) => redact(l).text),
-      editable: Object.fromEntries(Object.entries(editable).map(([k, v]) => [k, redact(v).text])),
-      tests: Object.fromEntries(Object.entries(tests).map(([k, v]) => [k, redact(v).text])),
-      packageJson,
-      testPath,
-    };
-    if (Object.keys(context.editable).length === 0)
-      return fail('No editable source file within the package', fix.id);
-    const contextRef = await this.artifacts.putJson(
-      `fixes/${input.workspaceId}/${fix.id}/context.json`,
-      context,
-    );
-    await this.db
-      .update(fixProposals)
-      .set({ sourceReference: sourceRef, testPath, status: 'reproducing' })
-      .where(eq(fixProposals.id, fix.id));
-    return { ok: true, fixProposalId: fix.id, sourceRef, contextRef, profile, testPath };
-  }
-
-  /** Convention for this MVP: nearest package with vitest in a pnpm workspace. */
-  private inferProfile(file: string, repoPaths: Set<string>): SandboxProfile | null {
-    if (!repoPaths.has('pnpm-lock.yaml')) return null;
-    const parts = file.split('/');
-    for (let i = parts.length - 1; i > 0; i--) {
-      const dir = parts.slice(0, i).join('/');
-      if (repoPaths.has(`${dir}/package.json`)) {
-        const testDir = [...repoPaths].some((p) => p.startsWith(`${dir}/test/`)) ? 'test' : 'src';
-        return {
-          runtime: 'node22-pnpm',
-          packageDir: dir,
-          testCommand: 'pnpm exec vitest run',
-          testDir,
-        };
-      }
-    }
-    return null;
   }
 
   async testOverlay({ fixProposalId, testRef }: { fixProposalId: string; testRef: string }) {

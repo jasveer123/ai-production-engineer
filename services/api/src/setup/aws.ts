@@ -5,6 +5,7 @@
  * - a one-shot Lambda that sends the read-only key and log group names back to us, once.
  * Our callback accepts it only with the single-use setup token in the URL.
  */
+// eslint-disable-next-line max-lines-per-function -- embedded CloudFormation YAML; one template reads best whole
 export function cloudFormationTemplate(): string {
   return `AWSTemplateFormatVersion: '2010-09-09'
 Description: AI Production Engineer - read CloudWatch logs and receive CloudWatch alarms

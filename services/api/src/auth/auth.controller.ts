@@ -33,14 +33,15 @@ import {
   type TokenInput,
   type UpdateProfileInput,
 } from '@ape/api-contracts';
-import { AuditService } from '../audit/audit.service';
 import { ENV, type ApiEnv } from '../config/config.module';
 import { notFound, unauthorized } from '../common/errors';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
+import { AccountService } from './account.service';
 import { AuthService } from './auth.service';
 import { GitHubOAuthService } from './github-oauth.service';
 import { Public } from './public.decorator';
 import { RateLimiter } from './rate-limit';
+import { SessionService } from './session.service';
 import { SESSION_COOKIE } from './session.guard';
 
 const STATE_COOKIE = 'ape_oauth_state';
@@ -51,8 +52,9 @@ const authLimiter = new RateLimiter(20, 60_000);
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
+    private readonly sessions: SessionService,
+    private readonly account: AccountService,
     private readonly github: GitHubOAuthService,
-    private readonly audit: AuditService,
     @Inject(ENV) private readonly env: ApiEnv,
   ) {}
 
@@ -69,11 +71,11 @@ export class AuthController {
   @Public()
   @Get('providers')
   providers(): Me['authProviders'] {
-    return this.auth.providers();
+    return this.account.providers();
   }
 
   private signIn(res: Response, token: string): void {
-    res.cookie(SESSION_COOKIE, token, this.cookieOptions(this.auth.sessionTtlMs));
+    res.cookie(SESSION_COOKIE, token, this.cookieOptions(this.sessions.ttlMs));
   }
 
   @Public()
@@ -86,8 +88,8 @@ export class AuthController {
   ): Promise<Me> {
     authLimiter.check(`register:${req.ip}`);
     const userId = await this.auth.register(body, req.correlationId);
-    this.signIn(res, await this.auth.createSession(userId, req.correlationId, 'password'));
-    return this.auth.me(userId, req.correlationId);
+    this.signIn(res, await this.sessions.create(userId, req.correlationId, 'password'));
+    return this.account.me(userId, req.correlationId);
   }
 
   @Public()
@@ -100,8 +102,8 @@ export class AuthController {
   ): Promise<Me> {
     authLimiter.check(`login:${req.ip}`);
     const userId = await this.auth.login(body, req.correlationId, req.ip);
-    this.signIn(res, await this.auth.createSession(userId, req.correlationId, 'password'));
-    return this.auth.me(userId, req.correlationId);
+    this.signIn(res, await this.sessions.create(userId, req.correlationId, 'password'));
+    return this.account.me(userId, req.correlationId);
   }
 
   @Public()
@@ -125,8 +127,8 @@ export class AuthController {
   ): Promise<Me> {
     authLimiter.check(`reset:${req.ip}`);
     const userId = await this.auth.resetPassword(body.token, body.password, req.correlationId);
-    this.signIn(res, await this.auth.createSession(userId, req.correlationId, 'password_reset'));
-    return this.auth.me(userId, req.correlationId);
+    this.signIn(res, await this.sessions.create(userId, req.correlationId, 'password_reset'));
+    return this.account.me(userId, req.correlationId);
   }
 
   @Public()
@@ -162,8 +164,8 @@ export class AuthController {
     @Body(new ZodValidationPipe(updateProfileSchema)) body: UpdateProfileInput,
     @Req() req: Request,
   ): Promise<Me> {
-    await this.auth.updateProfile(req.auth!.userId, body.name);
-    return this.auth.me(req.auth!.userId, req.correlationId);
+    await this.account.updateProfile(req.auth!.userId, body.name);
+    return this.account.me(req.auth!.userId, req.correlationId);
   }
 
   /** What an invite link is for, so the page can say "Join Team X as engineer". */
@@ -171,7 +173,7 @@ export class AuthController {
   @Get('invitations/:token')
   invitation(@Param('token') token: string, @Req() req: Request): Promise<InvitationPreview> {
     authLimiter.check(`invite:${req.ip}`);
-    return this.auth.invitationPreview(token);
+    return this.account.invitationPreview(token);
   }
 
   @Post('invitations/:token/accept')
@@ -180,7 +182,7 @@ export class AuthController {
     @Param('token') token: string,
     @Req() req: Request,
   ): Promise<{ workspaceId: string }> {
-    const workspaceId = await this.auth.acceptInvitation(
+    const workspaceId = await this.account.acceptInvitation(
       req.auth!.userId,
       token,
       req.correlationId,
@@ -205,13 +207,13 @@ export class AuthController {
       name: null,
       avatarUrl: null,
     });
-    this.signIn(res, await this.auth.createSession(userId, req.correlationId, 'dev'));
+    this.signIn(res, await this.sessions.create(userId, req.correlationId, 'dev'));
   }
 
   @Public()
   @Get('github')
   githubStart(@Res() res: Response): void {
-    if (!this.auth.providers().github) throw notFound('GitHub login is not configured');
+    if (!this.account.providers().github) throw notFound('GitHub login is not configured');
     const state = randomBytes(24).toString('hex');
     res.cookie(STATE_COOKIE, state, this.cookieOptions(10 * 60 * 1000));
     res.redirect(this.github.authorizeUrl(state));
@@ -233,30 +235,23 @@ export class AuthController {
       state.length === expected.length &&
       timingSafeEqual(Buffer.from(state), Buffer.from(expected));
     if (!code || !stateOk) {
-      await this.audit.record({
-        action: 'auth.login',
-        resourceType: 'session',
-        outcome: 'denied',
-        correlationId: req.correlationId,
-        metadata: { method: 'github', reason: 'invalid_state' },
-      });
+      await this.auth.recordLoginFailure(req.correlationId, 'github', 'denied', 'invalid_state');
       throw unauthorized();
     }
 
     try {
       const profile = await this.github.exchangeCode(code);
       const userId = await this.auth.upsertUser(profile);
-      const token = await this.auth.createSession(userId, req.correlationId, 'github');
-      res.cookie(SESSION_COOKIE, token, this.cookieOptions(this.auth.sessionTtlMs));
+      const token = await this.sessions.create(userId, req.correlationId, 'github');
+      res.cookie(SESSION_COOKIE, token, this.cookieOptions(this.sessions.ttlMs));
       res.redirect(this.env.WEB_URL);
     } catch (err) {
-      await this.audit.record({
-        action: 'auth.login',
-        resourceType: 'session',
-        outcome: 'failure',
-        correlationId: req.correlationId,
-        metadata: { method: 'github', reason: (err as Error).message },
-      });
+      await this.auth.recordLoginFailure(
+        req.correlationId,
+        'github',
+        'failure',
+        (err as Error).message,
+      );
       res.redirect(`${this.env.WEB_URL}/login?error=github`);
     }
   }
@@ -264,12 +259,12 @@ export class AuthController {
   @Post('logout')
   @HttpCode(204)
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<void> {
-    await this.auth.revokeSession(req.auth!.userId, req.auth!.sessionId, req.correlationId);
+    await this.sessions.revoke(req.auth!.userId, req.auth!.sessionId, req.correlationId);
     res.clearCookie(SESSION_COOKIE, { path: '/' });
   }
 
   @Get('me')
   me(@Req() req: Request): Promise<Me> {
-    return this.auth.me(req.auth!.userId, req.correlationId);
+    return this.account.me(req.auth!.userId, req.correlationId);
   }
 }

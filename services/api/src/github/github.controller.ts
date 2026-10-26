@@ -16,6 +16,7 @@ import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { IntegrationsService } from '../integrations/integrations.service';
 import { MinRole } from '../workspaces/min-role.decorator';
 import { WorkspaceAccessGuard } from '../workspaces/workspace-access.guard';
+import { GitHubSelectService } from './github-select.service';
 import { GitHubService } from './github.service';
 
 @Controller('workspaces/:workspaceId')
@@ -23,13 +24,14 @@ import { GitHubService } from './github.service';
 export class GitHubController {
   constructor(
     private readonly github: GitHubService,
+    private readonly selection: GitHubSelectService,
     private readonly integrations: IntegrationsService,
   ) {}
 
   @Get('github/app')
   @MinRole('admin')
   app(@Actor() actor: ActorContext): Promise<GitHubAppInfo> {
-    return this.github.appInfo(actor);
+    return this.selection.appInfo(actor);
   }
 
   @Post('github/connect')
@@ -50,7 +52,7 @@ export class GitHubController {
   @Get('github/select')
   @MinRole('admin')
   select(@Actor() actor: ActorContext): Promise<GitHubSelectView> {
-    return this.github.selectView(actor);
+    return this.selection.selectView(actor);
   }
 
   @Get('github/overview')

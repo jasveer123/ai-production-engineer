@@ -84,7 +84,10 @@ export class IngestTokensService {
   async rotate(actor: ActorContext, id: string): Promise<IngestTokenWithSecret> {
     const old = await this.find(actor, id);
     const created = await this.db.transaction(async (tx) => {
-      await tx.update(ingestTokens).set({ revokedAt: new Date() }).where(eq(ingestTokens.id, id));
+      await tx
+        .update(ingestTokens)
+        .set({ revokedAt: new Date() })
+        .where(and(eq(ingestTokens.id, id), eq(ingestTokens.workspaceId, actor.workspaceId)));
       const token = newIngestToken();
       const [row] = await tx
         .insert(ingestTokens)
@@ -108,7 +111,7 @@ export class IngestTokensService {
     await this.db
       .update(ingestTokens)
       .set({ revokedAt: new Date() })
-      .where(eq(ingestTokens.id, id));
+      .where(and(eq(ingestTokens.id, id), eq(ingestTokens.workspaceId, actor.workspaceId)));
     this.cache.delete(row.tokenHash);
     await this.record(actor, 'ingest_token.revoked', id);
   }

@@ -48,6 +48,12 @@ import { WorkspaceAccessGuard } from '../workspaces/workspace-access.guard';
 import { installScript, kubernetesManifest } from './agent-install';
 import { cloudFormationTemplate } from './aws';
 import { verifySentrySignature } from './oauth';
+import { ingestUrl } from './setup-config';
+import { AwsSetupService } from './setup-aws.service';
+import { GitHubSetupService } from './setup-github.service';
+import { OAuthSetupService } from './setup-oauth.service';
+import { SetupSupport } from './setup-support.service';
+import { ToolSetupService } from './setup-tools.service';
 import { SetupService } from './setup.service';
 
 const OAUTH_PROVIDERS = ['sentry', 'vercel', 'heroku'] as const;
@@ -63,7 +69,9 @@ const provider = (p: string): OAuthProvider => {
 export class SetupController {
   constructor(
     private readonly setup: SetupService,
-    private readonly tools: ToolsService,
+    private readonly githubSetup: GitHubSetupService,
+    private readonly oauthSetup: OAuthSetupService,
+    private readonly awsSetup: AwsSetupService,
   ) {}
 
   @Get('capabilities')
@@ -74,7 +82,7 @@ export class SetupController {
   @Get('github/state')
   @MinRole('admin')
   async githubState(@Actor() actor: ActorContext): Promise<{ state: string }> {
-    return { state: await this.setup.githubState(actor) };
+    return { state: await this.githubSetup.githubState(actor) };
   }
 
   @Post('github/callback')
@@ -84,7 +92,7 @@ export class SetupController {
     @Actor() actor: ActorContext,
     @Body(new ZodValidationPipe(githubSetupCallbackSchema)) body: GitHubSetupCallbackInput,
   ): Promise<OAuthCallbackResult> {
-    return this.setup.githubCallback(actor, Number(body.installationId), body.state);
+    return this.githubSetup.githubCallback(actor, Number(body.installationId), body.state);
   }
 
   @Post('pull-requests')
@@ -93,54 +101,7 @@ export class SetupController {
     @Actor() actor: ActorContext,
     @Body(new ZodValidationPipe(setupPrSchema)) body: z.output<typeof setupPrSchema>,
   ): Promise<SetupPrResult> {
-    return this.setup.openSetupPr(actor, body);
-  }
-
-  @Post('tools')
-  @MinRole('admin')
-  async autoTool(
-    @Actor() actor: ActorContext,
-    @Body(new ZodValidationPipe(autoSetupSchema)) body: AutoSetupInput,
-  ): Promise<AutoSetupResult> {
-    const r = await this.setup.autoSetupTool(actor, body);
-    return { tool: await this.tools.get(actor, r.tool), done: r.done, todo: r.todo };
-  }
-
-  @Post('drains/vercel')
-  @MinRole('admin')
-  vercel(
-    @Actor() actor: ActorContext,
-    @Body(new ZodValidationPipe(vercelDrainSchema)) body: z.output<typeof vercelDrainSchema>,
-  ): Promise<DrainSetupResult> {
-    return this.setup.vercelWithToken(actor, body.accessToken, body.teamId);
-  }
-
-  @Post('drains/heroku/apps')
-  @MinRole('admin')
-  @HttpCode(200)
-  async herokuApps(
-    @Actor() actor: ActorContext,
-    @Body(new ZodValidationPipe(herokuAppsSchema)) body: z.output<typeof herokuAppsSchema>,
-  ): Promise<HerokuApps> {
-    return { apps: await this.setup.herokuApps(actor, body.apiKey) };
-  }
-
-  @Post('drains/heroku')
-  @MinRole('admin')
-  heroku(
-    @Actor() actor: ActorContext,
-    @Body(new ZodValidationPipe(herokuDrainSchema)) body: z.output<typeof herokuDrainSchema>,
-  ): Promise<DrainSetupResult> {
-    return this.setup.herokuDrains(actor, body.apps, body.apiKey);
-  }
-
-  @Post('drains/render')
-  @MinRole('admin')
-  render(
-    @Actor() actor: ActorContext,
-    @Body(new ZodValidationPipe(renderStreamSchema)) body: z.output<typeof renderStreamSchema>,
-  ): Promise<DrainSetupResult> {
-    return this.setup.renderStream(actor, body.apiKey);
+    return this.githubSetup.openSetupPr(actor, body);
   }
 
   @Get('oauth/:provider/start')
@@ -149,7 +110,7 @@ export class SetupController {
     @Actor() actor: ActorContext,
     @Param('provider') p: string,
   ): Promise<OAuthStart> {
-    return { url: await this.setup.oauthStart(actor, provider(p)) };
+    return { url: await this.oauthSetup.oauthStart(actor, provider(p)) };
   }
 
   @Post('oauth/:provider/callback')
@@ -160,13 +121,70 @@ export class SetupController {
     @Param('provider') p: string,
     @Body(new ZodValidationPipe(oauthCallbackSchema)) body: OAuthCallbackInput,
   ): Promise<OAuthCallbackResult> {
-    return this.setup.oauthCallback(actor, provider(p), body);
+    return this.oauthSetup.oauthCallback(actor, provider(p), body);
   }
 
   @Post('aws')
   @MinRole('admin')
   aws(@Actor() actor: ActorContext): Promise<AwsSetupStart> {
-    return this.setup.awsStart(actor);
+    return this.awsSetup.awsStart(actor);
+  }
+}
+
+/** Paste-a-key provisioning for connected tools and log drains. Admin only. */
+@Controller('workspaces/:workspaceId/setup')
+@UseGuards(WorkspaceAccessGuard)
+export class SetupToolsController {
+  constructor(
+    private readonly toolSetup: ToolSetupService,
+    private readonly tools: ToolsService,
+  ) {}
+
+  @Post('tools')
+  @MinRole('admin')
+  async autoTool(
+    @Actor() actor: ActorContext,
+    @Body(new ZodValidationPipe(autoSetupSchema)) body: AutoSetupInput,
+  ): Promise<AutoSetupResult> {
+    const r = await this.toolSetup.autoSetupTool(actor, body);
+    return { tool: await this.tools.get(actor, r.tool), done: r.done, todo: r.todo };
+  }
+
+  @Post('drains/vercel')
+  @MinRole('admin')
+  vercel(
+    @Actor() actor: ActorContext,
+    @Body(new ZodValidationPipe(vercelDrainSchema)) body: z.output<typeof vercelDrainSchema>,
+  ): Promise<DrainSetupResult> {
+    return this.toolSetup.vercelWithToken(actor, body.accessToken, body.teamId);
+  }
+
+  @Post('drains/heroku/apps')
+  @MinRole('admin')
+  @HttpCode(200)
+  async herokuApps(
+    @Actor() actor: ActorContext,
+    @Body(new ZodValidationPipe(herokuAppsSchema)) body: z.output<typeof herokuAppsSchema>,
+  ): Promise<HerokuApps> {
+    return { apps: await this.toolSetup.herokuApps(actor, body.apiKey) };
+  }
+
+  @Post('drains/heroku')
+  @MinRole('admin')
+  heroku(
+    @Actor() actor: ActorContext,
+    @Body(new ZodValidationPipe(herokuDrainSchema)) body: z.output<typeof herokuDrainSchema>,
+  ): Promise<DrainSetupResult> {
+    return this.toolSetup.herokuDrains(actor, body.apps, body.apiKey);
+  }
+
+  @Post('drains/render')
+  @MinRole('admin')
+  render(
+    @Actor() actor: ActorContext,
+    @Body(new ZodValidationPipe(renderStreamSchema)) body: z.output<typeof renderStreamSchema>,
+  ): Promise<DrainSetupResult> {
+    return this.toolSetup.renderStream(actor, body.apiKey);
   }
 }
 
@@ -174,7 +192,9 @@ export class SetupController {
 @Controller()
 export class SetupPublicController {
   constructor(
-    private readonly setup: SetupService,
+    private readonly githubSetup: GitHubSetupService,
+    private readonly awsSetup: AwsSetupService,
+    private readonly support: SetupSupport,
     private readonly alertSources: AlertSourcesService,
     @Inject(ENV) private readonly env: ApiEnv,
   ) {}
@@ -184,9 +204,7 @@ export class SetupPublicController {
   @Get('install/agent.sh')
   @Header('Content-Type', 'text/x-shellscript; charset=utf-8')
   agentScript(): string {
-    return installScript(
-      (this.env.PUBLIC_INGEST_URL ?? this.env.PUBLIC_API_URL).replace(/\/$/, ''),
-    );
+    return installScript(ingestUrl(this.env));
   }
 
   @Public()
@@ -194,10 +212,7 @@ export class SetupPublicController {
   @Header('Content-Type', 'application/yaml; charset=utf-8')
   kubernetes(@Query('service') service?: string): string {
     const svc = /^[A-Za-z0-9._-]{1,100}$/.test(service ?? '') ? service! : 'kubernetes';
-    return kubernetesManifest(
-      (this.env.PUBLIC_INGEST_URL ?? this.env.PUBLIC_API_URL).replace(/\/$/, ''),
-      svc,
-    );
+    return kubernetesManifest(ingestUrl(this.env), svc);
   }
 
   @Public()
@@ -216,7 +231,7 @@ export class SetupPublicController {
     @Body() body: Record<string, unknown>,
     @Req() req: Request,
   ): Promise<void> {
-    await this.setup.awsCallback(token, body, req.correlationId);
+    await this.awsSetup.awsCallback(token, body, req.correlationId);
   }
 
   /** Deploy markers from GitHub Actions, signed in with the workflow's OIDC token. */
@@ -226,7 +241,7 @@ export class SetupPublicController {
   githubDeploy(@Req() req: Request) {
     const auth = req.header('authorization');
     const bearer = auth?.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : undefined;
-    return this.setup.githubDeploy(bearer, req.body, req.correlationId);
+    return this.githubSetup.githubDeploy(bearer, req.body, req.correlationId);
   }
 
   /**
@@ -258,11 +273,11 @@ export class SetupPublicController {
     };
     const resource = req.header('sentry-hook-resource') ?? '';
     const target = body.installation?.uuid
-      ? await this.setup.sentryWebhookTarget(body.installation.uuid)
+      ? await this.support.sentryWebhookTarget(body.installation.uuid)
       : null;
     if (!target) return { accepted: false };
     if (resource === 'installation' && body.action === 'deleted') {
-      await this.setup.sentryUninstalled(target.rowId);
+      await this.support.sentryUninstalled(target.rowId);
       return { accepted: true };
     }
     if (

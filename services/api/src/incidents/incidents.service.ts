@@ -253,7 +253,7 @@ export class IncidentsService {
         await tx
           .update(incidents)
           .set({ status: input.to, version: current.version + 1 })
-          .where(eq(incidents.id, id));
+          .where(and(eq(incidents.id, id), eq(incidents.workspaceId, actor.workspaceId)));
         await tx.insert(incidentEvents).values({
           workspaceId: actor.workspaceId,
           incidentId: id,

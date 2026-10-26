@@ -24,6 +24,24 @@ import {
 import { TemporalService } from '../temporal/temporal.service';
 import { UsageService } from '../usage/usage.service';
 
+type Vote = { hypothesisId: string; userId: string; verdict: string };
+
+/** How engineers rated one hypothesis, and what this user said. */
+function feedbackOf(
+  votes: Vote[],
+  hypothesisId: string,
+  userId: string,
+): InvestigationView['hypotheses'][number]['feedback'] {
+  const mine = votes.filter((v) => v.hypothesisId === hypothesisId);
+  const n = (v: HypothesisVerdict) => mine.filter((x) => x.verdict === v).length;
+  return {
+    correct: n('correct'),
+    partly: n('partly'),
+    wrong: n('wrong'),
+    mine: (mine.find((x) => x.userId === userId)?.verdict as HypothesisVerdict) ?? null,
+  };
+}
+
 @Injectable()
 export class InvestigationsService {
   constructor(
@@ -59,11 +77,22 @@ export class InvestigationsService {
     const [{ n } = { n: 0 }] = await this.db
       .select({ n: count() })
       .from(investigations)
-      .where(eq(investigations.incidentId, incidentId));
+      .where(
+        and(
+          eq(investigations.incidentId, incidentId),
+          eq(investigations.workspaceId, actor.workspaceId),
+        ),
+      );
     const approved = await this.db
       .select({ id: approvals.id })
       .from(approvals)
-      .where(and(eq(approvals.resourceType, 'reproduction'), eq(approvals.resourceId, incidentId)));
+      .where(
+        and(
+          eq(approvals.workspaceId, actor.workspaceId),
+          eq(approvals.resourceType, 'reproduction'),
+          eq(approvals.resourceId, incidentId),
+        ),
+      );
     let workflow: IncidentInvestigation['workflow'] = null;
     try {
       const s = await this.temporal.state(incidentId);
@@ -86,40 +115,24 @@ export class InvestigationsService {
     const ev = await this.db
       .select()
       .from(evidenceItems)
-      .where(eq(evidenceItems.investigationId, inv.id))
+      .where(
+        and(
+          eq(evidenceItems.investigationId, inv.id),
+          eq(evidenceItems.workspaceId, inv.workspaceId),
+        ),
+      )
       .orderBy(asc(evidenceItems.createdAt));
     ev.sort((a, b) => Number(a.ref.slice(1)) - Number(b.ref.slice(1)));
     const refById = new Map(ev.map((e) => [e.id, e.ref]));
     const hs = await this.db
       .select()
       .from(hypotheses)
-      .where(eq(hypotheses.investigationId, inv.id))
+      .where(
+        and(eq(hypotheses.investigationId, inv.id), eq(hypotheses.workspaceId, inv.workspaceId)),
+      )
       .orderBy(asc(hypotheses.rank));
-    const votes = hs.length
-      ? await this.db
-          .select({
-            hypothesisId: hypothesisFeedback.hypothesisId,
-            userId: hypothesisFeedback.userId,
-            verdict: hypothesisFeedback.verdict,
-          })
-          .from(hypothesisFeedback)
-          .where(
-            inArray(
-              hypothesisFeedback.hypothesisId,
-              hs.map((h) => h.id),
-            ),
-          )
-      : [];
-    const feedbackFor = (id: string): InvestigationView['hypotheses'][number]['feedback'] => {
-      const mine = votes.filter((v) => v.hypothesisId === id);
-      const n = (v: HypothesisVerdict) => mine.filter((x) => x.verdict === v).length;
-      return {
-        correct: n('correct'),
-        partly: n('partly'),
-        wrong: n('wrong'),
-        mine: (mine.find((x) => x.userId === userId)?.verdict as HypothesisVerdict) ?? null,
-      };
-    };
+    const votes = await this.votesFor(inv.workspaceId, hs);
+    const feedbackFor = (id: string) => feedbackOf(votes, id, userId);
     return {
       id: inv.id,
       attempt: inv.attempt,
@@ -159,6 +172,26 @@ export class InvestigationsService {
     };
   }
 
+  private async votesFor(workspaceId: string, hs: { id: string }[]) {
+    if (!hs.length) return [];
+    return this.db
+      .select({
+        hypothesisId: hypothesisFeedback.hypothesisId,
+        userId: hypothesisFeedback.userId,
+        verdict: hypothesisFeedback.verdict,
+      })
+      .from(hypothesisFeedback)
+      .where(
+        and(
+          eq(hypothesisFeedback.workspaceId, workspaceId),
+          inArray(
+            hypothesisFeedback.hypothesisId,
+            hs.map((h) => h.id),
+          ),
+        ),
+      );
+  }
+
   /** The exact (redacted) evidence text an item holds, read from the stored bundle. */
   async evidenceContent(
     actor: ActorContext,
@@ -189,7 +222,6 @@ export class InvestigationsService {
     input: IncidentActionInput,
   ): Promise<IncidentInvestigation> {
     const inc = await this.incident(actor, incidentId);
-    const wf = { incidentId, workspaceId: actor.workspaceId };
     const state = await this.temporal.state(incidentId).catch(() => {
       throw new ApiException(
         HttpStatus.SERVICE_UNAVAILABLE,
@@ -197,69 +229,25 @@ export class InvestigationsService {
         'The workflow engine is not reachable',
       );
     });
-    const awaiting = state?.running && state.phase === 'awaiting_decision';
 
     if (input.action === 'investigate') {
-      if (state?.running && state.phase === 'investigating') {
-        throw new ApiException(
-          HttpStatus.CONFLICT,
-          'investigation_running',
-          'An investigation is already running',
-        );
-      }
-      const blocked = await this.usage.blockedReason(actor.workspaceId);
-      if (blocked) {
-        await this.usage.recordBlocked({
-          workspaceId: actor.workspaceId,
-          incidentId,
-          reason: blocked,
-          actorId: actor.userId,
-          correlationId: actor.correlationId,
-        });
-        throw new ApiException(
-          HttpStatus.CONFLICT,
-          'usage_limit_reached',
-          `Investigation not started: ${blocked}`,
-        );
-      }
-      await this.temporal.requestInvestigation(wf, actor.userId, input.note ?? null);
+      await this.requestInvestigation(actor, incidentId, state, input.note ?? null);
     } else {
-      if (!awaiting) {
+      if (!(state?.running && state.phase === 'awaiting_decision')) {
         throw new ApiException(
           HttpStatus.CONFLICT,
           'not_awaiting_decision',
           'Wait for the investigation to finish first',
         );
       }
-      if (input.action === 'approve_reproduction') {
-        const [latest] = await this.db
-          .select({ status: investigations.status })
-          .from(investigations)
-          .where(eq(investigations.incidentId, incidentId))
-          .orderBy(desc(investigations.createdAt))
-          .limit(1);
-        if (latest?.status !== 'completed') {
-          throw new ApiException(
-            HttpStatus.CONFLICT,
-            'no_report',
-            'Reproduction needs a completed report with hypotheses',
-          );
-        }
-        if (!inc.serviceId) {
-          throw new ApiException(
-            HttpStatus.CONFLICT,
-            'repository_not_mapped',
-            'Map the service to a repository first',
-          );
-        }
-        await this.temporal.approveReproduction(incidentId, actor.userId);
-      } else {
+      if (input.action === 'approve_reproduction')
+        await this.approveReproduction(actor, inc, incidentId);
+      else
         await this.temporal.dismiss(
           incidentId,
           actor.userId,
           input.note || 'Dismissed after investigation',
         );
-      }
     }
     await this.audit.record({
       workspaceId: actor.workspaceId,
@@ -272,6 +260,74 @@ export class InvestigationsService {
       metadata: { note: input.note ?? null, phase: state?.phase ?? null },
     });
     return this.forIncident(actor, incidentId);
+  }
+
+  private async requestInvestigation(
+    actor: ActorContext,
+    incidentId: string,
+    state: Awaited<ReturnType<TemporalService['state']>>,
+    note: string | null,
+  ): Promise<void> {
+    if (state?.running && state.phase === 'investigating') {
+      throw new ApiException(
+        HttpStatus.CONFLICT,
+        'investigation_running',
+        'An investigation is already running',
+      );
+    }
+    const blocked = await this.usage.blockedReason(actor.workspaceId);
+    if (blocked) {
+      await this.usage.recordBlocked({
+        workspaceId: actor.workspaceId,
+        incidentId,
+        reason: blocked,
+        actorId: actor.userId,
+        correlationId: actor.correlationId,
+      });
+      throw new ApiException(
+        HttpStatus.CONFLICT,
+        'usage_limit_reached',
+        `Investigation not started: ${blocked}`,
+      );
+    }
+    await this.temporal.requestInvestigation(
+      { incidentId, workspaceId: actor.workspaceId },
+      actor.userId,
+      note,
+    );
+  }
+
+  private async approveReproduction(
+    actor: ActorContext,
+    inc: { serviceId: string | null },
+    incidentId: string,
+  ): Promise<void> {
+    const [latest] = await this.db
+      .select({ status: investigations.status })
+      .from(investigations)
+      .where(
+        and(
+          eq(investigations.incidentId, incidentId),
+          eq(investigations.workspaceId, actor.workspaceId),
+        ),
+      )
+      .orderBy(desc(investigations.createdAt))
+      .limit(1);
+    if (latest?.status !== 'completed') {
+      throw new ApiException(
+        HttpStatus.CONFLICT,
+        'no_report',
+        'Reproduction needs a completed report with hypotheses',
+      );
+    }
+    if (!inc.serviceId) {
+      throw new ApiException(
+        HttpStatus.CONFLICT,
+        'repository_not_mapped',
+        'Map the service to a repository first',
+      );
+    }
+    await this.temporal.approveReproduction(incidentId, actor.userId);
   }
 
   /** An engineer's verdict on a hypothesis (Phase 9). Re-voting replaces the earlier verdict. */

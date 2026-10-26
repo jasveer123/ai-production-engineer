@@ -153,7 +153,7 @@ export class AlertSourcesService {
       const [r] = await tx
         .update(integrations)
         .set({ secretReference })
-        .where(eq(integrations.id, id))
+        .where(and(eq(integrations.id, id), eq(integrations.workspaceId, actor.workspaceId)))
         .returning();
       return r!;
     });
@@ -170,7 +170,7 @@ export class AlertSourcesService {
       await tx
         .update(integrations)
         .set({ status: 'disconnected', secretReference: null })
-        .where(eq(integrations.id, id));
+        .where(and(eq(integrations.id, id), eq(integrations.workspaceId, actor.workspaceId)));
     });
     await this.record(actor, 'alert_source.disconnected', id);
   }
@@ -235,7 +235,7 @@ export class AlertSourcesService {
       await this.db
         .update(integrations)
         .set({ status: 'connected', lastSyncAt: new Date(), lastError: null })
-        .where(eq(integrations.id, row.id));
+        .where(and(eq(integrations.id, row.id), eq(integrations.workspaceId, row.workspaceId)));
     }
     return inserted.length === 0;
   }
@@ -276,7 +276,7 @@ export class AlertSourcesService {
           ? { status: 'error', lastError: error }
           : { status: 'connected', lastSyncAt: new Date(), lastError: null },
       )
-      .where(eq(integrations.id, row.id));
+      .where(and(eq(integrations.id, row.id), eq(integrations.workspaceId, row.workspaceId)));
   }
 
   /** A heartbeat ping. If the heartbeat was down, it resolves the missed-heartbeat alert. */
@@ -307,7 +307,7 @@ export class AlertSourcesService {
         lastSyncAt: now,
         config: sql`${integrations.config} || jsonb_build_object('state', 'up', 'lastPingAt', ${now.toISOString()}::text)`,
       })
-      .where(eq(integrations.id, row.id));
+      .where(and(eq(integrations.id, row.id), eq(integrations.workspaceId, row.workspaceId)));
     return 'up';
   }
 

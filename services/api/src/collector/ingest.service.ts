@@ -1,12 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, gte, ilike, inArray, lt, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm';
 import {
   INGEST_WAYS,
   type IngestOverview,
   type IngestStream,
   type IngestWay,
-  type LogLevel,
-  type LogLine,
   type LogQuery,
   type LogSearchResult,
   type StreamState,
@@ -16,7 +14,8 @@ import { DB } from '../db/database.module';
 import type { Database } from '../db/client';
 import { ingestStreams, logRecords, spans } from '../db/schema';
 import { IngestTokensService } from './ingest-tokens.service';
-import { likeEscape, parseLogQuery } from './log-query';
+import { parseLogQuery } from './log-query';
+import { histogramOf, HISTOGRAM_BUCKETS, logFilters, toLogLine } from './log-search';
 import { SyslogServer } from './syslog.server';
 
 export const RECEIVING_MS = 5 * 60 * 1000;
@@ -27,8 +26,6 @@ export function streamState(lastReceivedAt: Date | null, now = Date.now()): Stre
   if (!lastReceivedAt) return 'not_set_up';
   return now - lastReceivedAt.getTime() > SILENT_MS ? 'silent' : 'receiving';
 }
-
-const HISTOGRAM_BUCKETS = 60;
 
 @Injectable()
 export class IngestService {
@@ -94,21 +91,7 @@ export class IngestService {
     const from = query.from ? new Date(query.from) : new Date(to.getTime() - 60 * 60 * 1000);
     const p = parseLogQuery(query.q);
 
-    const where: SQL[] = [
-      eq(logRecords.workspaceId, workspaceId),
-      gte(logRecords.ts, from),
-      lte(logRecords.ts, to),
-    ];
-    if (p.levels.length) where.push(inArray(logRecords.level, p.levels));
-    if (p.services.length) where.push(inArray(sql`lower(${logRecords.service})`, p.services));
-    if (p.environments.length)
-      where.push(inArray(sql`lower(${logRecords.environment})`, p.environments));
-    if (p.hosts.length) where.push(inArray(sql`lower(${logRecords.host})`, p.hosts));
-    if (p.ways.length) where.push(inArray(logRecords.way, p.ways));
-    if (p.traceIds.length)
-      where.push(or(...p.traceIds.map((t) => ilike(logRecords.traceId, `${likeEscape(t)}%`)))!);
-    for (const t of p.text) where.push(ilike(logRecords.message, `%${likeEscape(t)}%`));
-
+    const where = logFilters(workspaceId, { from, to }, p);
     const page = query.before ? [...where, lt(logRecords.id, query.before)] : where;
     const rows = await this.db
       .select()
@@ -140,36 +123,11 @@ export class IngestService {
         .orderBy(asc(logRecords.service))
         .limit(200),
     ]);
-    const histogram = Array.from({ length: HISTOGRAM_BUCKETS }, (_, i) => ({
-      at: new Date(from.getTime() + i * bucketMs).toISOString(),
-      total: 0,
-      errors: 0,
-    }));
-    for (const h of hist) {
-      const b = histogram[Math.min(HISTOGRAM_BUCKETS - 1, Math.max(0, Number(h.bucket)))];
-      if (b) {
-        b.total += Number(h.total);
-        b.errors += Number(h.errors);
-      }
-    }
-
     const more = rows.length > query.limit;
-    const lines: LogLine[] = rows.slice(0, query.limit).map((r) => ({
-      id: r.id,
-      ts: r.ts.toISOString(),
-      service: r.service,
-      environment: r.environment,
-      level: r.level as LogLevel,
-      message: r.message,
-      attributes: r.attributes,
-      traceId: r.traceId,
-      spanId: r.spanId,
-      host: r.host,
-      way: r.way as IngestWay,
-    }));
+    const lines = rows.slice(0, query.limit).map(toLogLine);
     return {
       lines,
-      histogram,
+      histogram: histogramOf(hist, from, bucketMs),
       nextBefore: more ? (lines[lines.length - 1]?.id ?? null) : null,
       services: services.map((s) => s.service),
     };

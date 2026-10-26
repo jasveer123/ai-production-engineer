@@ -113,84 +113,89 @@ export function errorFingerprint(parts: {
   return `err:${createHash('sha256').update(key).digest('hex').slice(0, 32)}`;
 }
 
-export function normalize(source: string, payload: unknown): NormalizedEvent {
-  if (source === 'deploy_webhook') {
-    const p = deployPayloadSchema.safeParse(payload);
-    if (!p.success) throw new PermanentIngestError('invalid_payload', p.error.message);
-    return {
-      kind: 'deploy',
-      serviceName: p.data.service,
-      environment: p.data.env,
-      commitSha: p.data.commit_sha,
-      version: p.data.version ?? null,
-      occurredAt: p.data.deployed_at ? new Date(p.data.deployed_at) : new Date(),
-    };
-  }
-  if (source === 'otel_jaeger') {
-    const p = jaegerErrorPayloadSchema.safeParse(payload);
-    if (!p.success) throw new PermanentIngestError('invalid_payload', p.error.message);
-    const e = p.data;
-    const where = e.httpRoute ?? e.operation;
-    return {
-      kind: 'error',
+function normalizeDeploy(payload: unknown): NormalizedEvent {
+  const p = deployPayloadSchema.safeParse(payload);
+  if (!p.success) throw new PermanentIngestError('invalid_payload', p.error.message);
+  return {
+    kind: 'deploy',
+    serviceName: p.data.service,
+    environment: p.data.env,
+    commitSha: p.data.commit_sha,
+    version: p.data.version ?? null,
+    occurredAt: p.data.deployed_at ? new Date(p.data.deployed_at) : new Date(),
+  };
+}
+
+function normalizeJaegerError(payload: unknown): NormalizedEvent {
+  const p = jaegerErrorPayloadSchema.safeParse(payload);
+  if (!p.success) throw new PermanentIngestError('invalid_payload', p.error.message);
+  const e = p.data;
+  const where = e.httpRoute ?? e.operation;
+  return {
+    kind: 'error',
+    serviceName: e.serviceName,
+    environment: e.environment,
+    errorType: e.exceptionType,
+    message: e.exceptionMessage,
+    title: `${e.exceptionType}: ${e.exceptionMessage}`.slice(0, 160) + (where ? ` (${where})` : ''),
+    fingerprint: errorFingerprint({
       serviceName: e.serviceName,
       environment: e.environment,
       errorType: e.exceptionType,
       message: e.exceptionMessage,
-      title:
-        `${e.exceptionType}: ${e.exceptionMessage}`.slice(0, 160) + (where ? ` (${where})` : ''),
-      fingerprint: errorFingerprint({
-        serviceName: e.serviceName,
-        environment: e.environment,
-        errorType: e.exceptionType,
-        message: e.exceptionMessage,
-        topFrame: e.stack[0],
-        route: e.httpRoute,
-      }),
-      traceId: e.traceId,
-      occurredAt: new Date(e.occurredAt),
-      attributes: {
-        operation: e.operation,
-        httpRoute: e.httpRoute,
-        httpStatus: e.httpStatus,
-        spanId: e.spanId,
-        stack: e.stack,
-      },
-    };
-  }
-  if (source === 'ingest_error') {
-    const p = ingestErrorPayloadSchema.safeParse(payload);
-    if (!p.success) throw new PermanentIngestError('invalid_payload', p.error.message);
-    const e = p.data;
-    const where = e.route ?? e.operation;
-    return {
-      kind: 'error',
+      topFrame: e.stack[0],
+      route: e.httpRoute,
+    }),
+    traceId: e.traceId,
+    occurredAt: new Date(e.occurredAt),
+    attributes: {
+      operation: e.operation,
+      httpRoute: e.httpRoute,
+      httpStatus: e.httpStatus,
+      spanId: e.spanId,
+      stack: e.stack,
+    },
+  };
+}
+
+function normalizeIngestError(payload: unknown): NormalizedEvent {
+  const p = ingestErrorPayloadSchema.safeParse(payload);
+  if (!p.success) throw new PermanentIngestError('invalid_payload', p.error.message);
+  const e = p.data;
+  const where = e.route ?? e.operation;
+  return {
+    kind: 'error',
+    serviceName: e.serviceName,
+    environment: e.environment,
+    errorType: e.errorType,
+    message: e.message,
+    title: `${e.errorType}: ${e.message}`.slice(0, 160) + (where ? ` (${where})` : ''),
+    fingerprint: errorFingerprint({
       serviceName: e.serviceName,
       environment: e.environment,
       errorType: e.errorType,
       message: e.message,
-      title: `${e.errorType}: ${e.message}`.slice(0, 160) + (where ? ` (${where})` : ''),
-      fingerprint: errorFingerprint({
-        serviceName: e.serviceName,
-        environment: e.environment,
-        errorType: e.errorType,
-        message: e.message,
-        topFrame: e.stack[0],
-        route: e.route,
-      }),
-      traceId: e.traceId,
-      occurredAt: new Date(e.occurredAt),
-      attributes: {
-        operation: e.operation,
-        httpRoute: e.route,
-        httpStatus: e.httpStatus,
-        spanId: e.spanId,
-        stack: e.stack,
-        way: e.way,
-        release: e.release,
-        ...e.attributes,
-      },
-    };
-  }
+      topFrame: e.stack[0],
+      route: e.route,
+    }),
+    traceId: e.traceId,
+    occurredAt: new Date(e.occurredAt),
+    attributes: {
+      operation: e.operation,
+      httpRoute: e.route,
+      httpStatus: e.httpStatus,
+      spanId: e.spanId,
+      stack: e.stack,
+      way: e.way,
+      release: e.release,
+      ...e.attributes,
+    },
+  };
+}
+
+export function normalize(source: string, payload: unknown): NormalizedEvent {
+  if (source === 'deploy_webhook') return normalizeDeploy(payload);
+  if (source === 'otel_jaeger') return normalizeJaegerError(payload);
+  if (source === 'ingest_error') return normalizeIngestError(payload);
   throw new PermanentIngestError('unknown_source', `No normalizer for source "${source}"`);
 }

@@ -6,15 +6,13 @@ import { newLinkToken, sha256 } from '../auth/password';
 import { ENV, type ApiEnv } from '../config/config.module';
 import { AuditService } from '../audit/audit.service';
 import { DB } from '../db/database.module';
-import type { Database } from '../db/client';
+import type { Database, Tx } from '../db/client';
 import { users, workspaceInvitations, workspaceMembers } from '../db/schema';
 import type { ActorContext } from '../common/request-context';
 import { ApiException, conflict, forbidden, notFound } from '../common/errors';
 import { canManageRole } from './roles';
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-
-type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
 
 @Injectable()
 export class MembersService {
@@ -48,7 +46,15 @@ export class MembersService {
       await this.assertCanManage(actor, member.role, role, 'member.role_changed', memberId);
       if (member.role === 'owner' && role !== 'owner') await this.assertNotLastOwner(tx, actor);
 
-      await tx.update(workspaceMembers).set({ role }).where(eq(workspaceMembers.id, memberId));
+      await tx
+        .update(workspaceMembers)
+        .set({ role })
+        .where(
+          and(
+            eq(workspaceMembers.id, memberId),
+            eq(workspaceMembers.workspaceId, actor.workspaceId),
+          ),
+        );
       await this.audit.record(
         {
           workspaceId: actor.workspaceId,
@@ -74,7 +80,14 @@ export class MembersService {
       await this.assertCanManage(actor, member.role, member.role, 'member.removed', memberId);
       if (member.role === 'owner') await this.assertNotLastOwner(tx, actor);
 
-      await tx.delete(workspaceMembers).where(eq(workspaceMembers.id, memberId));
+      await tx
+        .delete(workspaceMembers)
+        .where(
+          and(
+            eq(workspaceMembers.id, memberId),
+            eq(workspaceMembers.workspaceId, actor.workspaceId),
+          ),
+        );
       await this.audit.record(
         {
           workspaceId: actor.workspaceId,

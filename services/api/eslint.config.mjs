@@ -45,4 +45,9 @@ export default tseslint.config(
       'prettier/prettier': ['error', { endOfLine: 'auto' }],
     },
   },
+  {
+    // Tests group many small cases in one describe() and one file; length there is not a smell.
+    files: ['**/*.spec.ts', 'test/**/*.ts'],
+    rules: { 'max-lines-per-function': 'off', 'max-lines': 'off' },
+  },
 );

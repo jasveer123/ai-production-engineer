@@ -10,7 +10,7 @@ import type {
 import { AuditService } from '../audit/audit.service';
 import { ArtifactStore } from '../artifacts/artifact-store.service';
 import { DB } from '../db/database.module';
-import type { Database } from '../db/client';
+import type { Database, Tx } from '../db/client';
 import {
   approvals,
   evidenceItems,
@@ -20,46 +20,32 @@ import {
   investigations,
   services,
   usageRecords,
-  type IncidentStatus,
 } from '../db/schema';
-import { canTransition } from '../incidents/lifecycle';
 import { UsageService } from '../usage/usage.service';
 import { EvidenceCollector } from './evidence-collector.service';
+import { transitionIncident } from './incident-transition';
+import {
+  acceptCitations,
+  CONFIDENCE,
+  evidenceBundle,
+  modelUsageRows,
+  reportOutcome,
+  type StoredReport,
+} from './investigation-report';
 
-type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
-
-/** Report written by the Python AI worker (see services/ai-worker/src/ai_worker/report.py). */
-interface StoredReport {
+interface SaveReport {
+  inv: typeof investigations.$inferSelect;
+  report: StoredReport | null;
+  result: InvestigateResult;
+  byRef: Map<string, string>;
+  hyps: ReturnType<typeof acceptCitations>['hyps'];
+  observations: ReturnType<typeof acceptCitations>['observations'];
   status: 'completed' | 'needs_review';
   reason: string | null;
-  model: string | null;
-  prompt_version: string;
-  observations: { statement: string; evidence: string[] }[];
-  hypotheses: {
-    rank: number;
-    summary: string;
-    confidence: 'high' | 'medium' | 'low';
-    confidence_rationale: string;
-    supporting_evidence: string[];
-    contradicting_evidence: string[];
-    missing_information: string[];
-    suspected_location: { file: string; line: number | null; symbol: string | null } | null;
-  }[];
-  data_gaps: string[];
-  rejected: { kind: string; text: string; reason: string }[];
-  usage: {
-    input_tokens: number;
-    output_tokens: number;
-    cost_usd: number;
-    latency_ms: number;
-    calls: number;
-  };
 }
 
 /** statusReason prefix of a start the usage limits blocked. */
 const BLOCKED = 'usage_limit: ';
-
-const CONFIDENCE = { high: '0.80', medium: '0.50', low: '0.20' } as const;
 
 /**
  * Temporal activities on the `evidence` queue. Each one is idempotent: Temporal may run it more
@@ -75,65 +61,12 @@ export class InvestigationActivities implements EvidenceActivities {
     private readonly usage: UsageService,
   ) {}
 
-  /** Moves the incident along the lifecycle if allowed, recording history like a user change. */
-  private async transitionIncident(
-    tx: Tx,
-    incidentId: string,
-    to: IncidentStatus,
-    summary: string,
-    actor: { actorId: string | null; correlationId: string },
-  ): Promise<void> {
-    const [inc] = await tx
-      .select()
-      .from(incidents)
-      .where(eq(incidents.id, incidentId))
-      .for('update');
-    if (!inc || !canTransition(inc.status, to)) return;
-    await tx
-      .update(incidents)
-      .set({ status: to, version: inc.version + 1 })
-      .where(eq(incidents.id, incidentId));
-    await tx.insert(incidentEvents).values({
-      workspaceId: inc.workspaceId,
-      incidentId,
-      kind: 'status_change',
-      source: actor.actorId ? 'user' : 'workflow',
-      occurredAt: new Date(),
-      actorId: actor.actorId,
-      summary: `Status changed from ${inc.status} to ${to}. ${summary}`.trim(),
-      attributes: { from: inc.status, to, reason: summary },
-    });
-    await this.audit.record(
-      {
-        workspaceId: inc.workspaceId,
-        actorId: actor.actorId,
-        actorType: actor.actorId ? 'user' : 'agent',
-        action: 'incident.status_changed',
-        resourceType: 'incident',
-        resourceId: incidentId,
-        outcome: 'success',
-        correlationId: actor.correlationId,
-        metadata: { from: inc.status, to, reason: summary },
-      },
-      tx,
-    );
-  }
-
   async startInvestigation(
     input: StartInvestigationInput,
   ): Promise<{ investigationId: string; blocked?: string }> {
     const runKey = `${input.workflowId}:${input.runId}`;
     return this.db.transaction(async (tx) => {
-      const [done] = await tx
-        .select({
-          id: investigations.id,
-          status: investigations.status,
-          reason: investigations.statusReason,
-        })
-        .from(investigations)
-        .where(
-          and(eq(investigations.workflowId, runKey), eq(investigations.attempt, input.attempt)),
-        );
+      const done = await this.findAttempt(tx, runKey, input.attempt);
       if (done) {
         const blocked = done.status === 'failed' && done.reason?.startsWith(BLOCKED);
         return blocked
@@ -143,32 +76,7 @@ export class InvestigationActivities implements EvidenceActivities {
       // FR-16: one start at a time per workspace, so two starts cannot both pass the limits.
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${input.workspaceId}))`);
       const blocked = await this.usage.blockedReason(input.workspaceId, tx);
-      if (blocked) {
-        const [row] = await tx
-          .insert(investigations)
-          .values({
-            workspaceId: input.workspaceId,
-            incidentId: input.incidentId,
-            workflowId: runKey,
-            attempt: input.attempt,
-            status: 'failed',
-            statusReason: `${BLOCKED}${blocked}`,
-            requestNote: input.note,
-            completedAt: new Date(),
-          })
-          .returning({ id: investigations.id });
-        await this.usage.recordBlocked(
-          {
-            workspaceId: input.workspaceId,
-            incidentId: input.incidentId,
-            reason: blocked,
-            actorId: null,
-            correlationId: runKey,
-          },
-          tx,
-        );
-        return { investigationId: row!.id, blocked };
-      }
+      if (blocked) return this.recordBlockedStart(tx, input, runKey, blocked);
       const inserted = await tx
         .insert(investigations)
         .values({
@@ -183,26 +91,63 @@ export class InvestigationActivities implements EvidenceActivities {
         .onConflictDoNothing()
         .returning({ id: investigations.id });
       if (inserted[0]) {
-        await this.transitionIncident(
-          tx,
-          input.incidentId,
-          'investigating',
-          'AI investigation started',
-          {
-            actorId: null,
-            correlationId: runKey,
-          },
-        );
+        await transitionIncident(tx, this.audit, {
+          incidentId: input.incidentId,
+          to: 'investigating',
+          summary: 'AI investigation started',
+          actorId: null,
+          correlationId: runKey,
+        });
         return { investigationId: inserted[0].id };
       }
-      const [existing] = await tx
-        .select({ id: investigations.id })
-        .from(investigations)
-        .where(
-          and(eq(investigations.workflowId, runKey), eq(investigations.attempt, input.attempt)),
-        );
+      const existing = await this.findAttempt(tx, runKey, input.attempt);
       return { investigationId: existing!.id };
     });
+  }
+
+  private async findAttempt(tx: Tx, runKey: string, attempt: number) {
+    const [row] = await tx
+      .select({
+        id: investigations.id,
+        status: investigations.status,
+        reason: investigations.statusReason,
+      })
+      .from(investigations)
+      .where(and(eq(investigations.workflowId, runKey), eq(investigations.attempt, attempt)));
+    return row;
+  }
+
+  /** A start the usage limits refused: kept as a failed attempt so the retry sees the same answer. */
+  private async recordBlockedStart(
+    tx: Tx,
+    input: StartInvestigationInput,
+    runKey: string,
+    blocked: string,
+  ) {
+    const [row] = await tx
+      .insert(investigations)
+      .values({
+        workspaceId: input.workspaceId,
+        incidentId: input.incidentId,
+        workflowId: runKey,
+        attempt: input.attempt,
+        status: 'failed',
+        statusReason: `${BLOCKED}${blocked}`,
+        requestNote: input.note,
+        completedAt: new Date(),
+      })
+      .returning({ id: investigations.id });
+    await this.usage.recordBlocked(
+      {
+        workspaceId: input.workspaceId,
+        incidentId: input.incidentId,
+        reason: blocked,
+        actorId: null,
+        correlationId: runKey,
+      },
+      tx,
+    );
+    return { investigationId: row!.id, blocked };
   }
 
   async collectEvidence({
@@ -245,32 +190,14 @@ export class InvestigationActivities implements EvidenceActivities {
         .returning();
     });
 
-    const bundle = {
-      version: 1,
+    const bundle = evidenceBundle({
       investigationId,
-      incident: {
-        id: incident!.id,
-        title: incident!.title,
-        severity: incident!.severity,
-        serviceName: incident!.serviceName,
-        environment: incident!.environment,
-        repositoryFullName: service?.repositoryFullName ?? null,
-        firstSeenAt: incident!.firstSeenAt.toISOString(),
-        lastSeenAt: incident!.lastSeenAt.toISOString(),
-        eventCount: incident!.eventCount,
-      },
+      incident: incident!,
+      service,
       note: inv.requestNote,
-      coverage: collected.coverage,
-      items: rows.map((r, i) => ({
-        ref: r.ref,
-        id: r.id,
-        kind: r.kind,
-        title: r.title,
-        source: collected.items[i]!.source,
-        sourceUrl: r.sourceUrl,
-        content: collected.items[i]!.content,
-      })),
-    };
+      collected,
+      rows,
+    });
     const bundleRef = await this.artifacts.putJson(
       `evidence/${inv.workspaceId}/${investigationId}/bundle.json`,
       bundle,
@@ -308,102 +235,99 @@ export class InvestigationActivities implements EvidenceActivities {
       .from(evidenceItems)
       .where(eq(evidenceItems.investigationId, investigationId));
     const byRef = new Map(items.map((e) => [e.ref, e.id]));
+    const { hyps, observations } = acceptCitations(report, byRef);
+    const { status, reason } = reportOutcome(result, hyps.length);
 
-    // Defense in depth: re-check every citation against this investigation's evidence rows.
-    const valid = (refs: string[]) => refs.length > 0 && refs.every((r) => byRef.has(r));
-    const hyps = (report?.hypotheses ?? []).filter(
-      (h) => valid(h.supporting_evidence) && h.contradicting_evidence.every((r) => byRef.has(r)),
-    );
-    const observations = (report?.observations ?? []).filter((o) => valid(o.evidence));
-    const status = result.status === 'completed' && hyps.length > 0 ? 'completed' : 'needs_review';
-    const reason = status === 'completed' ? null : (result.reason ?? 'no_supported_hypotheses');
-
+    const published = { inv, report, status, reason };
     await this.db.transaction(async (tx) => {
-      await tx.delete(hypotheses).where(eq(hypotheses.investigationId, investigationId));
-      if (hyps.length > 0) {
-        await tx.insert(hypotheses).values(
-          hyps.map((h, i) => ({
-            workspaceId: inv.workspaceId,
-            investigationId,
-            rank: i + 1,
-            summary: h.summary,
-            confidence: CONFIDENCE[h.confidence],
-            confidenceLabel: h.confidence,
-            confidenceRationale: h.confidence_rationale,
-            supportingEvidenceIds: h.supporting_evidence.map((r) => byRef.get(r)!),
-            contradictingEvidenceIds: h.contradicting_evidence.map((r) => byRef.get(r)!),
-            missingInformation: h.missing_information,
-            suspectedLocation: h.suspected_location,
-          })),
-        );
-      }
-      await tx
-        .update(investigations)
-        .set({
-          status,
-          statusReason: reason,
-          model: report?.model ?? result.model,
-          promptVersion: report?.prompt_version ?? null,
-          reportRef: result.reportRef,
-          observations,
-          dataGaps: report?.data_gaps ?? [],
-          rejected: report?.rejected ?? [],
-          usage: report?.usage ?? {},
-          completedAt: new Date(),
-        })
-        .where(eq(investigations.id, investigationId));
-      if (report && report.usage.calls > 0) {
-        await tx.insert(usageRecords).values([
-          {
-            workspaceId: inv.workspaceId,
-            metric: 'model_input_tokens',
-            quantity: String(report.usage.input_tokens),
-          },
-          {
-            workspaceId: inv.workspaceId,
-            metric: 'model_output_tokens',
-            quantity: String(report.usage.output_tokens),
-          },
-          {
-            workspaceId: inv.workspaceId,
-            metric: 'model_cost_usd',
-            quantity: String(report.usage.cost_usd),
-          },
-          { workspaceId: inv.workspaceId, metric: 'investigations', quantity: '1' },
-        ]);
-      }
-      await tx.insert(incidentEvents).values({
-        workspaceId: inv.workspaceId,
-        incidentId: inv.incidentId,
-        kind: 'investigation',
-        source: 'ai',
-        occurredAt: new Date(),
-        summary:
-          status === 'completed'
-            ? `AI investigation #${inv.attempt} finished with ${hyps.length} hypothesis(es)`
-            : `AI investigation #${inv.attempt} needs review: ${reason}`,
-        attributes: { investigationId, status, model: report?.model ?? null },
-      });
-      await this.audit.record(
-        {
-          workspaceId: inv.workspaceId,
-          actorType: 'agent',
-          action: 'investigation.completed',
-          resourceType: 'investigation',
-          resourceId: investigationId,
-          outcome: 'success',
-          correlationId: inv.workflowId,
-          metadata: {
-            status,
-            reason,
-            hypotheses: hyps.length,
-            model: report?.model ?? null,
-            cost_usd: report?.usage.cost_usd ?? 0,
-          },
-        },
-        tx,
-      );
+      await this.saveReport(tx, { ...published, result, byRef, hyps, observations });
+      await this.recordPublished(tx, { ...published, hypothesisCount: hyps.length });
     });
+  }
+
+  /** Replaces the hypotheses and stores the report summary and billable usage. */
+  private async saveReport(tx: Tx, p: SaveReport): Promise<void> {
+    const { inv, report, result, byRef } = p;
+    await tx.delete(hypotheses).where(eq(hypotheses.investigationId, inv.id));
+    if (p.hyps.length > 0) {
+      await tx.insert(hypotheses).values(
+        p.hyps.map((h, i) => ({
+          workspaceId: inv.workspaceId,
+          investigationId: inv.id,
+          rank: i + 1,
+          summary: h.summary,
+          confidence: CONFIDENCE[h.confidence],
+          confidenceLabel: h.confidence,
+          confidenceRationale: h.confidence_rationale,
+          supportingEvidenceIds: h.supporting_evidence.map((r) => byRef.get(r)!),
+          contradictingEvidenceIds: h.contradicting_evidence.map((r) => byRef.get(r)!),
+          missingInformation: h.missing_information,
+          suspectedLocation: h.suspected_location,
+        })),
+      );
+    }
+    await tx
+      .update(investigations)
+      .set({
+        status: p.status,
+        statusReason: p.reason,
+        model: report?.model ?? result.model,
+        promptVersion: report?.prompt_version ?? null,
+        reportRef: result.reportRef,
+        observations: p.observations,
+        dataGaps: report?.data_gaps ?? [],
+        rejected: report?.rejected ?? [],
+        usage: report?.usage ?? {},
+        completedAt: new Date(),
+      })
+      .where(eq(investigations.id, inv.id));
+    if (report && report.usage.calls > 0)
+      await tx.insert(usageRecords).values(modelUsageRows(inv.workspaceId, report.usage));
+  }
+
+  /** The timeline entry and audit record for a finished investigation. */
+  private async recordPublished(
+    tx: Tx,
+    p: {
+      inv: typeof investigations.$inferSelect;
+      report: StoredReport | null;
+      status: string;
+      reason: string | null;
+      hypothesisCount: number;
+    },
+  ): Promise<void> {
+    const { inv, report, status, reason } = p;
+    await tx.insert(incidentEvents).values({
+      workspaceId: inv.workspaceId,
+      incidentId: inv.incidentId,
+      kind: 'investigation',
+      source: 'ai',
+      occurredAt: new Date(),
+      summary:
+        status === 'completed'
+          ? `AI investigation #${inv.attempt} finished with ${p.hypothesisCount} hypothesis(es)`
+          : `AI investigation #${inv.attempt} needs review: ${reason}`,
+      attributes: { investigationId: inv.id, status, model: report?.model ?? null },
+    });
+    await this.audit.record(
+      {
+        workspaceId: inv.workspaceId,
+        actorType: 'agent',
+        action: 'investigation.completed',
+        resourceType: 'investigation',
+        resourceId: inv.id,
+        outcome: 'success',
+        correlationId: inv.workflowId,
+        metadata: {
+          status,
+          reason,
+          hypotheses: p.hypothesisCount,
+          model: report?.model ?? null,
+          cost_usd: report?.usage.cost_usd ?? 0,
+        },
+      },
+      tx,
+    );
   }
 
   async markInvestigation(input: {
@@ -441,7 +365,10 @@ export class InvestigationActivities implements EvidenceActivities {
     input: IncidentWorkflowInput & { actorId: string; reason: string },
   ): Promise<void> {
     await this.db.transaction((tx) =>
-      this.transitionIncident(tx, input.incidentId, 'closed_without_fix', input.reason, {
+      transitionIncident(tx, this.audit, {
+        incidentId: input.incidentId,
+        to: 'closed_without_fix',
+        summary: input.reason,
         actorId: input.actorId,
         correlationId: `incident-${input.incidentId}`,
       }),

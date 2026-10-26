@@ -4,6 +4,7 @@
  * (default `demo-shop-2026`), or through the local-only dev login.
  */
 import { existsSync } from 'node:fs';
+import { Logger } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { hashPassword } from '../auth/password';
 import { createDatabase } from './client';
@@ -64,8 +65,9 @@ async function main() {
         repositoryFullName: 'your-github-user/demo-shop',
       });
     }
-    console.log('Seeded demo workspace with users:', DEMO_USERS.map((u) => u.email).join(', '));
-    console.log(`Password for all demo users: ${SEED_PASSWORD}`);
+    const log = new Logger('seed');
+    log.log(`Seeded demo workspace with users: ${DEMO_USERS.map((u) => u.email).join(', ')}`);
+    log.log(`Password for all demo users: ${SEED_PASSWORD}`);
   } finally {
     await pool.end();
   }

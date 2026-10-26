@@ -89,4 +89,85 @@ describe('Tenant isolation and RBAC (e2e)', () => {
     }
     await viewer.get(`/workspaces/${ws.id}/services`).expect(200);
   });
+
+  it('hides workspace A resources from workspace B even when B uses their real ids', async () => {
+    const alice = await loginAs(app, 'alice@a.test');
+    const bob = await loginAs(app, 'bob@b.test');
+    const a = (await createWorkspace(alice, 'Workspace A')).id;
+    const b = (await createWorkspace(bob, 'Workspace B')).id;
+    const create = async (path: string, body: object) =>
+      (await alice.post(`/workspaces/${a}/${path}`).send(body).expect(201)).body as { id: string };
+
+    const ids = {
+      serviceId: (await create('services', { name: 'a-api', environment: 'prod' })).id,
+      incidentId: (await create('incidents', { title: 'A is on fire' })).id,
+      routeId: (await create('alert-routes', { name: 'A route' })).id,
+      sourceId: (await create('alert-sources', { kind: 'http', name: 'A source' })).id,
+      tokenId: (await create('ingest/tokens', { name: 'A token' })).id,
+      integrationId: (await create('integrations', { provider: 'deploy_webhook', name: 'A hook' }))
+        .id,
+      channelId: (
+        await create('notifications/channels', {
+          kind: 'webhook',
+          name: 'A channel',
+          url: 'https://example.com/hook',
+          events: ['incident.detected'],
+        })
+      ).id,
+      invitationId: (await create('invitations', { email: 'new@a.test', role: 'viewer' })).id,
+    };
+    const memberId = (
+      (await alice.get(`/workspaces/${a}/members`).expect(200)).body as { id: string }[]
+    )[0]!.id;
+
+    const attempts: [method: 'get' | 'post' | 'patch' | 'delete', path: string, body?: object][] = [
+      ['get', `services/${ids.serviceId}`],
+      ['patch', `services/${ids.serviceId}`, { name: 'hijacked' }],
+      ['delete', `services/${ids.serviceId}`],
+      ['get', `incidents/${ids.incidentId}`],
+      ['get', `incidents/${ids.incidentId}/timeline`],
+      [
+        'post',
+        `incidents/${ids.incidentId}/transitions`,
+        { to: 'closed_without_fix', expectedVersion: 1 },
+      ],
+      ['patch', `alert-routes/${ids.routeId}`, { name: 'hijacked' }],
+      ['delete', `alert-routes/${ids.routeId}`],
+      ['post', `alert-sources/${ids.sourceId}/rotate-token`],
+      ['delete', `alert-sources/${ids.sourceId}`],
+      ['post', `ingest/tokens/${ids.tokenId}/rotate`],
+      ['delete', `ingest/tokens/${ids.tokenId}`],
+      ['post', `integrations/${ids.integrationId}/test`],
+      ['post', `integrations/${ids.integrationId}/rotate-secret`],
+      ['delete', `integrations/${ids.integrationId}`],
+      ['patch', `notifications/channels/${ids.channelId}`, { name: 'hijacked' }],
+      ['delete', `notifications/channels/${ids.channelId}`],
+      ['patch', `members/${memberId}`, { role: 'viewer' }],
+      ['delete', `members/${memberId}`],
+      ['delete', `invitations/${ids.invitationId}`],
+    ];
+    for (const [method, path, body] of attempts) {
+      const res = await bob[method](`/workspaces/${b}/${path}`).send(body ?? {});
+      expect({ attempt: `${method} ${path}`, status: res.status }).toEqual({
+        attempt: `${method} ${path}`,
+        status: 404,
+      });
+    }
+
+    // Nothing of A's changed.
+    const service = await alice.get(`/workspaces/${a}/services/${ids.serviceId}`).expect(200);
+    expect((service.body as { name: string }).name).toBe('a-api');
+    const incident = await alice.get(`/workspaces/${a}/incidents/${ids.incidentId}`).expect(200);
+    expect((incident.body as { status: string }).status).toBe('detected');
+    const route = await alice.get(`/workspaces/${a}/alert-routes`).expect(200);
+    expect(route.body).toHaveLength(1);
+    const sources = await alice.get(`/workspaces/${a}/alert-sources`).expect(200);
+    expect(sources.body).toHaveLength(1);
+    const members = await alice.get(`/workspaces/${a}/members`).expect(200);
+    expect(members.body).toHaveLength(1);
+    const channels = await alice.get(`/workspaces/${a}/notifications/channels`).expect(200);
+    expect((channels.body as { name: string }[])[0]!.name).toBe('A channel');
+    const invitations = await alice.get(`/workspaces/${a}/invitations`).expect(200);
+    expect(invitations.body).toHaveLength(1);
+  });
 });
