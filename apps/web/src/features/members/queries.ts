@@ -2,7 +2,7 @@
 
 import type { Invitation, Member } from '@ape/api-contracts';
 import { useQuery } from '@tanstack/react-query';
-import { useSession } from '@/features/auth/session';
+import { useSession } from '@/features/auth';
 import { api } from '@/lib/api';
 
 export const memberKeys = {

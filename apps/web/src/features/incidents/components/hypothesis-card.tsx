@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, Eyebrow } from '@/components/ui/card';
-import { useSession } from '@/features/auth/session';
+import { useSession } from '@/features/auth';
 import { api } from '@/lib/api';
 import { incidentKeys } from '../queries';
 

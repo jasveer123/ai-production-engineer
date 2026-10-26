@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, FormError, Input, Select } from '@/components/ui/form';
-import { ROLE_LABEL } from '@/features/auth/roles';
+import { ROLE_LABEL } from '@/features/auth';
 import { api, errorMessage } from '@/lib/api';
 import { useZodForm } from '@/lib/use-zod-form';
 

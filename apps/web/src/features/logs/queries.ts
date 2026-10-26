@@ -2,7 +2,7 @@
 
 import type { LogSearchResult } from '@ape/api-contracts';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { useWorkspaceId } from '@/features/auth/session';
+import { useWorkspaceId } from '@/features/auth';
 import { api } from '@/lib/api';
 
 export const logKeys = {

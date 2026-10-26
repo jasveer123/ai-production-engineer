@@ -9,10 +9,10 @@ import { CodeSnippet } from '@/components/ui/code-snippet';
 import { Dialog } from '@/components/ui/dialog';
 import { FormError } from '@/components/ui/form';
 import { Icon } from '@/components/ui/icon';
-import { useSession } from '@/features/auth/session';
+import { useSession } from '@/features/auth';
 import { api, errorMessage } from '@/lib/api';
 import { formatAgo } from '@/lib/format';
-import { SetupPrPanel } from '@/features/setup/components/setup-pr-panel';
+import { SetupPrPanel } from '@/features/setup';
 import { CARD, FOOTER, STATUS_BADGE } from './card-styles';
 
 /** The deploy step for GitHub Actions: an HMAC-signed JSON body, like the server verifies. */

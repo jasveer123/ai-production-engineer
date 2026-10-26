@@ -2,7 +2,7 @@
 
 import type { AuditEvent } from '@ape/api-contracts';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { useSession } from '@/features/auth/session';
+import { useSession } from '@/features/auth';
 import { api } from '@/lib/api';
 
 export const AUDIT_PAGE = 50;

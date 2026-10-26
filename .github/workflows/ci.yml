@@ -196,6 +196,7 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @ape/config --filter @ape/api-contracts --filter @ape/temporal-workflows build
       - name: Playwright
         run: |
           if [ ! -f apps/web/playwright.config.ts ]; then echo "No Playwright config yet; skipping."; exit 0; fi

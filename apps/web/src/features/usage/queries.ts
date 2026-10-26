@@ -2,7 +2,7 @@
 
 import type { UsageSummary } from '@ape/api-contracts';
 import { useQuery } from '@tanstack/react-query';
-import { useSession } from '@/features/auth/session';
+import { useSession } from '@/features/auth';
 import { api } from '@/lib/api';
 
 export const usageKeys = { all: (ws: string) => ['ws', ws, 'usage'] as const };

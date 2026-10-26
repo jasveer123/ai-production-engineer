@@ -1,3 +1,3 @@
-import { formatMoney } from '@/features/business/money';
+import { formatMoney } from '@/features/business';
 
 export const usd = (v: number) => formatMoney(v, 'USD');

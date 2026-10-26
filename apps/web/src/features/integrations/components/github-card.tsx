@@ -7,11 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { ButtonLink } from '@/components/ui/button';
 import { FormError } from '@/components/ui/form';
 import { Icon } from '@/components/ui/icon';
-import { useSession } from '@/features/auth/session';
+import { useSession } from '@/features/auth';
 import { api, errorMessage } from '@/lib/api';
 import { formatAgo } from '@/lib/format';
-import { GitHubConnectFlow } from '@/features/setup/components/github-connect-flow';
-import { useGitHubOverview } from '@/features/setup/queries';
+import { GitHubConnectFlow } from '@/features/setup';
+import { useGitHubOverview } from '@/features/setup';
 import { CARD, FOOTER, ICON_BUTTON, STATUS_BADGE, ext } from './card-styles';
 
 export function GitHubCard({ row }: { row: Integration | undefined }) {

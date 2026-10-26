@@ -7,7 +7,7 @@ import { ListSkeleton } from '@/components/ui/skeleton';
 import { Banner } from '@/components/ui/banner';
 import { Card, CardHeader } from '@/components/ui/card';
 import { FormError, Select } from '@/components/ui/form';
-import { useSession } from '@/features/auth/session';
+import { useSession } from '@/features/auth';
 import { api, errorMessage } from '@/lib/api';
 import { settingsKeys, useApprovalPolicy } from '../queries';
 

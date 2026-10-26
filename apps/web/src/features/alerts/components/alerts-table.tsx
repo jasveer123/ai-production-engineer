@@ -5,7 +5,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { DataTable } from '@/components/ui/data-table';
-import { SeverityBadge } from '@/features/incidents/components/incident-badges';
+import { SeverityBadge } from '@/features/incidents';
 import { formatAgo, formatDateTime } from '@/lib/format';
 
 const COLUMNS: ColumnDef<AlertView>[] = [
