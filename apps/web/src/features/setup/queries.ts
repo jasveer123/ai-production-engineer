@@ -1,7 +1,9 @@
 'use client';
 
 import type {
+  GitHubAppInfo,
   GitHubOverview,
+  GitHubSelectView,
   OAuthStart,
   RepositoryAccess,
   SetupCapabilities,
@@ -83,4 +85,23 @@ export function takeStoredState(provider: string): string | null {
   } catch {
     return null;
   }
+}
+
+/** The GitHub App's install state and links for this workspace. */
+export function useGitHubApp() {
+  const { workspace } = useSession();
+  return useQuery({
+    queryKey: ['ws', workspace.id, 'github-app'],
+    queryFn: () => api<GitHubAppInfo>(`/workspaces/${workspace.id}/github/app`),
+    refetchOnWindowFocus: true,
+  });
+}
+
+/** Repositories each installation shares, with the ones already chosen. */
+export function useGitHubSelect() {
+  const { workspace } = useSession();
+  return useQuery({
+    queryKey: ['ws', workspace.id, 'github-select'],
+    queryFn: () => api<GitHubSelectView>(`/workspaces/${workspace.id}/github/select`),
+  });
 }

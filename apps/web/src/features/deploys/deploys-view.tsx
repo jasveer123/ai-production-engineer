@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Banner } from '@/components/ui/banner';
 import { ButtonLink } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -46,7 +47,7 @@ export function DeploysView() {
       </div>
 
       {deploys.isPending ? (
-        <p className="text-ink-muted">Loading deploys…</p>
+        <ListSkeleton label="Loading deploys" />
       ) : deploys.isError ? (
         <Banner tone="danger" title="Could not load deploys.">
           {errorMessage(deploys.error)}

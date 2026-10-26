@@ -2,6 +2,7 @@
 
 import type { Deployment } from '@ape/api-contracts';
 import Link from 'next/link';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Banner } from '@/components/ui/banner';
 import { Card, CardHeader } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
@@ -19,7 +20,7 @@ export function changeHref(d: Pick<Deployment, 'serviceId' | 'commitSha'>): stri
 
 export function DeployDetail({ id }: { id: string }) {
   const deploy = useDeployment(id);
-  if (deploy.isPending) return <p className="text-ink-muted">Loading deploy…</p>;
+  if (deploy.isPending) return <ListSkeleton label="Loading deploy" />;
   if (deploy.isError) {
     return (
       <Banner tone="danger" title="Could not load this deploy.">

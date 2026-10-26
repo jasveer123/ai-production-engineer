@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import { cleanRule, describeRule, moveItem } from './severity-rules.ts';
 
 test('cleanRule trims conditions and drops empty ones', () => {

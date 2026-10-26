@@ -1,5 +1,6 @@
 'use client';
 
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Banner } from '@/components/ui/banner';
 import { ButtonLink } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -14,7 +15,7 @@ import { useIncident, useIncidentLogs } from '../queries';
 export function IncidentLogs({ id }: { id: string }) {
   const incident = useIncident(id);
   const logs = useIncidentLogs(incident.data);
-  if (incident.isPending) return <p className="text-ink-muted">Loading…</p>;
+  if (incident.isPending) return <ListSkeleton label="Loading" />;
   if (incident.isError) return null;
   const window = incidentLogWindow(incident.data);
 
@@ -24,7 +25,7 @@ export function IncidentLogs({ id }: { id: string }) {
         Logs are matched by service. This incident has none, so there is nothing to show.
       </EmptyState>
     );
-  if (logs.isPending) return <p className="text-ink-muted">Loading logs…</p>;
+  if (logs.isPending) return <ListSkeleton label="Loading logs" />;
   if (logs.isError)
     return (
       <Banner tone="danger" title="Could not load logs.">

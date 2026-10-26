@@ -3,6 +3,7 @@
 import type { AlertPreview, AlertRoute, AlertSource } from '@ape/api-contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Banner } from '@/components/ui/banner';
 import { Button } from '@/components/ui/button';
@@ -63,7 +64,7 @@ export function RoutesView() {
       )}
 
       {routes.isPending ? (
-        <p className="text-ink-muted">Loading routes…</p>
+        <ListSkeleton label="Loading routes" />
       ) : routes.isError ? (
         <Banner tone="danger" title="Could not load routes.">
           {errorMessage(routes.error)}

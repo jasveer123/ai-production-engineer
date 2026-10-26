@@ -1,33 +1,22 @@
 'use client';
 
-import type { AuditEvent } from '@ape/api-contracts';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Banner } from '@/components/ui/banner';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 import { Table, Td, Th, Tr } from '@/components/ui/table';
 import { useSession } from '@/features/auth/session';
-import { api, errorMessage } from '@/lib/api';
+import { errorMessage } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
+import { useAuditEvents } from './queries';
 
-const PAGE = 50;
 const sentence = (action: string) =>
   action.replace(/[._]/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
 
 export function AuditView() {
-  const { workspace, can } = useSession();
-  const q = useInfiniteQuery({
-    queryKey: ['ws', workspace.id, 'audit'],
-    enabled: can('admin'),
-    initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam }) =>
-      api<AuditEvent[]>(
-        `/workspaces/${workspace.id}/audit-events?limit=${PAGE}${pageParam ? `&before=${encodeURIComponent(pageParam)}` : ''}`,
-      ),
-    getNextPageParam: (last) =>
-      last.length === PAGE ? last[last.length - 1]!.occurredAt : undefined,
-  });
+  const { can } = useSession();
+  const q = useAuditEvents(can('admin'));
 
   const header = (
     <PageHeader
@@ -46,7 +35,7 @@ export function AuditView() {
     return (
       <>
         {header}
-        <p className="text-ink-muted">Loading…</p>
+        <ListSkeleton label="Loading" />
       </>
     );
   if (q.isError)

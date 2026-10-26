@@ -1,5 +1,6 @@
 'use client';
 
+import { changePasswordSchema, updateProfileSchema } from '@ape/api-contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Banner } from '@/components/ui/banner';
@@ -12,6 +13,7 @@ import { ROLE_LABEL } from '@/features/auth/roles';
 import { ME_KEY, useSession } from '@/features/auth/session';
 import { useAuthAction } from '@/features/auth/use-auth-action';
 import { api, errorMessage } from '@/lib/api';
+import { useZodForm } from '@/lib/use-zod-form';
 
 export function AccountView() {
   const { me } = useSession();
@@ -19,6 +21,12 @@ export function AccountView() {
   const profile = useAuthAction();
   const password = useAuthAction();
   const [saved, setSaved] = useState<string | null>(null);
+  const profileForm = useZodForm(updateProfileSchema, {
+    defaultValues: { name: me.user.name ?? '' },
+  });
+  const passwordForm = useZodForm(changePasswordSchema, {
+    defaultValues: { currentPassword: '', newPassword: '' },
+  });
   const resend = useMutation({
     mutationFn: () => api('/auth/resend-verification', { method: 'POST' }),
   });
@@ -48,26 +56,23 @@ export function AccountView() {
         <CardHeader eyebrow="Profile" title="Name and email" />
         <form
           className="grid max-w-[420px] gap-4"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const name = new FormData(e.currentTarget).get('name');
+          noValidate
+          onSubmit={profileForm.handleSubmit(async (values) => {
             const next = await profile.run(() =>
-              api('/auth/me', { method: 'PATCH', json: { name } }),
+              api('/auth/me', { method: 'PATCH', json: values }),
             );
             if (next) {
               qc.setQueryData(ME_KEY, next);
               setSaved('Profile saved.');
             }
-          }}
+          })}
         >
-          <Field id="name" label="Name" error={profile.fieldErrors.name}>
-            <Input
-              id="name"
-              name="name"
-              defaultValue={me.user.name ?? ''}
-              required
-              maxLength={100}
-            />
+          <Field
+            id="name"
+            label="Name"
+            error={profileForm.formState.errors.name?.message ?? profile.fieldErrors.name}
+          >
+            <Input id="name" maxLength={100} {...profileForm.register('name')} />
           </Field>
           <Field id="email" label="Email" hint="Email changes are not supported yet.">
             <Input id="email" value={me.user.email} readOnly disabled />
@@ -88,32 +93,37 @@ export function AccountView() {
         />
         <form
           className="grid max-w-[420px] gap-4"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const form = e.currentTarget;
-            const f = new FormData(form);
+          noValidate
+          onSubmit={passwordForm.handleSubmit(async (values) => {
             const ok = await password.run(() =>
-              api('/auth/change-password', {
-                method: 'POST',
-                json: { currentPassword: f.get('current') || undefined, newPassword: f.get('new') },
-              }).then(() => true),
+              api('/auth/change-password', { method: 'POST', json: values }).then(() => true),
             );
             if (ok) {
-              form.reset();
+              passwordForm.reset();
               setSaved('Password changed. Your other sessions were signed out.');
               void qc.invalidateQueries({ queryKey: ME_KEY });
             }
-          }}
+          })}
         >
           {me.user.hasPassword && (
-            <PasswordField id="current" label="Current password" autoComplete="current-password" />
+            <PasswordField
+              id="current"
+              label="Current password"
+              autoComplete="current-password"
+              registration={passwordForm.register('currentPassword', {
+                setValueAs: (v: string) => v || undefined,
+              })}
+            />
           )}
           <PasswordField
             id="new"
             label="New password"
             autoComplete="new-password"
             showRules
-            error={password.fieldErrors.newPassword}
+            error={
+              passwordForm.formState.errors.newPassword?.message ?? password.fieldErrors.newPassword
+            }
+            registration={passwordForm.register('newPassword')}
           />
           <FormError>{password.error}</FormError>
           <div>

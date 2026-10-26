@@ -5,10 +5,15 @@ import { useQuery } from '@tanstack/react-query';
 import { useSession } from '@/features/auth/session';
 import { api } from '@/lib/api';
 
+export const serviceKeys = {
+  all: (ws: string) => ['ws', ws, 'services'] as const,
+  discovered: (ws: string) => ['ws', ws, 'services', 'discovered'] as const,
+};
+
 export function useServices() {
   const { workspace } = useSession();
   return useQuery({
-    queryKey: ['ws', workspace.id, 'services'],
+    queryKey: serviceKeys.all(workspace.id),
     queryFn: () => api<Service[]>(`/workspaces/${workspace.id}/services`),
   });
 }
@@ -17,7 +22,7 @@ export function useServices() {
 export function useDiscoveredServices() {
   const { workspace } = useSession();
   return useQuery({
-    queryKey: ['ws', workspace.id, 'services', 'discovered'],
+    queryKey: serviceKeys.discovered(workspace.id),
     queryFn: () => api<DiscoveredService[]>(`/workspaces/${workspace.id}/services/discovered`),
   });
 }

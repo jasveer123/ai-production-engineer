@@ -1,6 +1,7 @@
 'use client';
 
 import type { VerificationRunView } from '@ape/api-contracts';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Banner } from '@/components/ui/banner';
 import { Card, CardHeader } from '@/components/ui/card';
@@ -18,7 +19,7 @@ const OUTCOME = {
 /** After the fix ships: is the incident's error gone? (FRD FR-12). Measured, never assumed. */
 export function IncidentRecovery({ id }: { id: string }) {
   const verification = useVerification(id);
-  if (verification.isPending) return <p className="text-ink-muted">Loading…</p>;
+  if (verification.isPending) return <ListSkeleton label="Loading" />;
   if (verification.isError)
     return (
       <Banner tone="danger" title="Could not load the recovery check.">

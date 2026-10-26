@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import { isActive } from './nav-config.ts';
 
 test('overview is active only on the root', () => {

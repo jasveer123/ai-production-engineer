@@ -1,5 +1,6 @@
 'use client';
 
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Banner } from '@/components/ui/banner';
 import { errorMessage } from '@/lib/api';
 import { useTools } from '../queries';
@@ -7,7 +8,7 @@ import { ToolCard } from './tool-card';
 
 export function ToolsGrid() {
   const tools = useTools();
-  if (tools.isPending) return <p className="text-ink-muted">Loading tools…</p>;
+  if (tools.isPending) return <ListSkeleton label="Loading tools" />;
   if (tools.isError)
     return (
       <Banner tone="danger" title="Could not load tools.">

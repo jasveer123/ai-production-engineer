@@ -1,18 +1,18 @@
 'use client';
 
-import type { LogLine as ApiLogLine, LogSearchResult } from '@ape/api-contracts';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import type { LogLine as ApiLogLine } from '@ape/api-contracts';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Banner } from '@/components/ui/banner';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Icon } from '@/components/ui/icon';
 import { LiveStatus } from '@/components/ui/live-status';
-import { useWorkspaceId } from '@/features/auth/session';
-import { api, errorMessage } from '@/lib/api';
+import { errorMessage } from '@/lib/api';
 import { formatCount, formatLogTime } from '@/lib/format';
+import { useLogSearch } from '../queries';
 import type { LogLine } from '../types';
 import { LogHistogram } from './log-histogram';
 import { LogViewer } from './log-viewer';
@@ -44,7 +44,6 @@ export function toViewerLine(l: ApiLogLine): LogLine {
 }
 
 export function LiveLogExplorer() {
-  const ws = useWorkspaceId();
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -64,22 +63,7 @@ export function LiveLogExplorer() {
     router.replace(`${pathname}?${next}`);
   };
 
-  const query = useInfiniteQuery({
-    queryKey: ['ws', ws, 'logs', q, range.value, to],
-    initialPageParam: undefined as number | undefined,
-    queryFn: ({ pageParam }) => {
-      const sp = new URLSearchParams({
-        q,
-        from: new Date(to - range.ms).toISOString(),
-        to: new Date(to).toISOString(),
-        limit: '200',
-      });
-      if (pageParam) sp.set('before', String(pageParam));
-      return api<LogSearchResult>(`/workspaces/${ws}/logs?${sp}`);
-    },
-    getNextPageParam: (last) => last.nextBefore ?? undefined,
-    placeholderData: (prev) => prev,
-  });
+  const query = useLogSearch({ q, range: range.value, rangeMs: range.ms, to });
 
   useEffect(() => {
     if (!live) return;
@@ -213,7 +197,7 @@ export function LiveLogExplorer() {
       </Card>
 
       {query.isPending ? (
-        <p className="text-ink-muted">Searching…</p>
+        <ListSkeleton label="Searching" />
       ) : lines.length > 0 ? (
         <>
           <LogViewer lines={lines} label="Log lines, newest first" />

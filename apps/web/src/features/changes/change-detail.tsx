@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Banner } from '@/components/ui/banner';
 import { Card, CardHeader } from '@/components/ui/card';
@@ -33,7 +34,7 @@ export function ChangeDetail({ sha }: { sha: string }) {
       ← All changes
     </Link>
   );
-  if (services.isPending) return <p className="text-ink-muted">Loading…</p>;
+  if (services.isPending) return <ListSkeleton label="Loading" />;
   if (!service) {
     return (
       <>
@@ -44,7 +45,7 @@ export function ChangeDetail({ sha }: { sha: string }) {
       </>
     );
   }
-  if (commits.isPending || deploys.isPending) return <p className="text-ink-muted">Loading…</p>;
+  if (commits.isPending || deploys.isPending) return <ListSkeleton label="Loading" />;
   if (deploys.isError) {
     return (
       <>

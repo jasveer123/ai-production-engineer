@@ -4,6 +4,7 @@ import type { Incident, IncidentStatus } from '@ape/api-contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Banner } from '@/components/ui/banner';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
@@ -13,7 +14,7 @@ import { useSession } from '@/features/auth/session';
 import { api, errorMessage } from '@/lib/api';
 import { formatAgo, formatCount, formatDateTime } from '@/lib/format';
 import { manualNextStatuses, STATUS_META } from '../live';
-import { incidentPrefix, useIncident } from '../queries';
+import { incidentKeys, useIncident } from '../queries';
 import { SeverityBadge } from './incident-badges';
 import { IncidentStatusBadge } from './incident-status-badge';
 
@@ -23,7 +24,7 @@ export function IncidentHeader({ id }: { id: string }) {
   const { can } = useSession();
   const [changing, setChanging] = useState(false);
 
-  if (incident.isPending) return <p className="text-ink-muted">Loading incident…</p>;
+  if (incident.isPending) return <ListSkeleton label="Loading incident" />;
   if (incident.isError)
     return (
       <Banner tone="danger" title="Could not load this incident.">
@@ -103,13 +104,13 @@ function ChangeStatusDialog({
         json: { ...body, expectedVersion: incident.version },
       }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: incidentPrefix(workspace.id, incident.id) });
-      void qc.invalidateQueries({ queryKey: ['ws', workspace.id, 'incidents'] });
+      void qc.invalidateQueries({ queryKey: incidentKeys.detail(workspace.id, incident.id) });
+      void qc.invalidateQueries({ queryKey: incidentKeys.all(workspace.id) });
       onClose();
     },
     onError: (e) => {
       setError(errorMessage(e));
-      void qc.invalidateQueries({ queryKey: incidentPrefix(workspace.id, incident.id) });
+      void qc.invalidateQueries({ queryKey: incidentKeys.detail(workspace.id, incident.id) });
     },
   });
 

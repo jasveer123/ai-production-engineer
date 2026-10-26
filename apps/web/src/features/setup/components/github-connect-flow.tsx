@@ -1,7 +1,5 @@
 'use client';
 
-import type { GitHubAppInfo } from '@ape/api-contracts';
-import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Banner } from '@/components/ui/banner';
@@ -9,8 +7,8 @@ import { Button } from '@/components/ui/button';
 import { FormError } from '@/components/ui/form';
 import { Icon } from '@/components/ui/icon';
 import { useResetSession, useSession } from '@/features/auth/session';
-import { api, errorMessage } from '@/lib/api';
-import { startGitHubInstall } from '../queries';
+import { errorMessage } from '@/lib/api';
+import { startGitHubInstall, useGitHubApp } from '../queries';
 
 const STEPS = [
   'Click "Connect GitHub". GitHub opens in this tab.',
@@ -26,11 +24,7 @@ export function GitHubConnectFlow() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const app = useQuery({
-    queryKey: ['ws', workspace.id, 'github-app'],
-    queryFn: () => api<GitHubAppInfo>(`/workspaces/${workspace.id}/github/app`),
-    refetchOnWindowFocus: true,
-  });
+  const app = useGitHubApp();
 
   if (app.isPending)
     return <p className="m-0 text-[13px] text-ink-muted">Checking the GitHub App…</p>;

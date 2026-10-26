@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import { parseThemeChoice, themeAttribute, THEME_INIT_SCRIPT, THEME_STORAGE_KEY } from './theme.ts';
 
 test('parseThemeChoice keeps light and dark', () => {
