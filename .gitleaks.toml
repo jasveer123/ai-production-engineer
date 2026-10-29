@@ -5,6 +5,7 @@ useDefault = true
 description = "Reviewed false positives"
 paths = [
   '''services/api/src/modules/investigations/domain/redact\.spec\.ts''',
+  '''services/api/src/investigations/redact\.spec\.ts''',
   '''services/api/test/auth\.e2e-spec\.ts''',
 ]
 regexTarget = "line"
