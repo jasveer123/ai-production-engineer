@@ -84,7 +84,7 @@ before merge unless an owner approves an exception in the pull request.
 - Ruff rule set in `pyproject.toml` is the baseline (bugbear, simplify, security, performance,
   naming, complexity 12). Exceptions are per-file with a reason.
 - Anything that calls a model goes through the gateway (`llm/gateway.py`). Prompts live in
-  `prompts/` as versioned files, never inline strings. A prompt or model change is accepted only
+  `services/ai-worker/prompts/` as versioned files, never inline strings. A prompt or model change is accepted only
   with an eval run (`make eval`) that does not regress.
 - Model output is untrusted. Validate it with a schema, ground every claim in evidence, and keep the
   guardrails deterministic and tested.

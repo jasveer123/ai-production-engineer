@@ -1,5 +1,3 @@
-/** The Way finder: one question, one recommendation. Pure so it can be tested. */
-
 export type FinderAnswer = 'nowhere' | 'otel' | 'files' | 'platform' | 'tool' | 'other';
 
 export type FinderOption = { value: FinderAnswer; title: string; hint: string };
@@ -16,7 +14,7 @@ export const FINDER_OPTIONS: FinderOption[] = [
 export type Recommendation = {
   title: string;
   detail: string;
-  /** Where "Show me" goes: a setup page, or the tools tab. */
+
   href: string;
 };
 
@@ -53,7 +51,6 @@ const RECOMMENDATIONS: Record<FinderAnswer, Recommendation> = {
   },
 };
 
-/** The most common case, preselected so the card is never empty. */
 export const DEFAULT_ANSWER: FinderAnswer = 'otel';
 
 export function recommend(answer: FinderAnswer): Recommendation {

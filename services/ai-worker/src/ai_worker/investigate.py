@@ -18,8 +18,8 @@ from ai_worker.llm.gateway import ModelError, ModelProvider
 from ai_worker.report import OUTPUT_SCHEMA, ModelReport, StoredReport, Usage
 
 log = logging.getLogger("ai_worker")
-PROMPTS_DIR = Path(__file__).resolve().parents[4] / "prompts"
-MAX_ATTEMPTS = 2  # one retry when the output fails validation
+PROMPTS_DIR = Path(__file__).resolve().parents[2] / "prompts"
+MAX_ATTEMPTS = 2
 
 
 def load_prompt(version: str) -> str:
@@ -28,7 +28,6 @@ def load_prompt(version: str) -> str:
     return (PROMPTS_DIR / f"{version}.md").read_text(encoding="utf-8")
 
 
-# Our own delimiters. Evidence cannot close one and pose as the surrounding instructions.
 _DELIMITERS = re.compile(
     r"</(evidence|incident|coverage|engineer_note|analyst_notes)>", re.IGNORECASE
 )
@@ -143,7 +142,7 @@ async def run_investigation(
     base = {"investigation_id": bundle.investigation_id, "prompt_version": prompt_version}
     usage = Usage()
 
-    if not bundle.items:  # nothing to analyse: do not pay a model to guess
+    if not bundle.items:
         return _stopped(
             base,
             None,
@@ -166,7 +165,7 @@ async def run_investigation(
             )
         except ModelError as e:
             if e.retryable and not final_attempt:
-                raise  # let Temporal retry the activity with backoff
+                raise
             return _stopped(
                 base, model, e.reason, usage, prepared.notes, f"The AI step stopped: {e}"[:300]
             )
@@ -181,7 +180,6 @@ async def run_investigation(
             parsed = ModelReport.model_validate_json(call.text)
         except ValidationError as e:
             last_error = str(e)[:500]
-            # Say what was wrong: an identical retry usually fails the same way.
             user = (
                 f"{prepared.user}\n\nYour previous answer was rejected: {last_error}\n"
                 "Return corrected JSON that matches the schema exactly."

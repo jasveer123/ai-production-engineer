@@ -29,7 +29,6 @@ import { useNotificationChannels, useNotificationDeliveries } from './queries';
 
 const KIND_LABEL = { slack: 'Slack', webhook: 'Webhook' } as const;
 
-/** `null` closed, 'new' adding, a channel editing it. */
 type Editing = null | 'new' | NotificationChannel;
 
 export function NotificationChannels() {

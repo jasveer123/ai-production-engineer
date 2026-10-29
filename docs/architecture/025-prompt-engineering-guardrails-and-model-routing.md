@@ -16,7 +16,7 @@ model that is good enough, prompts that fail safe, and a way to prove both.
    parameters). Changing effort between calls invalidates the message cache, so it is set per
    purpose, not per call. Haiku has no server-side refusal fallback, so `fallbacks` is sent only to
    models that accept it.
-2. **Prompts are versioned files** (`prompts/*_v2.md`), static and shared across incidents, so the
+2. **Prompts are versioned files** (`services/ai-worker/prompts/*_v2.md`), static and shared across incidents, so the
    system block carries the cache breakpoint (reads cost a tenth). Evidence goes in the user
    message, long data first and the instruction last. Sections are XML-tagged: role, input,
    method, observations, hypotheses, confidence rubric, grounding, do_not, edge_cases,

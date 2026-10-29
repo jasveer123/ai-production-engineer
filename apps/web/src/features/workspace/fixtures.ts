@@ -1,6 +1,3 @@
-/** Sample workspace data for the static preview. Each section mirrors an API resource the real app will read. */
-
-/** The fixed "now" of this static preview, so every relative number stays consistent. */
 export const PREVIEW_NOW = '2026-10-20T10:47:00Z';
 
 export const WORKSPACE = { name: 'Jasveer Shop', plan: 'Team', aiBudgetUsd: 20, aiSpentUsd: 1.84 };

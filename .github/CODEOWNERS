@@ -1,6 +1,5 @@
-# Review ownership. Every path needs an owner; narrow these as the team grows.
 *                         @jasveer123
 /infrastructure/          @jasveer123
 /.github/                 @jasveer123
-/prompts/                 @jasveer123
+/services/ai-worker/prompts/ @jasveer123
 /services/ai-worker/      @jasveer123

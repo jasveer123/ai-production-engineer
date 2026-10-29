@@ -3,7 +3,6 @@
 import { Banner } from '@/components/ui/banner';
 import { useSetupCapabilities } from '../queries';
 
-/** Cloud tools cannot reach a localhost URL: say so before anyone wastes time. */
 export function LocalUrlWarning() {
   const caps = useSetupCapabilities();
   if (!caps.data?.publicUrlIsLocal) return null;

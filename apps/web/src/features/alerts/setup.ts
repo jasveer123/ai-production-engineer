@@ -1,6 +1,5 @@
 import type { AlertCondition, AlertRoute, AlertSourceKind } from '@ape/api-contracts';
 
-/** Example body for the generic JSON source, also the default "Test a payload" sample. */
 export const SAMPLE_HTTP_ALERT = {
   title: 'Checkout error rate above 5%',
   status: 'firing',
@@ -10,7 +9,6 @@ export const SAMPLE_HTTP_ALERT = {
   metadata: { service: 'checkout', env: 'production' },
 };
 
-/** Ready-to-paste setup for one tool, with this source's URL and token filled in. */
 export function setupSnippet(kind: AlertSourceKind, url: string, token: string): string {
   const q = `${url}?token=${token}`;
   switch (kind) {
@@ -95,7 +93,6 @@ export const OP_LABELS: Record<AlertCondition['op'], string> = {
   not_exists: 'is not set',
 };
 
-/** "severity is critical and label.service contains checkout", or "every alert". */
 export function describeConditions(conditions: AlertCondition[]): string {
   if (conditions.length === 0) return 'every alert';
   return conditions
@@ -107,7 +104,6 @@ export function describeConditions(conditions: AlertCondition[]): string {
     .join(' and ');
 }
 
-/** Route ids after moving one up (-1) or down (+1); unchanged at either end. */
 export function moveRoute(routes: Pick<AlertRoute, 'id'>[], index: number, by: -1 | 1): string[] {
   const ids = routes.map((r) => r.id);
   const to = index + by;
@@ -116,7 +112,6 @@ export function moveRoute(routes: Pick<AlertRoute, 'id'>[], index: number, by: -
   return ids;
 }
 
-/** "a, b , ,c" → ["a", "b", "c"] for the group-by field. */
 export function parseList(text: string): string[] {
   return text
     .split(',')

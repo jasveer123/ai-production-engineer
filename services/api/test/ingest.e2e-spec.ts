@@ -9,9 +9,9 @@ import type {
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type { App } from 'supertest/types';
-import { Writer } from '../src/collector/protobuf';
-import { IngestionProcessor } from '../src/ingestion/ingestion.processor';
-import { ToolsService } from '../src/tools/tools.service';
+import { Writer } from '../src/ingest/collector/domain/protobuf';
+import { IngestionProcessor } from '../src/ingest/ingestion/application/ingestion.processor';
+import { ToolsService } from '../src/connectors/tools/tools.service';
 import { createTestApp, createWorkspace, loginAs, resetDatabase } from './helpers';
 
 const kv = (key: string, value: string) =>
@@ -150,7 +150,7 @@ describe('Telemetry intake, ingest tokens and tools (e2e)', () => {
       .bytes(1, Buffer.from('4bf92f3577b34da6a3ce929d0e0e4736', 'hex'))
       .bytes(2, Buffer.from('00f067aa0ba902b7', 'hex'))
       .string(5, 'POST /checkout')
-      // A real HTTP request ends in a server span; without it the processor waits SERVER_SPAN_WAIT_MS.
+
       .uint(6, 2)
       .fixed64(7, BigInt(Date.now()) * 1_000_000n)
       .fixed64(8, BigInt(Date.now() + 20) * 1_000_000n)

@@ -30,7 +30,6 @@ const WAY_LABEL: Record<string, LogLine['source']> = {
   agent: 'Server agent',
 };
 
-/** API lines to the viewer's shape (it has four levels; trace counts as debug, fatal as error). */
 export function toViewerLine(l: ApiLogLine): LogLine {
   return {
     id: String(l.id),
@@ -52,7 +51,7 @@ export function LiveLogExplorer() {
   const q = params.get('q') ?? '';
   const range = RANGES.find((r) => r.value === params.get('range')) ?? RANGES[1];
   const [live, setLive] = useState(true);
-  // The window end moves forward on every live refresh.
+
   const [to, setTo] = useState(() => Date.now());
 
   useEffect(() => setDraft(q), [q]);

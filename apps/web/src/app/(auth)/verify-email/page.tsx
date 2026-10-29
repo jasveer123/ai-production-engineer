@@ -14,7 +14,6 @@ function Verify() {
   const started = useRef(false);
 
   useEffect(() => {
-    // The link is single-use: run once even under React strict mode.
     if (started.current) return;
     started.current = true;
     if (!token) return setState({ status: 'error', message: 'The link is missing its token.' });

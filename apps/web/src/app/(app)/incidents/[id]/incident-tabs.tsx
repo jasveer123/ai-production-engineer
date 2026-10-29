@@ -3,7 +3,6 @@
 import { usePathname } from 'next/navigation';
 import { TabNav } from '@/components/ui/tab-nav';
 
-/** Client only to read the current path; the tabs themselves are plain links. */
 export function IncidentTabs({ id }: { id: string }) {
   const pathname = usePathname();
   const base = `/incidents/${id}/`;

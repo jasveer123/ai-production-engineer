@@ -1,4 +1,3 @@
-/** The mark: three trace bars from a request waterfall, the last ending in a check. Colors follow the theme. */
 export function LogoMark({ className = 'size-7' }: { className?: string }) {
   return (
     <svg viewBox="0 0 48 48" aria-hidden="true" className={className}>

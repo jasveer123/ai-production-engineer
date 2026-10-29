@@ -8,7 +8,6 @@ import { api } from '@/lib/api';
 
 const key = (ws: string) => ['ws', ws, 'pull-requests'];
 
-/** Every fix pull request in the workspace, newest first (the API returns at most 200). */
 export function usePullRequests() {
   const ws = useWorkspaceId();
   return useQuery({
@@ -18,7 +17,6 @@ export function usePullRequests() {
   });
 }
 
-/** "Sync now": re-reads one PR's status and checks from GitHub. */
 export function useSyncPullRequest() {
   const ws = useWorkspaceId();
   const qc = useQueryClient();

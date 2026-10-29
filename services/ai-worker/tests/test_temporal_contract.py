@@ -10,7 +10,6 @@ from ai_worker.temporal_worker import InvestigateActivities
 
 
 async def test_activity_input_from_typescript_decodes() -> None:
-    # Exactly what the TypeScript workflow sends (camelCase JSON).
     ts_payload = {
         "investigationId": "inv-1",
         "workspaceId": "ws-1",

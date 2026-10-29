@@ -1,10 +1,6 @@
 import Link from 'next/link';
 import { Logo } from '@/components/shell/logo';
 
-/**
- * Product story beside the sign-in forms: one incident's error rate, from spike to verified recovery.
- * The line draws once on load; with reduced motion it is shown complete.
- */
 const BEFORE =
   'M0 192 L60 190 L100 192 L118 186 L130 70 L150 84 L170 62 L195 78 L220 58 L250 74 L260 68 L275 60 L300 80 L325 64 L350 76 L380 66 L400 72';
 const AFTER = 'M400 72 L415 120 L430 170 L445 192 L480 194 L540 193 L600 194';

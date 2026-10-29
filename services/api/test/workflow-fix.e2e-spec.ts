@@ -1,8 +1,5 @@
 /* eslint-disable @typescript-eslint/require-await -- stub activities must return promises */
-/**
- * Workflow B (reproduce -> patch -> validate) with every activity stubbed: checks the control
- * flow, bounded patch attempts, and that AI failures never fail the incident workflow.
- */
+
 import { randomUUID } from 'node:crypto';
 import { ApplicationFailure } from '@temporalio/activity';
 import { Client, Connection } from '@temporalio/client';
@@ -58,7 +55,7 @@ const behaviour = {
   }),
   validationPasses: true,
   pr: { status: 'created', number: 7, url: 'u' } as PullRequestOutcome,
-  // Phase 7: deploy lookups and verification results are consumed in order (last one repeats).
+
   plan: { deployWaitMs: 60_000, deployPollMs: 60_000, maxWindows: 2 },
   deploys: [] as FixDeployResult[],
   evaluations: [] as EvaluateVerificationResult[],
@@ -276,14 +273,14 @@ describe('Workflow B: reproduce, patch, validate (stubbed activities)', () => {
     await handle.signal(pullRequestStatus, { status: 'merged', number: 7, mergeCommitSha: 'm' });
     expect(await handle.result()).toBe('resolved');
     expect(statuses.at(-1)).toBe('monitoring');
-    // Interim checks ran while the window was open, then one final evaluation.
+
     expect(verifyCalls[0]).toBe('begin');
     expect(verifyCalls).toContain('interim');
     expect(verifyCalls.at(-1)).toBe('final');
   });
 
   it('waits for the fix deploy and is woken by the deploy signal, not the poll', async () => {
-    behaviour.deploys = [{ status: 'not_yet' }, FOUND]; // poll interval is a minute
+    behaviour.deploys = [{ status: 'not_yet' }, FOUND];
     const handle = await startAndMerge();
     await waitPhase(handle, 'awaiting_deploy');
     expect(verifyCalls.filter((c) => c === 'find')).toHaveLength(1);
@@ -293,7 +290,7 @@ describe('Workflow B: reproduce, patch, validate (stubbed activities)', () => {
   });
 
   it('stops early when an interim check shows the fix did not work', async () => {
-    behaviour.windowMs = 60_000; // would take a minute without the interim check
+    behaviour.windowMs = 60_000;
     behaviour.interim = outcome('not_recovered');
     const handle = await startAndMerge();
     expect(await handle.result()).toBe('not_recovered');

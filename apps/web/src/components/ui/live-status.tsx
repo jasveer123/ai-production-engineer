@@ -19,7 +19,6 @@ const DOT: Record<LiveState, string> = {
 
 type LiveStatusProps = { state: LiveState; children: ReactNode; detail?: ReactNode };
 
-/** Whether data is arriving right now. The word carries the meaning; the dot only reinforces it. */
 export function LiveStatus({ state, children, detail }: LiveStatusProps) {
   return (
     <span className={cn('inline-flex items-center gap-2 text-[13px] font-semibold', TEXT[state])}>

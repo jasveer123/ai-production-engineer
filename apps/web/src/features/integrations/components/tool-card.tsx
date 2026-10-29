@@ -53,7 +53,6 @@ function Switch({
   );
 }
 
-/** A tool the team already uses. Way 6: its alerts open incidents. Way 7: the AI reads its data. */
 export function ToolCard({ tool }: { tool: ToolView }) {
   const { workspace, can } = useSession();
   const admin = can('admin');

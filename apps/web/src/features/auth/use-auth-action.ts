@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { ApiError, errorMessage } from '@/lib/api';
 
-/** Runs a form action with pending state, a form error and per-field errors from the API. */
 export function useAuthAction() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);

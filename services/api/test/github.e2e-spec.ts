@@ -2,13 +2,16 @@ import type { INestApplication } from '@nestjs/common';
 import type { GitHubAppInfo, Integration, RepoCommit, RepositoryAccess } from '@ape/api-contracts';
 import { eq } from 'drizzle-orm';
 import type { App } from 'supertest/types';
-import { createDatabase } from '../src/db/client';
-import { auditEvents, integrations } from '../src/db/schema';
-import { GitHubAppClient, GitHubError, type GitHubInstallation } from '../src/github/github-app';
-import { GitHubService } from '../src/github/github.service';
+import { createDatabase } from '../src/core/db/client';
+import { auditEvents, integrations } from '../src/core/db/schema';
+import {
+  GitHubAppClient,
+  GitHubError,
+  type GitHubInstallation,
+} from '../src/connectors/github/infrastructure/github-app';
+import { GitHubService } from '../src/connectors/github/github.service';
 import { createTestApp, createWorkspace, loginAs, resetDatabase } from './helpers';
 
-/** In-memory stand-in for GitHub. `uninstalled` simulates the App being removed. */
 class FakeGitHub extends GitHubAppClient {
   uninstalled = new Set<number>();
   constructor() {
@@ -92,8 +95,6 @@ describe('GitHub App integration (e2e)', () => {
     expect(integration).toMatchObject({ provider: 'github', status: 'connected' });
     expect(integration.scope).toContain('acct42/demo-shop');
 
-    // Claimed installations are no longer offered. Connecting one again in the same workspace
-    // updates it (the "Manage repositories" page relies on this) and never makes a second row.
     const after = (await owner.get(`/workspaces/${ws}/github/app`).expect(200))
       .body as GitHubAppInfo;
     expect(after.installations.map((i) => i.id)).toEqual([43]);

@@ -7,7 +7,6 @@ import { Icon } from '@/components/ui/icon';
 import { cn } from '@/lib/cn';
 import { DEFAULT_ANSWER, FINDER_OPTIONS, recommend, type FinderAnswer } from '../finder';
 
-/** One question, one recommendation, so nobody has to understand all seven ways first. */
 export function WayFinder() {
   const [answer, setAnswer] = useState<FinderAnswer>(DEFAULT_ANSWER);
   const rec = recommend(answer);

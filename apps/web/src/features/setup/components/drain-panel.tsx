@@ -28,7 +28,6 @@ function useRun<T>() {
   return { pending, error, result, run, setError };
 }
 
-/** Way 5 without copying URLs: we create the drain in Vercel, Heroku or Render. */
 export function DrainPanel() {
   const { workspace, can } = useSession();
   const caps = useSetupCapabilities();

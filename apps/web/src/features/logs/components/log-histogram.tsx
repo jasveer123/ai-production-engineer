@@ -4,7 +4,6 @@ type LogHistogramProps = { buckets: LogBucket[]; labels: [string, string, string
 
 const HEIGHT = 96;
 
-/** Logs per time bucket, errors overlaid, drawn to one scale. */
 export function LogHistogram({ buckets, labels }: LogHistogramProps) {
   const max = Math.max(1, ...buckets.map((b) => b.total));
   const width = buckets.length * 30;

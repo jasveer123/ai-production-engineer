@@ -12,7 +12,7 @@ export function Providers({ children }: { children: ReactNode }) {
           queries: {
             staleTime: 15_000,
             refetchOnWindowFocus: true,
-            // 4xx answers will not change on retry.
+
             retry: (count, err) =>
               !(err instanceof ApiError && err.status >= 400 && err.status < 500) && count < 2,
           },

@@ -27,7 +27,6 @@ const COPY = {
   },
 };
 
-/** Opens a pull request in the customer's repo that does the setup for them. */
 export function SetupPrPanel({ kind }: { kind: 'agent' | 'deploy' }) {
   const { workspace, can } = useSession();
   const overview = useGitHubOverview();
@@ -36,7 +35,7 @@ export function SetupPrPanel({ kind }: { kind: 'agent' | 'deploy' }) {
   const services = useServices();
   const discovered = useDiscoveredServices();
   const [repo, setRepo] = useState<string | null>(null);
-  // null until the person types, so the name keeps following the selected repository.
+
   const [service, setService] = useState<string | null>(null);
   const open = useMutation({
     mutationFn: (body: Record<string, string>) =>
@@ -170,7 +169,7 @@ export function SetupPrPanel({ kind }: { kind: 'agent' | 'deploy' }) {
             maxLength={100}
             list={`${kind}-service-options`}
             value={service ?? names[0] ?? ''}
-            // Spaces are not allowed in service names; turn them into dashes as the person types.
+
             onChange={(e) => setService(e.target.value.replace(/\s+/g, '-'))}
             title="Letters, numbers, dots, dashes and underscores only, e.g. checkout-api"
           />

@@ -12,7 +12,6 @@ import { formatAgo } from '@/lib/format';
 import { useIngestOverview } from '../queries';
 import { useRevealedToken } from '../token-context';
 
-/** The workspace ingest token every way uses. Shown in full only right after create or rotate. */
 export function TokenPanel() {
   const { workspace, can } = useSession();
   const overview = useIngestOverview();

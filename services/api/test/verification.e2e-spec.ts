@@ -1,12 +1,8 @@
-/**
- * Recovery verification activities (Phase 7) against a real database: finding the deploy that
- * contains the fix, the baseline, and the recovered / not recovered / inconclusive decisions.
- */
 import type { INestApplication } from '@nestjs/common';
 import type { IncidentVerification } from '@ape/api-contracts';
 import { and, eq } from 'drizzle-orm';
 import type { App } from 'supertest/types';
-import { createDatabase } from '../src/db/client';
+import { createDatabase } from '../src/core/db/client';
 import {
   auditEvents,
   deployments,
@@ -18,20 +14,22 @@ import {
   fixProposals,
   investigations,
   verificationRuns,
-} from '../src/db/schema';
-import { GitHubAppClient, type GitHubInstallation } from '../src/github/github-app';
-import { GitHubService } from '../src/github/github.service';
-import { JaegerPoller } from '../src/ingestion/jaeger.poller';
-import { OutboxPublisher } from '../src/temporal/outbox-publisher.service';
-import { TemporalService } from '../src/temporal/temporal.service';
-import { VerifyActivitiesService } from '../src/verification/verify-activities.service';
+} from '../src/core/db/schema';
+import {
+  GitHubAppClient,
+  type GitHubInstallation,
+} from '../src/connectors/github/infrastructure/github-app';
+import { GitHubService } from '../src/connectors/github/github.service';
+import { JaegerPoller } from '../src/ingest/ingestion/application/jaeger.poller';
+import { OutboxPublisher } from '../src/core/temporal/outbox-publisher.service';
+import { TemporalService } from '../src/core/temporal/temporal.service';
+import { VerifyActivitiesService } from '../src/modules/verification/activities/verify-activities.service';
 import { createTestApp, createWorkspace, loginAs, resetDatabase } from './helpers';
 
 const REPO = 'acct7/demo-shop';
 const MERGE = 'aaaaaaa1111111111111111111111111111111aa';
 const MIN = 60_000;
 
-/** GitHub that knows which deployed commits contain the merge commit. */
 class FakeGitHub extends GitHubAppClient {
   descendants = new Set<string>();
   compareCalls = 0;
@@ -90,7 +88,6 @@ describe('Recovery verification (e2e)', () => {
     await app.close();
   });
 
-  /** An incident in monitoring whose fix PR merged 3 hours ago, with 30 errors/h before it. */
   async function setup(opts: { jaeger?: boolean } = {}) {
     const owner = await loginAs(app, 'owner@verify.test');
     const ws = (await createWorkspace(owner, 'Verify')).id;
@@ -149,7 +146,7 @@ describe('Recovery verification (e2e)', () => {
       mergeCommitSha: MERGE,
       mergedAt,
     });
-    // 30 errors in the hour before the merge: the pre-fix rate.
+
     await errorsAt(ws, inc!.id, mergedAt.getTime() - 60 * MIN, 30, 2 * MIN);
     return { owner, ws, incidentId: inc!.id, input: { workspaceId: ws, incidentId: inc!.id } };
   }
@@ -191,8 +188,8 @@ describe('Recovery verification (e2e)', () => {
   it('finds the first deploy that contains the merge commit, not earlier or unrelated ones', async () => {
     const { ws, input } = await setup();
     const merged = Date.now() - 3 * 60 * MIN;
-    await deploy(ws, 'bbbbbbb', merged - 30 * MIN, 'v1.1.0'); // before the merge
-    await deploy(ws, 'ccccccc', merged + 5 * MIN, 'v1.1.1'); // after, but without the fix
+    await deploy(ws, 'bbbbbbb', merged - 30 * MIN, 'v1.1.0');
+    await deploy(ws, 'ccccccc', merged + 5 * MIN, 'v1.1.1');
     expect(await verify.findFixDeploy({ ...input, mergeCommitSha: MERGE })).toEqual({
       status: 'not_yet',
     });
@@ -225,8 +222,8 @@ describe('Recovery verification (e2e)', () => {
     const { ws, input, incidentId, owner } = await setup();
     const d = await deploy(ws, MERGE, Date.now() - 2 * 60 * MIN, 'v1.2.0');
     const run = await verify.startVerification({ ...input, deploymentId: d.id, window: 1 });
-    expect(run.waitMs).toBe(0); // the 30-minute window is already in the past
-    // Retrying the activity reuses the row.
+    expect(run.waitMs).toBe(0);
+
     expect(
       (await verify.startVerification({ ...input, deploymentId: d.id, window: 1 }))
         .verificationRunId,
@@ -252,7 +249,6 @@ describe('Recovery verification (e2e)', () => {
       );
     expect(audit).toHaveLength(1);
 
-    // A retried evaluation reports the stored result and changes nothing.
     expect(
       await verify.evaluateVerification({
         verificationRunId: run.verificationRunId,
@@ -277,7 +273,7 @@ describe('Recovery verification (e2e)', () => {
     const run = await verify.startVerification({ ...input, deploymentId: d.id, window: 1 });
     const result = await verify.evaluateVerification({
       verificationRunId: run.verificationRunId,
-      interim: true, // an interim check is enough to conclude this
+      interim: true,
       finalWindow: false,
     });
     expect(result.outcome).toBe('not_recovered');
@@ -288,11 +284,11 @@ describe('Recovery verification (e2e)', () => {
 
   it('extends an inconclusive window, then ends inconclusive on the last one', async () => {
     const { ws, input, incidentId } = await setup({ jaeger: true });
-    // A quiet incident: 2 errors in the hour before, so ~1 expected per 30-minute window.
+
     await db.delete(incidentEvents).where(eq(incidentEvents.incidentId, incidentId));
     await errorsAt(ws, incidentId, Date.now() - 3.5 * 60 * MIN, 2, MIN);
     const d = await deploy(ws, MERGE, Date.now() - 2 * 60 * MIN, 'v1.2.0');
-    traffic.mockResolvedValue(3); // too little traffic to call it
+    traffic.mockResolvedValue(3);
 
     const w1 = await verify.startVerification({ ...input, deploymentId: d.id, window: 1 });
     const r1 = await verify.evaluateVerification({

@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 if (existsSync('.env')) process.loadEnvFile('.env');
-// Telemetry must start before Nest and pg are imported so they get instrumented.
-import { startTelemetry } from './telemetry';
+
+import { startTelemetry } from './core/tracing';
 startTelemetry();
 
 import { NestFactory } from '@nestjs/core';

@@ -12,7 +12,6 @@ type DialogProps = {
   wide?: boolean;
 };
 
-/** Native modal <dialog>: focus trap, Escape and focus return come from the browser. */
 export function Dialog({ open, onClose, title, description, children, wide }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -21,7 +20,7 @@ export function Dialog({ open, onClose, title, description, children, wide }: Di
     if (!el) return;
     if (open && !el.open) {
       el.showModal();
-      // showModal focuses the first focusable element (the close button); start on the form instead.
+
       el.querySelector<HTMLElement>('input:not([type=hidden]), select, textarea')?.focus();
     }
     if (!open && el.open) el.close();

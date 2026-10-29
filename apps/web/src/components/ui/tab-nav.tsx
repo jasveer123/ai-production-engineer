@@ -5,7 +5,6 @@ export type TabNavItem = { href: string; label: string; count?: string | number 
 
 type TabNavProps = { label: string; items: TabNavItem[]; current: string };
 
-/** Tabs that are real links, so every tab has its own URL and works without JavaScript. */
 export function TabNav({ label, items, current }: TabNavProps) {
   return (
     <nav aria-label={label} className="max-w-full overflow-x-auto">

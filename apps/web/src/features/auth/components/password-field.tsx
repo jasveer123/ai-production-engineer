@@ -12,7 +12,6 @@ type Props = {
   showRules?: boolean;
 };
 
-/** Password with a show/hide toggle. New passwords show the length rule. */
 export function PasswordField({ id, label = 'Password', autoComplete, error, showRules }: Props) {
   const [visible, setVisible] = useState(false);
   return (

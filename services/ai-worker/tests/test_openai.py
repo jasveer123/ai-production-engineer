@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from typing import Any
 
-import httpx2 as httpx  # the openai SDK is built on httpx2
+import httpx2 as httpx
 import openai
 import pytest
 from pydantic import SecretStr

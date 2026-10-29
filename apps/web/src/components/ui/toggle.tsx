@@ -8,7 +8,6 @@ type ToggleProps = {
   disabled?: boolean;
 };
 
-/** A native checkbox styled as a switch. Works without JavaScript and with the keyboard. */
 export function Toggle({ id, label, description, defaultChecked, disabled }: ToggleProps) {
   return (
     <label htmlFor={id} className="flex cursor-pointer items-start gap-3 text-sm leading-5">

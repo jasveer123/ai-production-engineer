@@ -1,6 +1,5 @@
 import { cn } from '@/lib/cn';
 
-/** Line icons on a 24px grid, 1.75 stroke, drawn with currentColor (design system: Iconography). */
 const PATHS = {
   check: <path d="M20 6L9 17l-5-5" />,
   clock: (

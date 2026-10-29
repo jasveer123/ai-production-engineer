@@ -17,7 +17,6 @@ import { incidentPrefix, useIncident } from '../queries';
 import { SeverityBadge } from './incident-badges';
 import { IncidentStatusBadge } from './incident-status-badge';
 
-/** Title, severity, status, service and timestamps for one incident (FRD §7.2). */
 export function IncidentHeader({ id }: { id: string }) {
   const incident = useIncident(id);
   const { can } = useSession();
@@ -99,7 +98,7 @@ function ChangeStatusDialog({
     mutationFn: (body: { to: IncidentStatus; reason?: string }) =>
       api<Incident>(`/workspaces/${workspace.id}/incidents/${incident.id}/transitions`, {
         method: 'POST',
-        // The API rejects the change if someone else moved the incident since this page loaded.
+
         json: { ...body, expectedVersion: incident.version },
       }),
     onSuccess: () => {

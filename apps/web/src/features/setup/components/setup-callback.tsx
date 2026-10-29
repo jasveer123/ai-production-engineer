@@ -26,7 +26,6 @@ const BACK: Record<string, string> = {
   heroku: '/integrations/log-drain/',
 };
 
-/** Where providers send people back after they approve. Finishes the setup, then shows the result. */
 export function SetupCallback({ provider }: { provider: string }) {
   const { workspace } = useSession();
   const params = useSearchParams();
@@ -38,7 +37,6 @@ export function SetupCallback({ provider }: { provider: string }) {
   const name = NAMES[provider] ?? provider;
 
   useEffect(() => {
-    // The code is single-use: run once, also under React strict mode.
     if (started.current) return;
     started.current = true;
     const state = params.get('state') ?? takeStoredState(provider);
@@ -110,7 +108,6 @@ export function SetupCallback({ provider }: { provider: string }) {
   );
 }
 
-/** After "Sign in with Heroku": choose which apps send logs. */
 export function HerokuAppPicker({ apps, apiKey }: { apps: string[]; apiKey?: string }) {
   const { workspace } = useSession();
   const [picked, setPicked] = useState<string[]>(apps.slice(0, 1));

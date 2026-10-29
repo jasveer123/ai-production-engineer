@@ -19,7 +19,7 @@ import { useIntegrations } from '../queries';
 
 const CARD =
   'flex flex-col gap-4 rounded-lg border border-line bg-surface-raised p-6 shadow-raised max-sm:p-4';
-/** Pinned to the bottom so the three cards' footers line up. */
+
 const FOOTER =
   'mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3';
 const ICON_BUTTON =
@@ -35,7 +35,6 @@ const STATUS_BADGE: Record<
   disconnected: { tone: 'neutral', text: 'Disconnected' },
 };
 
-/** The deploy step for GitHub Actions: an HMAC-signed JSON body, like the server verifies. */
 export function deployActionStep(service = 'checkout-api'): string {
   return `- name: Tell AI Production Engineer about this deploy
   env:
@@ -86,7 +85,7 @@ function GitHubCard({ row }: { row: Integration | undefined }) {
   const test = useMutation({
     mutationFn: (id: string) =>
       api(`/workspaces/${workspace.id}/integrations/${id}/test`, { method: 'POST' }),
-    // Also refreshes the repository list and permission check shown on the card.
+
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ws', workspace.id] }),
     onError: (e) => setError(errorMessage(e)),
   });
@@ -260,7 +259,6 @@ function DeployCard({ row }: { row: Integration | undefined }) {
   );
 }
 
-/** The repositories the AI can read, plus one short notice per thing GitHub is not allowing. */
 function GitHubConnectedDetails() {
   const overview = useGitHubOverview();
   if (overview.isPending) return <p className="m-0 text-[13px] text-ink-muted">Checking GitHub…</p>;

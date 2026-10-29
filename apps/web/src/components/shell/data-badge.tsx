@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import { useSession } from '@/features/auth/session';
 import { isLiveRoute } from './nav-config';
 
-/** Says plainly which pages still show sample data while they are being wired to the API. */
 export function DataBadge() {
   const pathname = usePathname();
   const { me } = useSession();

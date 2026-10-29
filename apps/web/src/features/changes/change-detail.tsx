@@ -16,7 +16,6 @@ import { useCommits } from './queries';
 
 const LINK = 'text-brand underline underline-offset-[3px]';
 
-/** One commit of a service: its details from GitHub and the deploys that shipped it. */
 export function ChangeDetail({ sha }: { sha: string }) {
   const serviceId = useSearchParams().get('service') ?? '';
   const services = useServices();
@@ -56,12 +55,11 @@ export function ChangeDetail({ sha }: { sha: string }) {
     );
   }
 
-  // Without GitHub access the deploy markers still show; only the commit details are missing.
   const marked = commits.isSuccess
     ? markCommits(commits.data, deploys.data).find((m) => sameSha(m.commit.sha, sha))
     : undefined;
   const github = `https://github.com/${service.repositoryFullName}/commit/${sha}`;
-  // Deploys of this commit, even when it is older than the 20 commits we list.
+
   const shipped = deploys.data.filter((d) => sameSha(d.commitSha, sha));
   const badge = marked ? STATE[marked.state] : null;
 

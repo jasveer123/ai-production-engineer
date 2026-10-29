@@ -1,7 +1,3 @@
-/**
- * End-to-end runner test against the real demo-shop checkout (when present next to this repo):
- * builds the deps image, runs the suite offline, and runs one overlay test file.
- */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {

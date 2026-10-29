@@ -15,7 +15,6 @@ const eslintConfig = [
     ignores: ['node_modules/**', '.next/**', 'out/**', 'build/**', 'next-env.d.ts'],
   },
   {
-    // Engineering standards (docs/engineering/CODE-STANDARDS.md). Warnings first, then ratchet.
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/consistent-type-imports': ['warn', { fixStyle: 'inline-type-imports' }],

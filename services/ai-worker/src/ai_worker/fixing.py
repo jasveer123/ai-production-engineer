@@ -292,14 +292,14 @@ async def _structured[M: (TestOut, PatchOut)](
 ) -> tuple[M | None, str | None, dict[str, Any]]:
     usage: dict[str, Any] = {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
     last = "no attempt"
-    for _ in range(2):  # one retry on invalid output
+    for _ in range(2):
         try:
             call = await provider.structured(
                 system=system, user=user, schema=schema, purpose=model_cls.__name__
             )
         except ModelError as e:
             if e.retryable and not final_attempt:
-                raise  # Temporal retries; on its last try we report the reason instead
+                raise
             return None, f"{e.reason}: {str(e)[:200]}", usage
         usage["calls"] += 1
         usage["input_tokens"] += call.input_tokens

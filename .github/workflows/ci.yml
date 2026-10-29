@@ -33,15 +33,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @ape/config --filter @ape/api-contracts --filter @ape/temporal-workflows build
-      # Temporal dev server for the workflow integration tests.
-      # Base image for the sandbox isolation tests (they start real containers).
       - run: docker pull node:22-slim
       - name: Start Temporal
         run: |
           curl -sSf https://temporal.download/cli.sh | sh
           ~/.temporalio/bin/temporal server start-dev --headless --log-level warn &
           for i in $(seq 1 30); do ~/.temporalio/bin/temporal operator cluster health && break; sleep 1; done
-          # The e2e tests run in their own namespace (services/api/test/env.ts).
           ~/.temporalio/bin/temporal operator namespace create --namespace ape-test
       - run: pnpm format:check
       - run: pnpm -r run lint
@@ -64,7 +61,6 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy src tests
       - run: uv run pytest -q
-      # The evaluation harness on its scripted reference answers (no model or key needed).
       - run: uv run python -m ai_worker.evaluation run --no-save --min-pass-rate 1
 
   secrets:
@@ -73,15 +69,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # Scan the full git history with the gitleaks container (no action license or API needed).
       - name: gitleaks
         run: >-
           docker run --rm -v "$PWD:/repo"
           -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0='*'
           ghcr.io/gitleaks/gitleaks:v8.21.2 git /repo --redact --verbose --exit-code 1
 
-  # Import boundaries (.dependency-cruiser.cjs). Known violations live in
-  # .dependency-cruiser-known-violations.json; anything new fails the build.
   boundaries:
     runs-on: ubuntu-latest
     steps:
@@ -94,7 +87,6 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm boundaries
 
-  # Unused files, exports and dependencies. Non-blocking until the first cleanup lands.
   knip:
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -115,7 +107,6 @@ jobs:
           name: knip-report
           path: knip-report.txt
 
-  # Conventional Commits on the PR title (squash merges use it as the commit message).
   pr-title:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -132,8 +123,6 @@ jobs:
           TITLE: ${{ github.event.pull_request.title }}
         run: printf '%s\n' "$TITLE" | pnpm commitlint
 
-  # Build every image without pushing so packaging bugs (a missing runtime dependency, a bad
-  # COPY) fail here and not in Deploy. amd64 keeps it fast; Deploy builds arm64.
   docker-build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -158,52 +147,6 @@ jobs:
           tags: ape-${{ matrix.name }}:ci
           cache-from: type=gha,scope=ci-${{ matrix.name }}
           cache-to: type=gha,scope=ci-${{ matrix.name }},mode=max
-      # Loading the module graph fails on a dependency missing from the runtime image.
       - name: Smoke test api image
         if: matrix.name == 'api'
         run: docker run --rm ape-api:ci node -e "require('./dist/app.module')"
-
-  # Playwright skeleton. Runs only when web or API code changes, and only once
-  # apps/web/playwright.config.ts exists (the web owners add the tests). Non-blocking until
-  # there are stable tests; then drop continue-on-error and require it.
-  e2e-changes:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    permissions: { contents: read, pull-requests: read }
-    outputs:
-      run: ${{ steps.filter.outputs.e2e }}
-    steps:
-      - uses: actions/checkout@v4
-      - id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            e2e:
-              - 'apps/web/**'
-              - 'services/api/**'
-              - 'packages/**'
-              - '.github/workflows/ci.yml'
-  e2e:
-    needs: e2e-changes
-    if: needs.e2e-changes.outputs.run == 'true'
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Playwright
-        run: |
-          if [ ! -f apps/web/playwright.config.ts ]; then echo "No Playwright config yet; skipping."; exit 0; fi
-          pnpm --filter @ape/web exec playwright install --with-deps chromium
-          pnpm --filter @ape/web exec playwright test
-      - uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
-        with:
-          name: playwright-report
-          path: apps/web/playwright-report
-          if-no-files-found: ignore

@@ -15,13 +15,10 @@ class Settings(BaseSettings):
     otel_exporter_otlp_endpoint: str = "http://localhost:4318"
     otel_enabled: bool = True
 
-    # Temporal (ADR-015): this worker serves the `ai` task queue.
     temporal_address: str = "localhost:7233"
     temporal_namespace: str = "default"
     temporal_task_queue: str = "ai"
 
-    # Object storage for evidence bundles and reports (RustFS locally, S3 in deployment).
-    # On AWS set S3_USE_AWS=true: real S3 with the instance role, no endpoint or static keys.
     s3_use_aws: bool = False
     s3_region: str = "us-east-1"
     s3_endpoint: str = "http://localhost:9000"
@@ -29,33 +26,21 @@ class Settings(BaseSettings):
     s3_secret_key: SecretStr = SecretStr("ape-minio-secret")
     s3_bucket: str = "ape-artifacts"
 
-    # Model gateway (ADR-016, ADR-024). No key -> investigations end as needs_review.
-    # "auto" picks Anthropic when its key is set, else Gemini when its key is set.
-    # "openai" is only used when chosen explicitly (Phase 9 comparison, ADR-021).
     ai_provider: Literal["auto", "anthropic", "gemini", "openai"] = "auto"
     anthropic_api_key: SecretStr | None = None
-    # Cheapest Claude that passes the evals ($0.10 / $0.50 per million tokens). Re-run
-    # `make eval` before changing it; ADR-024 records the comparison.
     ai_model: str = "claude-haiku-5-5"
-    ai_effort: str = "medium"  # low | medium | high | xhigh | max
-    # Writing tests and patches is rarer and needs more care than reading evidence, so it can use
-    # a stronger model. Unset means "same as ai_model / ai_effort".
+    ai_effort: str = "medium"
     ai_fix_model: str | None = None
     ai_fix_effort: str | None = None
     ai_max_tokens: int = 16000
     ai_timeout_seconds: float = 240.0
-    # Refuse bundles larger than this (rough chars/4 token estimate) instead of truncating
-    # silently. 100K keeps every call under Haiku 5.5's cheaper prompt tier.
     ai_max_input_tokens: int = 100_000
 
-    # Google Gemini (free tier works; capacity errors are retried by Temporal).
     gemini_api_key: SecretStr | None = None
     gemini_model: str = "gemini-3.5-flash"
-    # Tried in order when the model above is overloaded (503) or over its free quota (429).
     gemini_timeout_seconds: float = 90.0
     gemini_fallback_models: list[str] = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash"]
 
-    # OpenAI (Phase 9 model comparison). Never picked by "auto"; set AI_PROVIDER=openai to use it.
     openai_api_key: SecretStr | None = None
     openai_model: str | None = None
 

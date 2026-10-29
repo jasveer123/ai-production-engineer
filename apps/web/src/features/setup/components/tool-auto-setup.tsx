@@ -23,7 +23,6 @@ type FieldSpec = {
   options?: string[];
 };
 
-/** Admin credentials used once to configure the tool; only the read-only result is stored. */
 const AUTO: Partial<Record<ToolId, { help: string; fields: FieldSpec[] }>> = {
   grafana: {
     help: 'A service account token with the Editor role. We create the alert contact point and a policy route, and read Loki through Grafana.',

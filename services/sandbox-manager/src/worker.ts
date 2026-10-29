@@ -1,7 +1,3 @@
-/**
- * Sandbox worker (ADR-007): the only process that starts sandbox containers. It needs Docker and
- * object storage, and deliberately has no database or GitHub credentials.
- */
 import { NativeConnection, Worker } from '@temporalio/worker';
 import { TASK_QUEUES } from '@ape/temporal-workflows';
 import { activities } from './activities';
@@ -17,7 +13,7 @@ async function main() {
     namespace: process.env.TEMPORAL_NAMESPACE ?? 'default',
     taskQueue: TASK_QUEUES.sandbox,
     activities,
-    // Bounds concurrent containers on this host.
+
     maxConcurrentActivityTaskExecutions: 2,
   });
   console.log(`Sandbox worker polling task queue "${TASK_QUEUES.sandbox}"`);

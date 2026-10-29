@@ -3,12 +3,12 @@ import { gzipSync } from 'node:zlib';
 export interface TransportOptions {
   endpoint: string;
   token: string;
-  /** Items per request. */
+
   batchSize: number;
   flushIntervalMs: number;
   maxQueue: number;
   sdkHeader: string;
-  /** Called with internal problems; never throws into the app. */
+
   warn: (message: string) => void;
   fetch?: typeof fetch;
 }
@@ -17,10 +17,6 @@ type Kind = 'logs' | 'errors';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms).unref?.());
 
-/**
- * Batches items per endpoint and posts them as JSON arrays. Bounded queue (oldest dropped),
- * retries with backoff on network errors, 429 and 5xx, gives up on other 4xx.
- */
 export class Transport {
   private readonly queues: Record<Kind, unknown[]> = { logs: [], errors: [] };
   private timer: NodeJS.Timeout | null = null;
@@ -46,7 +42,7 @@ export class Transport {
       if (this.dropped++ === 0)
         this.opts.warn(`queue full (${this.opts.maxQueue}); dropping the oldest items`);
     }
-    // Errors go out right away; logs wait for a batch or the timer.
+
     if (kind === 'errors' || q.length >= this.opts.batchSize) void this.flush();
     else this.schedule();
   }
@@ -60,7 +56,6 @@ export class Transport {
     this.timer.unref();
   }
 
-  /** Sends everything queued so far. Concurrent calls are chained, never parallel. */
   flush(): Promise<void> {
     if (this.timer) {
       clearTimeout(this.timer);

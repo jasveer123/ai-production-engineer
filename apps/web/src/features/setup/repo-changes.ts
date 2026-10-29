@@ -2,10 +2,6 @@ import type { GitHubSelectView } from '@ape/api-contracts';
 
 type Account = GitHubSelectView['accounts'][number];
 
-/**
- * Compares what each GitHub account has saved for this workspace with what is ticked now.
- * Accounts to connect are saved with the new list; connected accounts with nothing ticked are disconnected.
- */
 export function planRepoChanges(accounts: Account[], picked: Record<number, string[]>) {
   const changes = accounts.map((account) => {
     const saved = account.connected ? account.selected : [];

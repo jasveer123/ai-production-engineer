@@ -3,7 +3,7 @@ dist
 .next
 coverage
 pnpm-lock.yaml
-services/ai-worker
 *.md
-services/api/drizzle/meta
+services/ai-worker
+services/api/drizzle
 .dependency-cruiser-known-violations.json

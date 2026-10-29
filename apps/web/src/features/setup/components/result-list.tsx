@@ -1,6 +1,5 @@
 import { Banner } from '@/components/ui/banner';
 
-/** What a setup did and what is left, in words. */
 export function ResultList({
   done,
   todo,

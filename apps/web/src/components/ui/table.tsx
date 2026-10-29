@@ -1,7 +1,6 @@
 import type { ReactNode, TdHTMLAttributes, ThHTMLAttributes } from 'react';
 import { cn } from '@/lib/cn';
 
-/** Scrolls sideways inside its own box on phones; the page never scrolls horizontally. */
 export function Table({ children, label }: { children: ReactNode; label: string }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-line bg-surface-raised shadow-raised">

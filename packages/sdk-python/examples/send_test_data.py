@@ -1,4 +1,3 @@
-# APE_TOKEN=ape_live_... APE_ENDPOINT=http://localhost:4000 python examples/send_test_data.py
 import json
 
 import ape_agent

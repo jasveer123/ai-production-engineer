@@ -165,14 +165,12 @@ const SEEDS: Seed[] = [
   },
 ];
 
-/** Sample log lines for the static preview, newest first. */
 export const LOG_LINES: LogLine[] = SEEDS.map((seed, i) => ({
   id: `log-${i}`,
   source: 'OpenTelemetry',
   ...seed,
 }));
 
-/** Lines replayed by the live tail demo, with fresh timestamps added at runtime. */
 export const LIVE_TAIL_SAMPLES: Array<Pick<LogLine, 'level' | 'service' | 'message' | 'source'>> = [
   {
     level: 'info',

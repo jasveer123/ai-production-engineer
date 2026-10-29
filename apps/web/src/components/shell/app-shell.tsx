@@ -21,9 +21,7 @@ function Navigation({ main }: { main: NavItem[] }) {
   );
 }
 
-/** The frame of every screen: sidebar on desktop, a menu on phones, and the top bar. */
 export function AppShell({ children }: { children: ReactNode }) {
-  // Menu counts will come back once Incidents and Changes read live data.
   const main = MAIN_NAV;
   return (
     <div className="grid min-h-dvh grid-cols-[248px_minmax(0,1fr)] max-[860px]:grid-cols-1">

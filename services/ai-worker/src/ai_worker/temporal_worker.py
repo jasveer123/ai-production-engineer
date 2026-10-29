@@ -18,8 +18,6 @@ from ai_worker.telemetry import setup_tracing
 
 log = logging.getLogger("ai_worker")
 
-# The workflow gives every AI activity this many tries (workflows/temporal/src/workflows.ts).
-# On the last one a model outage ends the step with a reason a person can read.
 MAX_ACTIVITY_ATTEMPTS = 3
 
 
@@ -113,7 +111,7 @@ async def main() -> None:
         client,
         task_queue=settings.temporal_task_queue,
         activities=[acts.investigate, acts.generate_test, acts.generate_patch],
-        max_concurrent_activities=4,  # bounds parallel model spend
+        max_concurrent_activities=4,
     )
     log.info(
         "AI worker polling task queue %r (provider %s, model %s)",

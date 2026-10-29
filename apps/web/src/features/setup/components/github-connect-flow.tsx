@@ -18,7 +18,6 @@ const STEPS = [
   'You come back here to confirm the repositories and connect them.',
 ];
 
-/** Not connected yet: send the admin to GitHub, then to the repository picker. */
 export function GitHubConnectFlow() {
   const { workspace, me, switchWorkspace } = useSession();
   const reset = useResetSession();

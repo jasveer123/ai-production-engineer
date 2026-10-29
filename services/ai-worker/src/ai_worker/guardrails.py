@@ -20,10 +20,6 @@ from dataclasses import dataclass, field
 
 from ai_worker.report import Hypothesis, ModelReport, Rejected, SuspectedLocation
 
-# ---------------------------------------------------------------------------------------------
-# Secrets
-# ---------------------------------------------------------------------------------------------
-
 _NOT_ALREADY_REDACTED = r"(?!\[REDACTED)"
 
 SECRET_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
@@ -56,7 +52,7 @@ def redact_text(text: str) -> tuple[str, Counter[str]]:
     def sub(kind: str) -> Callable[[re.Match[str]], str]:
         def inner(m: re.Match[str]) -> str:
             found[kind] += 1
-            if kind == "secret":  # keep the name, drop the value: "password=[REDACTED:secret]"
+            if kind == "secret":
                 return f"{m.group(1)}{m.group(2)}{m.group(3)}[REDACTED:secret]"
             return f"[REDACTED:{kind}]"
 
@@ -66,10 +62,6 @@ def redact_text(text: str) -> tuple[str, Counter[str]]:
         text = pattern.sub(sub(kind), text)
     return text, found
 
-
-# ---------------------------------------------------------------------------------------------
-# Prompt injection
-# ---------------------------------------------------------------------------------------------
 
 INJECTION_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     (
@@ -137,7 +129,6 @@ def screen_item(ref: str, title: str, content: str) -> ScreenedItem:
     redacted_title, found_title = redact_text(title)
     found.update(found_title)
     capped, omitted = cap_item(redacted)
-    # Scan the original text: redaction cannot hide an instruction, and the cap must not either.
     return ScreenedItem(
         ref=ref,
         content=capped,
@@ -146,10 +137,6 @@ def screen_item(ref: str, title: str, content: str) -> ScreenedItem:
         omitted_chars=omitted,
     )
 
-
-# ---------------------------------------------------------------------------------------------
-# Output guards
-# ---------------------------------------------------------------------------------------------
 
 CODE_KINDS = {"code"}
 STRONG_KINDS = {"code", "error_event", "trace", "commit"}
@@ -261,7 +248,7 @@ def apply_evidence_guard(
             rejected.append(Rejected(kind="hypothesis", text=h.summary, reason=reason))
         else:
             hypotheses.append(h)
-    for i, h in enumerate(hypotheses, start=1):  # keep ranks contiguous after drops
+    for i, h in enumerate(hypotheses, start=1):
         h.rank = i
 
     return (
@@ -276,7 +263,6 @@ def guard_report(report: ModelReport, items: list[tuple[str, str, str, str]]) ->
     corpus = "\n".join(f"{title}\n{content}" for _, _, title, content in items)
     has_code = any(k in CODE_KINDS for k in kinds.values())
 
-    # 1. Claims must cite evidence that exists.
     cited, rejected = apply_evidence_guard(report, set(kinds))
     out = GuardResult(report=cited, rejected=rejected)
 
@@ -289,7 +275,6 @@ def guard_report(report: ModelReport, items: list[tuple[str, str, str, str]]) ->
 
     hypotheses: list[Hypothesis] = []
     for h in cited.hypotheses:
-        # 2. A source cannot both support and contradict the same hypothesis.
         both = set(h.supporting_evidence) & set(h.contradicting_evidence)
         if both:
             h.contradicting_evidence = [e for e in h.contradicting_evidence if e not in both]
@@ -297,17 +282,14 @@ def guard_report(report: ModelReport, items: list[tuple[str, str, str, str]]) ->
                 f"hypothesis {h.rank}: {sorted(both)} were listed as both supporting and "
                 "contradicting; kept as supporting"
             )
-        # 3. The suspected location must be grounded in the evidence.
         h.suspected_location, note = ground_location(h.suspected_location, corpus)
         if note:
             out.adjustments.append(f"hypothesis {h.rank}: {note}")
-        # 4. Confidence the evidence cannot carry.
         calibrated, note = calibrate(h, kinds, has_code)
         if note:
             out.adjustments.append(note)
         hypotheses.append(calibrated)
 
-    # 5. Duplicate causes are one cause.
     unique: list[Hypothesis] = []
     for h in hypotheses:
         twin = next((u for u in unique if _same_cause(u, h)), None)
@@ -321,11 +303,10 @@ def guard_report(report: ModelReport, items: list[tuple[str, str, str, str]]) ->
             )
         else:
             unique.append(h)
-    for i, h in enumerate(unique, start=1):  # keep ranks contiguous after drops
+    for i, h in enumerate(unique, start=1):
         h.rank = i
 
     guarded = ModelReport(observations=observations, hypotheses=unique, data_gaps=cited.data_gaps)
-    # 6. Nothing secret-like leaves in the report.
     guarded, found = scrub_report(guarded)
     if found:
         listed = ", ".join(f"{k} x{n}" for k, n in sorted(found.items()))

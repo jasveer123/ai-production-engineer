@@ -1,13 +1,9 @@
-/**
- * Temporal worker process (ADR-015): runs incident workflows and the `evidence` activities, and
- * publishes the outbox. The HTTP API runs separately (main.ts). Start with `pnpm worker`.
- */
 import { existsSync } from 'node:fs';
 if (existsSync('.env')) process.loadEnvFile('.env');
-process.env.INGEST_WORKER_ENABLED = 'false'; // the API process owns ingestion
+process.env.INGEST_WORKER_ENABLED = 'false';
 process.env.OUTBOX_PUBLISHER_ENABLED = 'true';
-process.env.REALTIME_ENABLED = 'false'; // SSE clients connect to the API process
-import { startTelemetry } from './telemetry';
+process.env.REALTIME_ENABLED = 'false';
+import { startTelemetry } from './core/tracing';
 startTelemetry('ape-temporal-worker');
 
 import { Logger } from '@nestjs/common';
@@ -16,10 +12,10 @@ import { NativeConnection, Worker } from '@temporalio/worker';
 import { TASK_QUEUES } from '@ape/temporal-workflows';
 import { apiEnvSchema, loadEnv } from '@ape/config';
 import { AppModule } from './app.module';
-import { FixActivitiesService } from './fixes/fix-activities.service';
-import { InvestigationActivities } from './investigations/investigation-activities.service';
-import { PrActivitiesService } from './pulls/pr-activities.service';
-import { VerifyActivitiesService } from './verification/verify-activities.service';
+import { FixActivitiesService } from './modules/fixes/activities/fix-activities.service';
+import { InvestigationActivities } from './modules/investigations/activities/investigation-activities.service';
+import { PrActivitiesService } from './modules/pulls/activities/pr-activities.service';
+import { VerifyActivitiesService } from './modules/verification/activities/verify-activities.service';
 
 async function main() {
   const env = loadEnv(apiEnvSchema);

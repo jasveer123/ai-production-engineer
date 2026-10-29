@@ -229,7 +229,6 @@ def capture_exception(
             "handled": handled,
             "context": redact_value(context),
         }
-        # Leave out unset fields rather than sending nulls.
         state.transport.enqueue(
             "errors", {k: v for k, v in event.items() if v is not None}
         )

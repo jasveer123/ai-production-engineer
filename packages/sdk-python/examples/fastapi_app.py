@@ -1,4 +1,3 @@
-# APE_TOKEN=ape_live_... APE_ENDPOINT=http://localhost:4000 uvicorn examples.fastapi_app:app
 import logging
 
 import ape_agent
@@ -23,4 +22,4 @@ def home() -> dict[str, str]:
 @app.get("/checkout")
 def checkout() -> float:
     coupon = None
-    return coupon["percent_off"]  # TypeError: an incident opens for it
+    return coupon["percent_off"]

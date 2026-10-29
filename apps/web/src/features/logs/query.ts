@@ -6,10 +6,6 @@ function isLevel(value: string): value is LogLevel {
   return (LEVELS as readonly string[]).includes(value);
 }
 
-/**
- * Parses the search box: `level:error service:checkout-api trace:4bf9 "exact phrase" word`.
- * Unknown keys and invalid levels are treated as plain text, never silently dropped.
- */
 export function parseLogQuery(input: string): LogQuery {
   const query: LogQuery = { levels: [], services: [], traceIds: [], text: [] };
   const tokens = input.match(/"[^"]*"|\S+/g) ?? [];
@@ -31,7 +27,6 @@ export function parseLogQuery(input: string): LogQuery {
   return query;
 }
 
-/** Every given filter must match (AND); values within one filter are alternatives (OR). */
 export function matchesLogQuery(line: LogLine, query: LogQuery): boolean {
   if (query.levels.length && !query.levels.includes(line.level)) return false;
   if (query.services.length && !query.services.includes(line.service.toLowerCase())) return false;
@@ -50,7 +45,6 @@ export function filterLogs(lines: LogLine[], input: string): LogLine[] {
 
 export type LogBucket = { start: string; total: number; errors: number };
 
-/** Groups lines into fixed-width time buckets for the histogram, oldest first. */
 export function bucketLogs(
   lines: LogLine[],
   bucketMs: number,

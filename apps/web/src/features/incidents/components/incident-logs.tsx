@@ -10,7 +10,6 @@ import { formatDateTime } from '@/lib/format';
 import { incidentLogWindow } from '../live';
 import { useIncident, useIncidentLogs } from '../queries';
 
-/** Log lines from the incident's service around the time it happened. */
 export function IncidentLogs({ id }: { id: string }) {
   const incident = useIncident(id);
   const logs = useIncidentLogs(incident.data);

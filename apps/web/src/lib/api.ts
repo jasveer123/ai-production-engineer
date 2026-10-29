@@ -18,7 +18,6 @@ export class ApiError extends Error {
   }
 }
 
-/** Fetch wrapper: sends the session cookie, parses JSON, and turns error responses into ApiError. */
 export async function api<T>(
   path: string,
   init: RequestInit & { json?: unknown } = {},
@@ -49,7 +48,6 @@ export async function api<T>(
 
 export const apiUrl = (path: string) => `${API_URL}${path}`;
 
-/** A user-facing message for any thrown value. */
 export function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;
   if (err instanceof Error) return err.message;

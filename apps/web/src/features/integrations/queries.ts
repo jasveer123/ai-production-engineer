@@ -5,7 +5,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useWorkspaceId } from '@/features/auth/session';
 import { api } from '@/lib/api';
 
-/** Ingest tokens and per-way status. Polls so tiles turn green soon after the first data. */
 export function useIngestOverview() {
   const ws = useWorkspaceId();
   return useQuery({

@@ -14,7 +14,6 @@ const initials = (name: string) =>
     .map((p) => p[0]!.toUpperCase())
     .join('');
 
-/** Who is signed in, which workspace, and the account actions. */
 export function AccountMenu() {
   const { me, workspace, switchWorkspace } = useSession();
   const reset = useResetSession();

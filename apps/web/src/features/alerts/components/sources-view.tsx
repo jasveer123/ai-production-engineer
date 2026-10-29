@@ -341,7 +341,6 @@ function CreateSourceDialog({
   );
 }
 
-/** The token exists only in this response, so this is the one chance to copy it. */
 function RevealDialog({ source, onClose }: { source: AlertSourceWithToken; onClose: () => void }) {
   return (
     <Dialog

@@ -1,16 +1,13 @@
-# Local infrastructure for development. Start with `make up`.
 name: ape
 
 services:
   postgres:
-    # Postgres 16 with the pgvector extension available (used later for retrieval).
     image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: ape
       POSTGRES_PASSWORD: ape
       POSTGRES_DB: ape
-    # Host port 5433 so it does not clash with a local Postgres on 5432.
-    ports: ['5433:5432']
+    ports: ['5434:5432']
     volumes: [postgres-data:/var/lib/postgresql/data]
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ape -d ape']
@@ -20,7 +17,6 @@ services:
 
   redis:
     image: redis:7
-    # Host port 6380 so it does not clash with a local Redis on 6379.
     ports: ['6380:6379']
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
@@ -28,17 +24,13 @@ services:
       timeout: 3s
       retries: 10
 
-  # Temporal dev server (SQLite-backed, persisted to a volume). UI on 8233.
   temporal:
     image: temporalio/temporal:latest
-    # The image's default user can't write to a fresh named volume; local dev only.
     user: root
     command: ['server', 'start-dev', '--ip', '0.0.0.0', '--db-filename', '/data/temporal.db']
     ports: ['7233:7233', '8233:8233']
     volumes: [temporal-data:/data]
 
-  # S3-compatible artifact store. MinIO stopped publishing images, so RustFS is used
-  # as a drop-in. Console on 9001. The app creates the `ape-artifacts` bucket on first use.
   s3:
     image: rustfs/rustfs:latest
     command: ['/data']
@@ -51,14 +43,12 @@ services:
     ports: ['9000:9000', '9001:9001']
     volumes: [s3-data:/data]
 
-  # Jaeger receives OTLP only from the collector (not exposed to the host).
   jaeger:
     image: jaegertracing/all-in-one:latest
     environment:
       COLLECTOR_OTLP_ENABLED: 'true'
     ports: ['16686:16686']
 
-  # Apps send OTLP here (4317 gRPC / 4318 HTTP); the collector forwards to Jaeger.
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
     command: ['--config=/etc/otelcol/config.yaml']

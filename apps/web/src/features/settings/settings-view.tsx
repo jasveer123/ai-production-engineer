@@ -45,7 +45,7 @@ function SeverityRules() {
   const qc = useQueryClient();
   const isAdmin = can('admin');
   const rules = useSeverityRules();
-  // null while untouched, so the editor shows what the server has.
+
   const [draft, setDraft] = useState<SeverityRule[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const shown = draft ?? rules.data ?? [];
@@ -90,7 +90,6 @@ function SeverityRules() {
             <ol className="m-0 grid list-none gap-0 p-0">
               {shown.map((rule, i) => (
                 <li
-                  // Rules have no id; position is their identity in this ordered list.
                   key={i}
                   className="flex flex-wrap items-end gap-3 border-t border-line py-3 first:border-t-0"
                 >

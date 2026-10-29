@@ -1,6 +1,5 @@
 import type { Incident } from './types';
 
-/** Sample incidents modelled on the demo-shop scenarios. Static preview data, not live. */
 export const INCIDENTS: Incident[] = [
   {
     id: 'inc-checkout-coupon',

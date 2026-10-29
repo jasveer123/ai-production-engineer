@@ -13,7 +13,6 @@ const STYLE: Record<BannerTone, { box: string; icon: string; name: IconName }> =
 
 type BannerProps = { tone: BannerTone; title: ReactNode; children?: ReactNode };
 
-/** A page-level message: a bold fact, then what to do. */
 export function Banner({ tone, title, children }: BannerProps) {
   const s = STYLE[tone];
   return (

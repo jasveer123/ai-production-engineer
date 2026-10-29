@@ -39,9 +39,7 @@ function Invite() {
     if (!res) return;
     try {
       localStorage.setItem('ape.workspace', res.workspaceId);
-    } catch {
-      // ignore
-    }
+    } catch {}
     qc.clear();
     router.replace('/');
   }

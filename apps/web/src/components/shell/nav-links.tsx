@@ -6,13 +6,11 @@ import { Icon } from '@/components/ui/icon';
 import { cn } from '@/lib/cn';
 import { isActive, type NavItem } from './nav-config';
 
-/** The only client part of the sidebar: it needs the current path to mark the active item. */
 export function NavLinks({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
   return (
     <ul className="grid gap-0.5">
       {items.map((item) => {
-        // A more specific item (/settings/usage/ inside /settings/) takes the highlight.
         const active =
           isActive(item.href, pathname) &&
           !items.some((o) => o.href.length > item.href.length && isActive(o.href, pathname));

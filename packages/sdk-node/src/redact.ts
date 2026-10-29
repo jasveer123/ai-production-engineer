@@ -1,4 +1,3 @@
-/** Same rules as the server: secrets never leave the process if we can help it. */
 const RULES: [RegExp, string | ((...m: string[]) => string)][] = [
   [
     /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
@@ -30,7 +29,6 @@ export function redactText(input: string): string {
   return out;
 }
 
-/** Redacts strings and drops values under secret-looking keys; bounded depth. */
 export function redactValue(value: unknown, depth = 0): unknown {
   if (typeof value === 'string') return redactText(value);
   if (value === null || typeof value !== 'object' || depth > 4) return value;

@@ -14,7 +14,6 @@ const TONES: Record<BadgeTone, string> = {
   ai: 'bg-spark-soft text-spark-ink',
 };
 
-/** Status tones always carry an icon so color is never the only signal. */
 const DEFAULT_ICON: Partial<Record<BadgeTone, IconName>> = {
   ok: 'check',
   warn: 'clock',

@@ -1,6 +1,5 @@
-// Test environment. TEST_DATABASE_URL lets CI point at its own Postgres service.
 export const TEST_DATABASE_URL =
-  process.env.TEST_DATABASE_URL ?? 'postgresql://ape:ape@localhost:5433/ape_test';
+  process.env.TEST_DATABASE_URL ?? 'postgresql://ape:ape@localhost:5434/ape_test';
 
 Object.assign(process.env, {
   NODE_ENV: 'test',
@@ -19,7 +18,7 @@ Object.assign(process.env, {
   TEMPORAL_NAMESPACE: 'ape-test',
   AUTO_INVESTIGATE: 'true',
   GITHUB_APP_ID: '1',
-  GITHUB_APP_PRIVATE_KEY_PATH: '/nonexistent/test.pem', // tests inject a fake client
+  GITHUB_APP_PRIVATE_KEY_PATH: '/nonexistent/test.pem',
   GITHUB_WEBHOOK_SECRET: 'test-webhook-secret-not-real',
   SENTRY_APP_SLUG: 'ape-test',
   SENTRY_CLIENT_ID: 'sentry-client-id',
