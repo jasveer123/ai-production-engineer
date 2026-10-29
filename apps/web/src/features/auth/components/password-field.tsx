@@ -2,6 +2,7 @@
 
 import { PASSWORD_MIN } from '@ape/api-contracts';
 import { useState } from 'react';
+import type { UseFormRegisterReturn } from 'react-hook-form';
 import { Field, Input } from '@/components/ui/form';
 
 type Props = {
@@ -10,9 +11,17 @@ type Props = {
   autoComplete: 'current-password' | 'new-password';
   error?: string | null;
   showRules?: boolean;
+  registration: UseFormRegisterReturn;
 };
 
-export function PasswordField({ id, label = 'Password', autoComplete, error, showRules }: Props) {
+export function PasswordField({
+  id,
+  label = 'Password',
+  autoComplete,
+  error,
+  showRules,
+  registration,
+}: Props) {
   const [visible, setVisible] = useState(false);
   return (
     <Field
@@ -28,11 +37,9 @@ export function PasswordField({ id, label = 'Password', autoComplete, error, sho
       <div className="relative">
         <Input
           id={id}
-          name={id}
+          {...registration}
           type={visible ? 'text' : 'password'}
           autoComplete={autoComplete}
-          required
-          minLength={autoComplete === 'new-password' ? PASSWORD_MIN : undefined}
           maxLength={128}
           invalid={Boolean(error)}
           className="pr-16"

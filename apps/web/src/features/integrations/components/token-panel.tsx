@@ -3,6 +3,7 @@
 import type { IngestTokenWithSecret } from '@ape/api-contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { TokenField } from '@/components/ui/code-snippet';
 import { FormError } from '@/components/ui/form';
@@ -39,7 +40,7 @@ export function TokenPanel() {
     onError: (e) => setError(errorMessage(e)),
   });
 
-  if (overview.isPending) return <p className="text-sm text-ink-muted">Loading your token…</p>;
+  if (overview.isPending) return <ListSkeleton label="Loading your token" />;
   if (overview.isError)
     return <FormError>Could not load the ingest token: {errorMessage(overview.error)}</FormError>;
 

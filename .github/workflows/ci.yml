@@ -150,3 +150,46 @@ jobs:
       - name: Smoke test api image
         if: matrix.name == 'api'
         run: docker run --rm ape-api:ci node -e "require('./dist/app.module')"
+
+  e2e-changes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions: { contents: read, pull-requests: read }
+    outputs:
+      run: ${{ steps.filter.outputs.e2e }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            e2e:
+              - 'apps/web/**'
+              - 'services/api/**'
+              - 'packages/**'
+              - '.github/workflows/ci.yml'
+  e2e:
+    needs: e2e-changes
+    if: needs.e2e-changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @ape/config --filter @ape/api-contracts --filter @ape/temporal-workflows build
+      - name: Playwright
+        run: |
+          if [ ! -f apps/web/playwright.config.ts ]; then echo "No Playwright config yet; skipping."; exit 0; fi
+          pnpm --filter @ape/web exec playwright install --with-deps chromium
+          pnpm --filter @ape/web exec playwright test
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          if-no-files-found: ignore

@@ -3,6 +3,7 @@
 import type { PullRequestView } from '@ape/api-contracts';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Banner } from '@/components/ui/banner';
 import { Button } from '@/components/ui/button';
@@ -73,7 +74,7 @@ export function FixesView() {
       )}
 
       {pulls.isPending ? (
-        <p className="text-ink-muted">Loading pull requests…</p>
+        <ListSkeleton label="Loading pull requests" />
       ) : pulls.isError ? (
         <Banner tone="danger" title="Could not load pull requests.">
           {errorMessage(pulls.error)}

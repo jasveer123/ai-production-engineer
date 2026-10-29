@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import { DEFAULT_ANSWER, FINDER_OPTIONS, recommend } from './finder.ts';
 
 test('every answer has a recommendation with a link', () => {

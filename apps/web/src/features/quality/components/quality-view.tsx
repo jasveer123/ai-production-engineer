@@ -2,6 +2,7 @@
 
 import type { QualitySummary } from '@ape/api-contracts';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Banner } from '@/components/ui/banner';
 import { Card, CardHeader, Eyebrow } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -51,7 +52,7 @@ export function QualityView() {
       />
 
       {quality.isPending ? (
-        <p className="text-ink-muted">Loading quality…</p>
+        <ListSkeleton label="Loading quality" />
       ) : quality.isError ? (
         <Banner tone="danger" title="Could not load quality.">
           {errorMessage(quality.error)}

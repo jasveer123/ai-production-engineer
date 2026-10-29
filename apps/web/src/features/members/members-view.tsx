@@ -1,21 +1,15 @@
 'use client';
 
-import {
-  ROLES,
-  type Invitation,
-  type InvitationWithLink,
-  type Member,
-  type Role,
-} from '@ape/api-contracts';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ROLES, type InvitationWithLink, type Member, type Role } from '@ape/api-contracts';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Banner } from '@/components/ui/banner';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
 import { TokenField } from '@/components/ui/code-snippet';
-import { Dialog } from '@/components/ui/dialog';
-import { Field, FormError, Input, Select } from '@/components/ui/form';
+import { Select } from '@/components/ui/form';
 import { PageHeader } from '@/components/ui/page-header';
 import { Table, Td, Th, Tr } from '@/components/ui/table';
 import { assignableRoles, ROLE_LABEL } from '@/features/auth/roles';
@@ -23,21 +17,16 @@ import { useSession } from '@/features/auth/session';
 import { ROLE_RIGHTS } from '@/features/workspace/fixtures';
 import { api, errorMessage } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
+import { InviteDialog } from './invite-dialog';
+import { useInvitations, useMembers } from './queries';
 
 export function MembersView() {
   const { workspace, role, can, me } = useSession();
   const ws = workspace.id;
   const qc = useQueryClient();
   const isAdmin = can('admin');
-  const members = useQuery({
-    queryKey: ['ws', ws, 'members'],
-    queryFn: () => api<Member[]>(`/workspaces/${ws}/members`),
-  });
-  const invitations = useQuery({
-    queryKey: ['ws', ws, 'invitations'],
-    queryFn: () => api<Invitation[]>(`/workspaces/${ws}/invitations`),
-    enabled: isAdmin,
-  });
+  const members = useMembers();
+  const invitations = useInvitations(isAdmin);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [created, setCreated] = useState<InvitationWithLink | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -103,7 +92,7 @@ export function MembersView() {
       )}
 
       {members.isPending ? (
-        <p className="text-ink-muted">Loading members…</p>
+        <ListSkeleton label="Loading members" />
       ) : members.isError ? (
         <Banner tone="danger" title="Could not load members.">
           {errorMessage(members.error)}
@@ -239,75 +228,5 @@ export function MembersView() {
         workspaceId={ws}
       />
     </>
-  );
-}
-
-function InviteDialog({
-  open,
-  roles,
-  onClose,
-  onCreated,
-  workspaceId,
-}: {
-  open: boolean;
-  roles: Role[];
-  onClose: () => void;
-  onCreated: (inv: InvitationWithLink) => void;
-  workspaceId: string;
-}) {
-  const [error, setError] = useState<string | null>(null);
-  const invite = useMutation({
-    mutationFn: (body: { email: string; role: Role }) =>
-      api<InvitationWithLink>(`/workspaces/${workspaceId}/invitations`, {
-        method: 'POST',
-        json: body,
-      }),
-    onSuccess: onCreated,
-    onError: (e) => setError(errorMessage(e)),
-  });
-
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title="Invite a member"
-      description="They get a link to register or sign in. Their role applies as soon as they join."
-    >
-      <form
-        className="grid gap-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setError(null);
-          const f = new FormData(e.currentTarget);
-          invite.mutate({ email: String(f.get('email')).trim(), role: f.get('role') as Role });
-        }}
-      >
-        <Field id="invite-email" label="Email">
-          <Input id="invite-email" name="email" type="email" required autoFocus />
-        </Field>
-        <Field
-          id="invite-role"
-          label="Role"
-          hint="Engineers approve fixes. Admins also manage members and integrations."
-        >
-          <Select id="invite-role" name="role" defaultValue="engineer">
-            {roles.map((r) => (
-              <option key={r} value={r}>
-                {ROLE_LABEL[r]}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <FormError>{error}</FormError>
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={invite.isPending}>
-            {invite.isPending ? 'Inviting…' : 'Create invite'}
-          </Button>
-        </div>
-      </form>
-    </Dialog>
   );
 }

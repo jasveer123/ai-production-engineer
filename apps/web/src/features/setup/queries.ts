@@ -1,7 +1,9 @@
 'use client';
 
 import type {
+  GitHubAppInfo,
   GitHubOverview,
+  GitHubSelectView,
   OAuthStart,
   RepositoryAccess,
   SetupCapabilities,
@@ -69,4 +71,21 @@ export function takeStoredState(provider: string): string | null {
   } catch {
     return null;
   }
+}
+
+export function useGitHubApp() {
+  const { workspace } = useSession();
+  return useQuery({
+    queryKey: ['ws', workspace.id, 'github-app'],
+    queryFn: () => api<GitHubAppInfo>(`/workspaces/${workspace.id}/github/app`),
+    refetchOnWindowFocus: true,
+  });
+}
+
+export function useGitHubSelect() {
+  const { workspace } = useSession();
+  return useQuery({
+    queryKey: ['ws', workspace.id, 'github-select'],
+    queryFn: () => api<GitHubSelectView>(`/workspaces/${workspace.id}/github/select`),
+  });
 }

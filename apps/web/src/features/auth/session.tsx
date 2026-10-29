@@ -11,8 +11,13 @@ const STORAGE_KEY = 'ape.workspace';
 
 export const ME_KEY = ['auth', 'me'] as const;
 
-export function useMe() {
-  return useQuery({ queryKey: ME_KEY, queryFn: () => api<Me>('/auth/me'), staleTime: 60_000 });
+export function useMe(options: { retry?: boolean } = {}) {
+  return useQuery({
+    queryKey: ME_KEY,
+    queryFn: () => api<Me>('/auth/me'),
+    staleTime: 60_000,
+    ...options,
+  });
 }
 
 type Workspace = Me['workspaces'][number];

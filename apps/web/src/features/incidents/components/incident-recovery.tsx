@@ -1,6 +1,7 @@
 'use client';
 
 import type { VerificationRunView } from '@ape/api-contracts';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Banner } from '@/components/ui/banner';
 import { Card, CardHeader } from '@/components/ui/card';
@@ -17,7 +18,7 @@ const OUTCOME = {
 
 export function IncidentRecovery({ id }: { id: string }) {
   const verification = useVerification(id);
-  if (verification.isPending) return <p className="text-ink-muted">Loading…</p>;
+  if (verification.isPending) return <ListSkeleton label="Loading" />;
   if (verification.isError)
     return (
       <Banner tone="danger" title="Could not load the recovery check.">

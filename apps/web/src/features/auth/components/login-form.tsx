@@ -1,12 +1,14 @@
 'use client';
 
-import type { Me } from '@ape/api-contracts';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { loginSchema, type Me } from '@ape/api-contracts';
+import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Field, FormError, Input } from '@/components/ui/form';
 import { api, apiUrl } from '@/lib/api';
+import { useZodForm } from '@/lib/use-zod-form';
+import { useAuthProviders } from '../queries';
 import { safeNext } from '../roles';
 import { ME_KEY } from '../session';
 import { useAuthAction } from '../use-auth-action';
@@ -19,26 +21,18 @@ export function LoginForm() {
   const qc = useQueryClient();
   const next = safeNext(params.get('next'));
   const { pending, error, fieldErrors, run } = useAuthAction();
-  const providers = useQuery({
-    queryKey: ['auth', 'providers'],
-    queryFn: () => api<Me['authProviders']>('/auth/providers'),
-    staleTime: Infinity,
-  });
+  const providers = useAuthProviders();
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = new FormData(e.currentTarget);
-    const me = await run(() =>
-      api<Me>('/auth/login', {
-        method: 'POST',
-        json: { email: form.get('email'), password: form.get('password') },
-      }),
-    );
+  const form = useZodForm(loginSchema, { defaultValues: { email: '', password: '' } });
+  const errors = form.formState.errors;
+
+  const onSubmit = form.handleSubmit(async (values) => {
+    const me = await run(() => api<Me>('/auth/login', { method: 'POST', json: values }));
     if (!me) return;
     qc.clear();
     qc.setQueryData(ME_KEY, me);
     router.replace(me.workspaces.length ? next : '/onboarding/');
-  }
+  });
 
   async function devLogin(email: string) {
     const ok = await run(() => api('/auth/dev-login', { method: 'POST', json: { email } }));
@@ -54,19 +48,23 @@ export function LoginForm() {
       {params.get('error') === 'github' && (
         <FormError>GitHub sign-in did not finish. Try again.</FormError>
       )}
-      <form onSubmit={onSubmit} className="grid gap-4" noValidate={false}>
-        <Field id="email" label="Email" error={fieldErrors.email}>
+      <form onSubmit={onSubmit} className="grid gap-4" noValidate>
+        <Field id="email" label="Email" error={errors.email?.message ?? fieldErrors.email}>
           <Input
             id="email"
-            name="email"
             type="email"
             autoComplete="email"
-            required
             autoFocus
-            invalid={Boolean(fieldErrors.email)}
+            invalid={Boolean(errors.email ?? fieldErrors.email)}
+            {...form.register('email')}
           />
         </Field>
-        <PasswordField id="password" autoComplete="current-password" error={fieldErrors.password} />
+        <PasswordField
+          id="password"
+          autoComplete="current-password"
+          error={errors.password?.message ?? fieldErrors.password}
+          registration={form.register('password')}
+        />
         <div className="-mt-2 text-right text-[13px]">
           <Link href="/forgot-password/" className="text-brand hover:underline">
             Forgot password?

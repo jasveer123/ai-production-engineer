@@ -1,6 +1,7 @@
 'use client';
 
 import type { TimelineEntry } from '@ape/api-contracts';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Banner } from '@/components/ui/banner';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -24,7 +25,7 @@ const KIND: Record<TimelineEntry['kind'], { icon: IconName; tone: string; label:
 
 export function IncidentTimeline({ id }: { id: string }) {
   const timeline = useTimeline(id);
-  if (timeline.isPending) return <p className="text-ink-muted">Loading the timeline…</p>;
+  if (timeline.isPending) return <ListSkeleton label="Loading the timeline" />;
   if (timeline.isError)
     return (
       <Banner tone="danger" title="Could not load the timeline.">

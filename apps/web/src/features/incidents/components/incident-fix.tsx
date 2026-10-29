@@ -3,6 +3,7 @@
 import type { FixActionInput, PullRequestView, ValidationRunView } from '@ape/api-contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Banner } from '@/components/ui/banner';
 import { Button } from '@/components/ui/button';
@@ -12,7 +13,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { useSession } from '@/features/auth/session';
 import { api, errorMessage } from '@/lib/api';
 import { formatDuration } from '@/lib/format';
-import { incidentPrefix, useFixes } from '../queries';
+import { incidentKeys, useFixes } from '../queries';
 
 const FIXING_PHASES = ['reproduction_approved', 'reproducing', 'patching', 'validating'];
 const RUN_TONE = { passed: 'ok', failed: 'danger', error: 'danger', skipped: 'neutral' } as const;
@@ -37,12 +38,12 @@ export function IncidentFix({ id }: { id: string }) {
       }),
     onSuccess: () => (
       setError(null),
-      qc.invalidateQueries({ queryKey: incidentPrefix(workspace.id, id) })
+      qc.invalidateQueries({ queryKey: incidentKeys.detail(workspace.id, id) })
     ),
     onError: (e) => setError(errorMessage(e)),
   });
 
-  if (fixes.isPending) return <p className="text-ink-muted">Loading the fix…</p>;
+  if (fixes.isPending) return <ListSkeleton label="Loading the fix" />;
   if (fixes.isError)
     return (
       <Banner tone="danger" title="Could not load the fix.">

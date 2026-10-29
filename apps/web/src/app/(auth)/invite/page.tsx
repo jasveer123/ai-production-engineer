@@ -1,14 +1,15 @@
 'use client';
 
-import type { InvitationPreview, Me } from '@ape/api-contracts';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { FormError } from '@/components/ui/form';
 import { AuthHeading } from '@/features/auth/components/auth-heading';
+import { useInvitePreview } from '@/features/auth/queries';
 import { ROLE_LABEL } from '@/features/auth/roles';
+import { useMe } from '@/features/auth/session';
 import { useAuthAction } from '@/features/auth/use-auth-action';
 import { api, ApiError } from '@/lib/api';
 
@@ -17,17 +18,8 @@ function Invite() {
   const router = useRouter();
   const qc = useQueryClient();
   const { pending, error, run } = useAuthAction();
-  const preview = useQuery({
-    queryKey: ['invite', token],
-    queryFn: () => api<InvitationPreview>(`/auth/invitations/${encodeURIComponent(token)}`),
-    enabled: Boolean(token),
-    retry: false,
-  });
-  const me = useQuery({
-    queryKey: ['auth', 'me'],
-    queryFn: () => api<Me>('/auth/me'),
-    retry: false,
-  });
+  const preview = useInvitePreview(token);
+  const me = useMe({ retry: false });
   const here = `/invite/?token=${encodeURIComponent(token)}`;
 
   async function accept() {

@@ -16,10 +16,17 @@ import { incidentLogWindow } from './live';
 
 const POLL_MS = 60_000;
 
+export const incidentKeys = {
+  all: (ws: string) => ['ws', ws, 'incidents'] as const,
+  list: (ws: string, filters: object) => [...incidentKeys.all(ws), filters] as const,
+  detail: (ws: string, id: string) => ['ws', ws, 'incident', id] as const,
+  part: (ws: string, id: string, part: string) => [...incidentKeys.detail(ws, id), part] as const,
+};
+
 export function useIncidents(filters: Omit<IncidentListQuery, 'limit'>) {
   const ws = useWorkspaceId();
   return useQuery({
-    queryKey: ['ws', ws, 'incidents', filters],
+    queryKey: incidentKeys.list(ws, filters),
     queryFn: () => {
       const sp = new URLSearchParams({ limit: '100' });
       for (const [k, v] of Object.entries(filters)) if (v) sp.set(k, String(v));
@@ -29,13 +36,10 @@ export function useIncidents(filters: Omit<IncidentListQuery, 'limit'>) {
   });
 }
 
-const incidentKey = (ws: string, id: string, part: string) => ['ws', ws, 'incident', id, part];
-export const incidentPrefix = (ws: string, id: string) => ['ws', ws, 'incident', id];
-
 function useIncidentPart<T>(id: string, part: string, path: string) {
   const ws = useWorkspaceId();
   return useQuery({
-    queryKey: incidentKey(ws, id, part),
+    queryKey: incidentKeys.part(ws, id, part),
     queryFn: () => api<T>(`/workspaces/${ws}/incidents/${id}${path}`),
     refetchInterval: POLL_MS,
   });
@@ -54,7 +58,7 @@ export function useIncidentLogs(incident: Incident | undefined) {
   const ws = useWorkspaceId();
   const window = incident ? incidentLogWindow(incident) : null;
   return useQuery({
-    queryKey: ['ws', ws, 'incident', incident?.id, 'logs', window],
+    queryKey: incidentKeys.part(ws, incident?.id ?? '', `logs:${JSON.stringify(window)}`),
     queryFn: () => api<LogSearchResult>(`/workspaces/${ws}/logs?${new URLSearchParams(window!)}`),
     enabled: Boolean(window),
   });

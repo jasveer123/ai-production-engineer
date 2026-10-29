@@ -1,9 +1,10 @@
 'use client';
 
-import type { GitHubSelectView, Integration } from '@ape/api-contracts';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { Integration } from '@ape/api-contracts';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { FormError, Input } from '@/components/ui/form';
@@ -11,7 +12,7 @@ import { Icon } from '@/components/ui/icon';
 import { PageHeader } from '@/components/ui/page-header';
 import { useSession } from '@/features/auth/session';
 import { api, errorMessage } from '@/lib/api';
-import { startGitHubInstall } from '../queries';
+import { startGitHubInstall, useGitHubSelect } from '../queries';
 import { planRepoChanges } from '../repo-changes';
 
 export function GitHubRepoSelect() {
@@ -24,10 +25,7 @@ export function GitHubRepoSelect() {
   const [picked, setPicked] = useState<Record<number, string[]>>({});
   const [error, setError] = useState<string | null>(null);
 
-  const view = useQuery({
-    queryKey: ['ws', workspace.id, 'github-select'],
-    queryFn: () => api<GitHubSelectView>(`/workspaces/${workspace.id}/github/select`),
-  });
+  const view = useGitHubSelect();
 
   useEffect(() => {
     if (!view.data) return;
@@ -119,7 +117,7 @@ export function GitHubRepoSelect() {
         </div>
 
         <div className="grid gap-4">
-          {view.isPending && <p className="m-0 text-ink-muted">Loading GitHub accounts…</p>}
+          {view.isPending && <ListSkeleton label="Loading GitHub accounts" />}
           {view.isError && <FormError>{errorMessage(view.error)}</FormError>}
           {view.data && !view.data.configured && (
             <FormError>The GitHub App is not configured on this server.</FormError>

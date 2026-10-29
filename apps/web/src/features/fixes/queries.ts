@@ -3,7 +3,7 @@
 import type { PullRequestView } from '@ape/api-contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useWorkspaceId } from '@/features/auth/session';
-import { incidentPrefix } from '@/features/incidents/queries';
+import { incidentKeys } from '@/features/incidents/queries';
 import { api } from '@/lib/api';
 
 const key = (ws: string) => ['ws', ws, 'pull-requests'];
@@ -28,7 +28,7 @@ export function useSyncPullRequest() {
         old?.map((p) => (p.id === fresh.id ? fresh : p)),
       );
       if (fresh.incidentId)
-        void qc.invalidateQueries({ queryKey: incidentPrefix(ws, fresh.incidentId) });
+        void qc.invalidateQueries({ queryKey: incidentKeys.detail(ws, fresh.incidentId) });
     },
   });
 }

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import type { ServiceImpact } from '@ape/api-contracts';
 import { formatMoney, impactFormula, totalsByCurrency } from './money.ts';
 

@@ -1,8 +1,9 @@
 'use client';
 
-import type { BusinessImpact, ServiceImpact, ServiceValueInput } from '@ape/api-contracts';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { ServiceImpact, ServiceValueInput } from '@ape/api-contracts';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ListSkeleton } from '@/components/ui/skeleton';
 import { Banner } from '@/components/ui/banner';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { Card, Eyebrow } from '@/components/ui/card';
@@ -15,6 +16,7 @@ import { useSession } from '@/features/auth/session';
 import { api, errorMessage } from '@/lib/api';
 import { formatCount } from '@/lib/format';
 import { formatMoney, impactFormula, totalsByCurrency } from './money';
+import { businessKeys, useBusinessImpact } from './queries';
 
 const WINDOWS = [1, 7, 30, 90] as const;
 
@@ -23,10 +25,7 @@ export function BusinessView() {
   const isAdmin = can('admin');
   const [days, setDays] = useState(7);
   const [editing, setEditing] = useState<ServiceImpact | null>(null);
-  const impact = useQuery({
-    queryKey: ['ws', workspace.id, 'business', days],
-    queryFn: () => api<BusinessImpact>(`/workspaces/${workspace.id}/business/impact?days=${days}`),
-  });
+  const impact = useBusinessImpact(days);
   const rows = impact.data?.services ?? [];
   const valued = rows.filter((s) => s.valuePerRequest !== null);
   const totals = totalsByCurrency(rows);
@@ -54,7 +53,7 @@ export function BusinessView() {
       />
 
       {impact.isPending ? (
-        <p className="text-ink-muted">Loading business impact…</p>
+        <ListSkeleton label="Loading business impact" />
       ) : impact.isError ? (
         <Banner tone="danger" title="Could not load business impact.">
           {errorMessage(impact.error)}
@@ -196,7 +195,7 @@ function ValueDialog({
         json: body,
       }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['ws', workspaceId, 'business'] });
+      void qc.invalidateQueries({ queryKey: businessKeys.all(workspaceId) });
       onClose();
     },
     onError: (e) => setError(errorMessage(e)),

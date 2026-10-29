@@ -57,6 +57,8 @@ healthy() {
 }
 
 write_env "$TAG"
+# The root disk is small: remove images from older releases before downloading the new ones.
+docker image prune -af >/dev/null || true
 dc pull --quiet
 dc up -d postgres redis temporal
 for _ in $(seq 1 30); do dc ps postgres --format '{{.Health}}' | grep -q healthy && break; sleep 2; done
@@ -73,7 +75,7 @@ fi
 
 if healthy; then
   echo "$TAG" > current_tag
-  docker image prune -af --filter "until=168h" >/dev/null || true
+  docker image prune -af >/dev/null || true  # free everything no container uses; rollback re-pulls
   echo "deployed $TAG"
 else
   echo "health check failed for $TAG" >&2
