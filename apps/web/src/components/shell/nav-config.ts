@@ -28,13 +28,11 @@ export const WORKSPACE_NAV: NavItem[] = [
   { href: '/settings/usage/', label: 'Usage', icon: 'chart' },
 ];
 
-/** True when `pathname` is this nav item's page or one of its sub-pages. */
 export function isActive(href: string, pathname: string): boolean {
   const path = pathname.endsWith('/') ? pathname : `${pathname}/`;
   return href === '/' ? path === '/' : path.startsWith(href);
 }
 
-/** Pages that read real workspace data. Every other page still shows sample data. */
 export const LIVE_ROUTES = [
   '/integrations/',
   '/members/',

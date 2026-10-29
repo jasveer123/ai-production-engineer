@@ -16,7 +16,6 @@ const OUTCOME = {
   inconclusive: { tone: 'warn', label: 'Inconclusive' },
 } as const;
 
-/** After the fix ships: is the incident's error gone? (FRD FR-12). Measured, never assumed. */
 export function IncidentRecovery({ id }: { id: string }) {
   const verification = useVerification(id);
   if (verification.isPending) return <ListSkeleton label="Loading" />;

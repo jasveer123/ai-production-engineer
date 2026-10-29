@@ -15,7 +15,6 @@ import { api, errorMessage } from '@/lib/api';
 import { formatDuration } from '@/lib/format';
 import { incidentKeys, useFixes } from '../queries';
 
-/** Workflow phases in which the AI is actually working on a fix. */
 const FIXING_PHASES = ['reproduction_approved', 'reproducing', 'patching', 'validating'];
 const RUN_TONE = { passed: 'ok', failed: 'danger', error: 'danger', skipped: 'neutral' } as const;
 const RUN_LABEL: Record<ValidationRunView['kind'], string> = {
@@ -26,7 +25,6 @@ const RUN_LABEL: Record<ValidationRunView['kind'], string> = {
   policy: 'Safety policy',
 };
 
-/** The proposed patch, the proof it works, and the pull request (FRD FR-08 to FR-11). */
 export function IncidentFix({ id }: { id: string }) {
   const { workspace, can } = useSession();
   const qc = useQueryClient();

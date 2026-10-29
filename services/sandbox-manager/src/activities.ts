@@ -4,14 +4,11 @@ import type { SandboxActivities, SandboxProfile, SandboxRunResult } from '@ape/t
 import { ensureDepsImage, runSuite } from './runner';
 import { getJson, materializeSource, putJson } from './storage';
 
-/** Keeps Temporal informed during long builds and runs, so a dead worker is noticed quickly. */
 async function withHeartbeat<T>(fn: () => Promise<T>): Promise<T> {
   const t = setInterval(() => {
     try {
       heartbeat();
-    } catch {
-      /* not running inside an activity (tests) */
-    }
+    } catch {}
   }, 5000);
   try {
     return await fn();

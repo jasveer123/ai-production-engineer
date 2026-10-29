@@ -1,7 +1,3 @@
-/**
- * Sandbox escape tests (Phase 5 security gate). They run real containers, so Docker must be up.
- * Each case is something untrusted test code might try.
- */
 import { exec, runInSandbox } from '../src/docker';
 
 const IMAGE = 'node:22-slim';
@@ -35,7 +31,7 @@ describe('sandbox isolation', () => {
     const out = r.stdout + r.stderr;
     expect(out).toMatch(/Read-only file system|Permission denied/);
     expect(out).not.toMatch(/^x$/m);
-    expect(r.stdout).toContain('ok'); // the sandbox can still write its own scratch space
+    expect(r.stdout).toContain('ok');
   });
 
   it('cannot see the Docker socket or host files', async () => {

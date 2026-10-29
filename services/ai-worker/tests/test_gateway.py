@@ -44,17 +44,15 @@ def test_fix_calls_can_use_a_stronger_model_and_effort() -> None:
 
 def test_cost_counts_cache_reads_and_writes() -> None:
     plain = cost_usd("claude-haiku-5-5", 10_000, 1_000)
-    assert plain == pytest.approx(0.0015)  # 10K x $0.10/M + 1K x $0.50/M
+    assert plain == pytest.approx(0.0015)
     cached = cost_usd("claude-haiku-5-5", 0, 1_000, cache_read_tokens=10_000)
-    assert cached == pytest.approx(0.0006)  # reads cost a tenth of the input price
+    assert cached == pytest.approx(0.0006)
     write = cost_usd("claude-haiku-5-5", 0, 0, cache_write_tokens=10_000)
     assert write == pytest.approx(0.00125)
 
 
 def test_cost_uses_the_higher_tier_for_prompts_over_100k_tokens() -> None:
-    assert (
-        cost_usd("claude-haiku-5-5", 100_001, 0) == 0.050001
-    )  # 100,001 tokens at $0.50/M, rounded to 6 places
+    assert cost_usd("claude-haiku-5-5", 100_001, 0) == 0.050001
 
 
 def test_unknown_models_cost_nothing_to_record() -> None:

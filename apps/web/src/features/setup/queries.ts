@@ -21,8 +21,6 @@ export function useSetupCapabilities() {
   });
 }
 
-/** Installations, repositories and permissions, refreshed from GitHub; refetches on focus, so
- * coming back from GitHub after adding a repository shows it without a reload. */
 export function useGitHubOverview() {
   const { workspace } = useSession();
   return useQuery({
@@ -43,10 +41,6 @@ export function useRepositories() {
 
 const STATE_KEY = (provider: string) => `ape.setup-state.${provider}`;
 
-/**
- * Sends the browser to a provider's approval page. The signed state is also kept for this tab,
- * because not every provider passes it back on the redirect.
- */
 export async function startOAuth(
   workspaceId: string,
   provider: 'sentry' | 'vercel' | 'heroku',
@@ -55,23 +49,15 @@ export async function startOAuth(
   const state = new URL(url).searchParams.get('state');
   try {
     if (state) sessionStorage.setItem(STATE_KEY(provider), state);
-  } catch {
-    // private mode: rely on the provider returning it
-  }
+  } catch {}
   window.location.assign(url);
 }
 
-/**
- * Sends this tab to GitHub's install page. GitHub's App setup URL must be
- * /integrations/callback/github/ so we return here with installation_id and state.
- */
 export async function startGitHubInstall(workspaceId: string, installUrl: string): Promise<void> {
   const { state } = await api<{ state: string }>(`/workspaces/${workspaceId}/setup/github/state`);
   try {
     sessionStorage.setItem(STATE_KEY('github'), state);
-  } catch {
-    // ignore
-  }
+  } catch {}
   const u = new URL(installUrl);
   u.searchParams.set('state', state);
   window.location.assign(u.toString());
@@ -87,7 +73,6 @@ export function takeStoredState(provider: string): string | null {
   }
 }
 
-/** The GitHub App's install state and links for this workspace. */
 export function useGitHubApp() {
   const { workspace } = useSession();
   return useQuery({
@@ -97,7 +82,6 @@ export function useGitHubApp() {
   });
 }
 
-/** Repositories each installation shares, with the ones already chosen. */
 export function useGitHubSelect() {
   const { workspace } = useSession();
   return useQuery({

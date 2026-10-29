@@ -9,12 +9,12 @@ import type {
 import { and, eq } from 'drizzle-orm';
 import request from 'supertest';
 import type { App } from 'supertest/types';
-import { createDatabase } from '../src/db/client';
-import { auditEvents, inboundEvents, incidentEvents, outbox, spans } from '../src/db/schema';
-import { IngestionProcessor } from '../src/ingestion/ingestion.processor';
-import { extractError, type JaegerTrace } from '../src/ingestion/jaeger';
-import { JaegerPoller } from '../src/ingestion/jaeger.poller';
-import { sign } from '../src/ingestion/webhook-signature';
+import { createDatabase } from '../src/core/db/client';
+import { auditEvents, inboundEvents, incidentEvents, outbox, spans } from '../src/core/db/schema';
+import { IngestionProcessor } from '../src/ingest/ingestion/application/ingestion.processor';
+import { extractError, type JaegerTrace } from '../src/ingest/ingestion/infrastructure/jaeger';
+import { JaegerPoller } from '../src/ingest/ingestion/application/jaeger.poller';
+import { sign } from '../src/ingest/ingestion/domain/webhook-signature';
 import s1 from './fixtures/jaeger-trace-s1.json';
 import { createTestApp, createWorkspace, loginAs, resetDatabase } from './helpers';
 
@@ -78,7 +78,6 @@ describe('Ingestion and incidents (e2e)', () => {
     await app.close();
   });
 
-  /** Creates a Jaeger integration with Jaeger mocked as reachable. */
   async function jaegerIntegration(): Promise<string> {
     jest.spyOn(poller.client, 'services').mockResolvedValue(['demo-shop-api']);
     const res = await owner
@@ -90,7 +89,6 @@ describe('Ingestion and incidents (e2e)', () => {
     return created.id;
   }
 
-  /** Queues one error event per trace id, as the poller would. */
   async function queueErrors(integrationId: string, traceIds: string[]) {
     const base = extractError(trace, 'demo-shop-api')!;
     await db.insert(inboundEvents).values(
@@ -211,10 +209,9 @@ describe('Ingestion and incidents (e2e)', () => {
     const open = async () =>
       ((await owner.get(`/workspaces/${ws}/incidents`).expect(200)).body as Incident[]).length;
 
-    // The 401 is dropped; the other error is held back until its server span shows up.
     expect(await processor.processBatch()).toEqual({ processed: 1, retried: 1, dead: 0 });
     expect(await open()).toBe(0);
-    // Once the server span arrives as a 500, the held error opens an incident.
+
     await db.insert(spans).values(serverSpan(late!, 500));
     await db
       .update(inboundEvents)
@@ -293,7 +290,7 @@ describe('Ingestion and incidents (e2e)', () => {
     await queueErrors(jaeger, traceIds(50));
 
     expect(await processor.processBatch(200)).toEqual({ processed: 51, retried: 0, dead: 0 });
-    // Processing again (e.g. after a crash) changes nothing.
+
     expect(await processor.processBatch(200)).toEqual({ processed: 0, retried: 0, dead: 0 });
 
     const list = await owner.get(`/workspaces/${ws}/incidents?status=open`).expect(200);
@@ -310,7 +307,7 @@ describe('Ingestion and incidents (e2e)', () => {
     const topics = (await db.select().from(outbox).where(eq(outbox.workspaceId, ws))).map(
       (r) => r.topic,
     );
-    // One investigation for 50 errors; one wake-up for the deploy (Phase 7).
+
     expect(topics.sort()).toEqual(['deploy.recorded', 'incident.detected']);
 
     const timeline = (
@@ -407,7 +404,6 @@ describe('Ingestion and incidents (e2e)', () => {
       .body as TimelineEntry[];
     expect(timeline.filter((e) => e.kind === 'status_change')).toHaveLength(2);
 
-    // The same error after closure opens a fresh incident; the closed one keeps its history.
     await queueErrors(jaeger, traceIds(1, 'b'));
     await processor.processBatch();
     const all = (await owner.get(`/workspaces/${ws}/incidents`).expect(200)).body as Incident[];

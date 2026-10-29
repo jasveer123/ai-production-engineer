@@ -7,7 +7,6 @@ import { api } from '@/lib/api';
 
 export const usageKeys = { all: (ws: string) => ['ws', ws, 'usage'] as const };
 
-/** Admins only (the API refuses others), so callers pass `enabled`. */
 export function useUsage(enabled: boolean) {
   const { workspace } = useSession();
   return useQuery({

@@ -14,7 +14,6 @@ type Props = {
   registration: UseFormRegisterReturn;
 };
 
-/** Password with a show/hide toggle. New passwords show the length rule. */
 export function PasswordField({
   id,
   label = 'Password',

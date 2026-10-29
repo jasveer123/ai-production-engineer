@@ -30,7 +30,6 @@ export interface TestSummary {
 }
 
 export interface SuiteResult {
-  /** passed/failed = the tests ran; error = the sandbox could not run them (not a code verdict). */
   status: 'passed' | 'failed' | 'error';
   reason: string | null;
   exitCode: number | null;
@@ -43,7 +42,6 @@ export interface SuiteResult {
 export const workRoot = () =>
   (process.env.SANDBOX_WORK_DIR ?? '~/.ape/sandbox-work').replace(/^~(?=\/)/, homedir());
 
-/** Paths must stay inside the workspace: no absolute paths, no `..`. */
 export function safeRelative(p: string): string {
   const norm = p.replace(/\\/g, '/').replace(/^\.\//, '');
   if (norm.startsWith('/') || norm.split('/').includes('..') || norm.length === 0) {
@@ -62,10 +60,6 @@ function walk(dir: string, base = dir, out: string[] = []): string[] {
   return out;
 }
 
-/**
- * Builds (once) an image holding only the dependencies of `profile.packageDir`, keyed by the
- * lockfile and manifests. This is the only step with network access; test runs are offline.
- */
 export async function ensureDepsImage(sourceDir: string, profile: SandboxProfile): Promise<string> {
   const manifests = walk(sourceDir).filter(
     (f) =>
@@ -123,7 +117,6 @@ const attr = (tag: string, name: string) => {
   return m ? m[1]! : '';
 };
 
-/** Minimal JUnit reader for vitest's report: one <testsuite> per test file. */
 export function parseJUnit(xml: string): TestSummary {
   const summary: TestSummary = { tests: 0, failures: 0, errors: 0, skipped: 0, files: [] };
   for (const m of xml.matchAll(/<testsuite\s[^>]*>/g)) {
@@ -139,10 +132,6 @@ export function parseJUnit(xml: string): TestSummary {
   return summary;
 }
 
-/**
- * Runs the test command in a fresh sandbox: dependencies from the image, source mounted read-only,
- * overlay files (generated test, patched files) on top. `only` limits the run to some test files.
- */
 export async function runSuite(opts: {
   image: string;
   sourceDir: string;
@@ -165,7 +154,7 @@ export async function runSuite(opts: {
     const script = [
       'set -e',
       'cp -R /deps/. /work/',
-      // Never take node_modules or .git from the mounted source: dependencies come from the image.
+
       '(cd /src && tar -cf - --exclude=node_modules --exclude=.git .) | (cd /work && tar -xf -)',
       'cp -R /overlay/. /work/',
       `cd /work/${pkg}`,

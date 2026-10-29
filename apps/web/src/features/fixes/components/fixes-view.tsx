@@ -25,10 +25,8 @@ const CHECKS = {
   none: { tone: 'neutral', text: 'No CI checks' },
 } as const;
 
-// GitHub check conclusions that do not block a merge.
 const OK_CONCLUSIONS = ['success', 'neutral', 'skipped'];
 
-/** Every fix pull request the platform opened, across incidents. */
 export function FixesView() {
   const params = useSearchParams();
   const router = useRouter();

@@ -15,7 +15,6 @@ import { incidentKeys, useInvestigation } from '../queries';
 import { EvidenceLinks, HypothesisCard } from './hypothesis-card';
 import { InvestigationStatus, RUNNING } from './investigation-status';
 
-/** The AI's report: what it observed, what is missing, and ranked hypotheses with evidence. */
 export function IncidentReport({ id }: { id: string }) {
   const { workspace, can } = useSession();
   const qc = useQueryClient();

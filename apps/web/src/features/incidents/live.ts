@@ -8,7 +8,6 @@ import {
 
 type Tone = 'neutral' | 'ok' | 'warn' | 'danger' | 'info' | 'brand' | 'ai';
 
-/** Plain-language label and badge tone for every status the API can return (FRD FR-05). */
 export const STATUS_META: Record<IncidentStatus, { label: string; tone: Tone }> = {
   detected: { label: 'Detected', tone: 'danger' },
   investigating: { label: 'Investigating', tone: 'info' },
@@ -25,10 +24,6 @@ export const STATUS_META: Record<IncidentStatus, { label: string; tone: Tone }> 
 
 export const isClosed = (status: IncidentStatus) => CLOSED_STATUSES.includes(status);
 
-/**
- * Statuses a person may move an incident to by hand. The backend validates every transition; the
- * steps the platform drives itself (validation, review, monitoring) are left to it.
- */
 const MANUAL: readonly IncidentStatus[] = [
   'investigating',
   'needs_attention',
@@ -39,7 +34,6 @@ export function manualNextStatuses(status: IncidentStatus): IncidentStatus[] {
   return INCIDENT_TRANSITIONS[status].filter((s) => MANUAL.includes(s));
 }
 
-/** The logs to show for an incident: its service, from 15 minutes before it started to 5 after. */
 export function incidentLogWindow(
   incident: Pick<Incident, 'serviceName' | 'firstSeenAt' | 'lastSeenAt'>,
 ): { q: string; from: string; to: string } | null {
@@ -49,13 +43,8 @@ export function incidentLogWindow(
   return { q: `service:${incident.serviceName}`, from, to };
 }
 
-/** A timeline row: one entry, or a run of the same error collapsed into one row with a count. */
 export type TimelineRow = { entry: TimelineEntry; count: number; lastAt: string };
 
-/**
- * Oldest first, with back-to-back errors that have the same summary folded into one row, so 499
- * identical errors read as one line with "×499" instead of burying the human and AI steps.
- */
 export function groupTimeline(entries: TimelineEntry[]): TimelineRow[] {
   const rows: TimelineRow[] = [];
   for (const e of [...entries].sort((a, b) => a.at.localeCompare(b.at))) {

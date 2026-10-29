@@ -4,17 +4,16 @@ export type SetupStep = { id: SetupStepId; title: string; detail: string; state:
 
 export type SetupInput = {
   githubConnected: boolean;
-  /** Telemetry service names currently sending data. */
+
   sendingServices: string[];
-  /** Services set up, and how many of them still lack a repository. */
+
   servicesSetUp: number;
   servicesWithoutRepo: number;
-  /** Names sending data that are not set up as services yet. */
+
   discoveredNotSetUp: string[];
   incidents: number;
 };
 
-/** Onboarding from real workspace state. The first step not done is the current one. */
 export function setupSteps(i: SetupInput): SetupStep[] {
   const steps: Omit<SetupStep, 'state'>[] = [
     {

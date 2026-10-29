@@ -18,7 +18,6 @@ export function useMembers() {
   });
 }
 
-/** Admins only; the API refuses others. */
 export function useInvitations(enabled: boolean) {
   const { workspace } = useSession();
   return useQuery({

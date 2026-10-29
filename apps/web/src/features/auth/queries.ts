@@ -17,7 +17,6 @@ export function useAuthProviders() {
   });
 }
 
-/** Who an invitation is for. A bad link is a 4xx the page explains, so there is no retry. */
 export function useInvitePreview(token: string | null) {
   return useQuery({
     queryKey: authKeys.invite(token ?? ''),

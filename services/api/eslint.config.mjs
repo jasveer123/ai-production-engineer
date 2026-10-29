@@ -28,7 +28,7 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
-      // Engineering standards (docs/engineering/CODE-STANDARDS.md). Warnings first, then ratchet.
+
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/consistent-type-imports': ['warn', { fixStyle: 'inline-type-imports' }],
       '@typescript-eslint/no-unused-vars': [
@@ -46,7 +46,6 @@ export default tseslint.config(
     },
   },
   {
-    // Tests group many small cases in one describe() and one file; length there is not a smell.
     files: ['**/*.spec.ts', 'test/**/*.ts'],
     rules: { 'max-lines-per-function': 'off', 'max-lines': 'off' },
   },

@@ -8,9 +8,8 @@ export interface ExecResult {
   durationMs: number;
 }
 
-const MAX_OUTPUT = 2 * 1024 * 1024; // keep at most 2 MB of each stream
+const MAX_OUTPUT = 2 * 1024 * 1024;
 
-/** Runs a command, capturing bounded output, and kills it after `timeoutMs`. */
 export function exec(
   cmd: string,
   args: string[],
@@ -69,12 +68,6 @@ export interface Mount {
   container: string;
 }
 
-/**
- * The isolation flags for every sandbox container (ADR-007). Each one is load-bearing:
- * no network, read-only root, all capabilities dropped, no privilege escalation, non-root user,
- * bounded memory/CPU/processes, writable space only in tmpfs, and read-only bind mounts.
- * Never mount the Docker socket, the host filesystem, or secrets.
- */
 export function sandboxArgs(
   name: string,
   image: string,
@@ -125,7 +118,6 @@ export interface ContainerResult extends ExecResult {
   name: string;
 }
 
-/** Runs `script` with `sh -c` in a fresh locked-down container and always removes it. */
 export async function runInSandbox(
   image: string,
   script: string,
@@ -141,7 +133,6 @@ export async function runInSandbox(
     });
     return { ...res, name };
   } finally {
-    // --rm covers normal exits; this covers timeouts and crashes of this process's child.
     await exec('docker', ['rm', '-f', name]).catch(() => undefined);
   }
 }

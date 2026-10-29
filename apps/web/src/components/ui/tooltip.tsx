@@ -3,7 +3,6 @@
 import * as Primitive from '@radix-ui/react-tooltip';
 import type { ReactNode } from 'react';
 
-/** Wraps one focusable child; the label shows on hover and keyboard focus. */
 export function Tooltip({ label, children }: { label: ReactNode; children: ReactNode }) {
   return (
     <Primitive.Provider delayDuration={200}>

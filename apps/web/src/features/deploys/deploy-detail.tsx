@@ -13,7 +13,6 @@ import { useDeployment } from './queries';
 
 const LINK = 'text-brand underline underline-offset-[3px]';
 
-/** Where a commit is shown: our change page when the service is set up, else nothing. */
 export function changeHref(d: Pick<Deployment, 'serviceId' | 'commitSha'>): string | null {
   return d.serviceId ? `/changes/${d.commitSha}/?service=${d.serviceId}` : null;
 }

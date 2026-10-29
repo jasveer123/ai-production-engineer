@@ -7,7 +7,6 @@ import { Icon } from '@/components/ui/icon';
 
 const ext = 'inline-flex items-center gap-1 text-brand underline underline-offset-[3px]';
 
-/** Plain-language fixes for what GitHub is not allowing, each with a direct link. */
 export function GitHubAccessNotes({
   overview,
   need,

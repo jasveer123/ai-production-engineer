@@ -2,7 +2,7 @@ import type { Integration } from '@ape/api-contracts';
 
 export const CARD =
   'flex flex-col gap-4 rounded-lg border border-line bg-surface-raised p-6 shadow-raised max-sm:p-4';
-/** Pinned to the bottom so the three cards' footers line up. */
+
 export const FOOTER =
   'mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3';
 export const ICON_BUTTON =

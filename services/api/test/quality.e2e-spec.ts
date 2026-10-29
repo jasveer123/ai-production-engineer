@@ -1,11 +1,7 @@
-/**
- * Phase 9 online quality: engineer verdicts on hypotheses, and the outcome-based summary
- * (funnel, per-model precision, fix and verification results), scoped to one workspace.
- */
 import type { INestApplication } from '@nestjs/common';
 import type { IncidentInvestigation, QualitySummary } from '@ape/api-contracts';
 import type { App } from 'supertest/types';
-import { createDatabase } from '../src/db/client';
+import { createDatabase } from '../src/core/db/client';
 import {
   deployments,
   fixProposals,
@@ -14,8 +10,8 @@ import {
   investigations,
   pullRequests,
   verificationRuns,
-} from '../src/db/schema';
-import { TemporalService } from '../src/temporal/temporal.service';
+} from '../src/core/db/schema';
+import { TemporalService } from '../src/core/temporal/temporal.service';
 import { createTestApp, createWorkspace, loginAs, resetDatabase } from './helpers';
 
 describe('Quality: feedback and outcomes (e2e)', () => {
@@ -32,7 +28,6 @@ describe('Quality: feedback and outcomes (e2e)', () => {
     await app.close();
   });
 
-  /** An incident with a completed investigation by `model` and two hypotheses. */
   async function investigated(ws: string, model: string, n: number) {
     const now = new Date();
     const [inc] = await db
@@ -90,7 +85,7 @@ describe('Quality: feedback and outcomes (e2e)', () => {
     const url = `/workspaces/${ws}/incidents/${a.incidentId}/investigation/feedback`;
 
     await viewer.post(url).send({ hypothesisId: a.top, verdict: 'correct' }).expect(403);
-    // A hypothesis from another incident is not found through this incident.
+
     await owner.post(url).send({ hypothesisId: b.top, verdict: 'correct' }).expect(404);
 
     await owner.post(url).send({ hypothesisId: a.top, verdict: 'wrong' }).expect(200);
@@ -119,7 +114,7 @@ describe('Quality: feedback and outcomes (e2e)', () => {
     const g1 = await investigated(ws, 'gemini-3.6-flash', 10);
     const g2 = await investigated(ws, 'gemini-3.6-flash', 11);
     const c1 = await investigated(ws, 'claude-opus-5-5', 12);
-    await investigated(other, 'claude-opus-5-5', 13); // must not be counted
+    await investigated(other, 'claude-opus-5-5', 13);
 
     const vote = (x: { incidentId: string; top: string }, verdict: string) =>
       owner
@@ -129,13 +124,12 @@ describe('Quality: feedback and outcomes (e2e)', () => {
     await vote(g1, 'correct');
     await vote(g2, 'partly');
     await vote(c1, 'wrong');
-    // Verdicts on hypothesis #2 do not count towards top-1 precision.
+
     await owner
       .post(`/workspaces/${ws}/incidents/${c1.incidentId}/investigation/feedback`)
       .send({ hypothesisId: c1.second, verdict: 'correct' })
       .expect(200);
 
-    // g1: validated fix, merged PR, recovered on the second window (the first was inconclusive).
     const [fix] = await db
       .insert(fixProposals)
       .values({

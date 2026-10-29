@@ -11,7 +11,6 @@ export function Skeleton({ className }: { className?: string }) {
 
 type ListSkeletonProps = { label: string; rows?: number };
 
-/** Placeholder rows while a list loads. Announced once to screen readers via `label`. */
 export function ListSkeleton({ label, rows = 4 }: ListSkeletonProps) {
   return (
     <div

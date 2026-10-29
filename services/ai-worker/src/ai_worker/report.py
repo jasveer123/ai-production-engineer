@@ -62,9 +62,7 @@ class StoredReport(BaseModel):
     hypotheses: list[Hypothesis] = []
     data_gaps: list[str] = []
     rejected: list[Rejected] = []
-    # What the guardrails changed (ADR-024): weakened confidence, removed paths, scrubbed secrets.
     adjustments: list[str] = []
-    # What was done to the evidence before the model saw it: redactions, injection flags, caps.
     input_notes: list[str] = []
     usage: Usage = Usage()
 
@@ -73,7 +71,6 @@ def _str_list() -> dict[str, Any]:
     return {"type": "array", "items": {"type": "string"}}
 
 
-# Hand-written so every object is closed and every field required (structured-output rules).
 OUTPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,

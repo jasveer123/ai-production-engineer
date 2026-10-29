@@ -23,7 +23,6 @@ const KIND: Record<TimelineEntry['kind'], { icon: IconName; tone: string; label:
   deploy: { icon: 'git', tone: 'bg-info-soft text-info', label: 'Deploy' },
 };
 
-/** Everything that happened, oldest first: errors, deploys, AI steps and human decisions. */
 export function IncidentTimeline({ id }: { id: string }) {
   const timeline = useTimeline(id);
   if (timeline.isPending) return <ListSkeleton label="Loading the timeline" />;

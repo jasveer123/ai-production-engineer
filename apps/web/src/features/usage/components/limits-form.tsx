@@ -16,8 +16,6 @@ type LimitsFormProps = {
   onSaved: (s: UsageSummary) => void;
 };
 
-// Empty means no limit; anything else is parsed and checked by the contract schema.
-// react-hook-form also passes the (numeric or null) default through here, not just input text.
 const emptyIsNull = (v: unknown) =>
   typeof v === 'string' ? (v.trim() === '' ? null : Number(v)) : v;
 

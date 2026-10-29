@@ -15,7 +15,6 @@ import { api, errorMessage } from '@/lib/api';
 import { startGitHubInstall, useGitHubSelect } from '../queries';
 import { planRepoChanges } from '../repo-changes';
 
-/** After GitHub redirects back: pick which repositories this workspace may use. */
 export function GitHubRepoSelect() {
   const { workspace } = useSession();
   const params = useSearchParams();
@@ -40,7 +39,7 @@ export function GitHubRepoSelect() {
   }, [view.data]);
 
   const accounts = useMemo(() => view.data?.accounts ?? [], [view.data]);
-  // Unticking a saved repo removes it on save; unticking all of an account disconnects it.
+
   const { toConnect, toDisconnect, added, removed } = planRepoChanges(accounts, picked);
   const anyConnected = accounts.some((a) => a.connected);
 

@@ -5,7 +5,6 @@ import { formatAgo } from '@/lib/format';
 import { useIngestOverview } from '../queries';
 import { SEND_WAYS } from '../ways';
 
-/** Names the first service that stopped sending, and links to that way's setup. */
 export function SilentBanner() {
   const { data } = useIngestOverview();
   const silent = data?.streams.find((s) => s.state === 'silent');

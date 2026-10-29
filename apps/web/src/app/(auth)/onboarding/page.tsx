@@ -32,9 +32,7 @@ export default function OnboardingPage() {
     if (!ws) return;
     try {
       localStorage.setItem('ape.workspace', ws.id);
-    } catch {
-      // ignore
-    }
+    } catch {}
     await qc.invalidateQueries({ queryKey: ME_KEY });
     router.replace('/integrations/');
   });

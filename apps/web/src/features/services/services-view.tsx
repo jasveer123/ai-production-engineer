@@ -15,7 +15,6 @@ import { useDiscoveredServices, useServices } from './queries';
 import { ServiceDialog, type ServiceDraft } from './components/service-dialog';
 import { DiscoveredServicesTable, ServicesTable } from './components/services-tables';
 
-// `null` closed, a Draft adding (empty for a blank form), a Service editing it.
 type Editing = null | ServiceDraft | Service;
 const BLANK: ServiceDraft = { name: '', environment: 'production', repositoryFullName: null };
 
@@ -30,7 +29,7 @@ export function ServicesView() {
   const connectedRepos = github.data?.installations.flatMap((i) => i.repositories) ?? [];
   const [editing, setEditing] = useState<Editing>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  // Whole workspace: the GitHub card's "not shared yet" notice reads services too.
+
   const refresh = () => qc.invalidateQueries({ queryKey: ['ws', ws] });
 
   const remove = useMutation({
@@ -115,7 +114,6 @@ export function ServicesView() {
 
       {isAdmin && editing && (
         <ServiceDialog
-          // Remount per target so the uncontrolled fields start from that service.
           key={'id' in editing ? editing.id : `new:${editing.name}:${editing.environment}`}
           editing={editing}
           workspaceId={ws}

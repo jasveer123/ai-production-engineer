@@ -28,7 +28,6 @@ function EffortMeter({ effort }: { effort: 1 | 2 | 3 }) {
   );
 }
 
-/** One way to send data: what it is, who it suits, how much work, and its live state. */
 export function WayTile({
   way,
   status: state,

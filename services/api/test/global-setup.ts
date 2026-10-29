@@ -3,7 +3,6 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Client } from 'pg';
 import { TEST_DATABASE_URL } from './env';
 
-/** Creates the test database if needed and applies all migrations once per run. */
 export default async function globalSetup() {
   const url = new URL(TEST_DATABASE_URL);
   const dbName = url.pathname.slice(1);

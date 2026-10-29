@@ -1,7 +1,7 @@
 # Contributing
 
 1. Branch from `main`: `feat/…`, `fix/…`, `chore/…`.
-2. Run the checks locally: `pnpm lint && pnpm typecheck && pnpm test` and, for the AI worker,
+2. Run the checks locally: `pnpm lint && pnpm typecheck && pnpm test && pnpm boundaries` and, for the AI worker,
    `cd services/ai-worker && uv run ruff check . && uv run mypy src tests && uv run pytest`.
 3. Commit with Conventional Commits and open a pull request using the template.
 4. CI must pass. Review follows `docs/engineering/CODE-STANDARDS.md`.

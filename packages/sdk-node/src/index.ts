@@ -12,30 +12,29 @@ const SDK_HEADER = `node/${VERSION}`;
 export type Level = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 
 export interface StartOptions {
-  /** Workspace ingest token. Default: APE_TOKEN. */
   token?: string;
-  /** Service name, used to find the right repository. Default: APE_SERVICE, OTEL_SERVICE_NAME, package name. */
+
   service?: string;
-  /** Default: APE_ENVIRONMENT, NODE_ENV, "production". */
+
   environment?: string;
-  /** Version or commit of this build. Default: APE_RELEASE. */
+
   release?: string;
-  /** Intake base URL. Default: APE_ENDPOINT or http://localhost:4000. */
+
   endpoint?: string;
-  /** Send console.* output as logs. Default true. */
+
   captureConsole?: boolean;
-  /** Report uncaught exceptions and unhandled rejections. Default true. */
+
   captureUncaught?: boolean;
-  /** Start OpenTelemetry tracing when its SDK is installed. Default true. */
+
   tracing?: boolean;
-  /** Lowest console level to send. Default "info". */
+
   minLevel?: Level;
   batchSize?: number;
   flushIntervalMs?: number;
   maxQueue?: number;
-  /** Print agent problems to stderr. Default true. */
+
   debug?: boolean;
-  /** For tests. */
+
   fetch?: typeof fetch;
 }
 
@@ -62,7 +61,7 @@ interface State {
 }
 
 let state: State | null = null;
-// Original console methods: agent warnings must never be captured as app logs.
+
 const original = {
   log: console.log,
   info: console.info,
@@ -83,7 +82,6 @@ function packageName(): string | null {
   }
 }
 
-/** Starts the agent. Call it first thing in your entry file. Safe to call twice (no-op). */
 export function start(options: StartOptions = {}): boolean {
   if (state) return true;
   const debug = options.debug ?? true;
@@ -178,7 +176,7 @@ function patchConsole(s: State): void {
 function hookProcess(s: State): void {
   const onUncaught = (err: unknown) => {
     captureException(err, { handled: false, level: 'fatal' });
-    // Keep Node's default behaviour when nobody else handles it: print and exit with 1.
+
     if (process.listenerCount('uncaughtException') === 1) {
       void flush(2000).finally(() => {
         original.error.call(console, err);
@@ -188,7 +186,7 @@ function hookProcess(s: State): void {
   };
   const onRejection = (reason: unknown) => {
     captureException(reason, { handled: false, level: 'fatal', mechanism: 'unhandledRejection' });
-    // Node's default (--unhandled-rejections=throw) crashes; adding a listener disables that.
+
     const mode = process.execArgv
       .find((a) => a.startsWith('--unhandled-rejections='))
       ?.split('=')[1];
@@ -207,7 +205,6 @@ function hookProcess(s: State): void {
   });
 }
 
-/** Sends one log line. Attributes are redacted before they leave the process. */
 export function log(level: Level, message: string, attributes?: Record<string, unknown>): void {
   const s = state;
   if (!s || RANK[level] < RANK[s.minLevel]) return;
@@ -227,13 +224,11 @@ export function log(level: Level, message: string, attributes?: Record<string, u
       ...(attributes ? (redactValue(attributes) as Record<string, unknown>) : {}),
     });
   } catch {
-    // never break the app
   } finally {
     inside = false;
   }
 }
 
-/** Reports an exception. Returns the event id, or null when the agent is not started. */
 export function captureException(error: unknown, context: ErrorContext = {}): string | null {
   const s = state;
   if (!s) return null;
@@ -272,7 +267,6 @@ export function captureException(error: unknown, context: ErrorContext = {}): st
   }
 }
 
-/** Sends everything queued. Resolves after `timeoutMs` at the latest. */
 export function flush(timeoutMs = 5000): Promise<void> {
   if (!state) return Promise.resolve();
   return Promise.race([
@@ -281,7 +275,6 @@ export function flush(timeoutMs = 5000): Promise<void> {
   ]);
 }
 
-/** Flushes and removes every hook. */
 export async function shutdown(): Promise<void> {
   const s = state;
   if (!s) return;
@@ -302,10 +295,6 @@ type Req = {
 };
 type Res = { statusCode?: number };
 
-/**
- * Express / Connect error middleware. Add it after your routes:
- * `app.use(errorHandler())`. It reports the error and passes it on unchanged.
- */
 export function errorHandler() {
   return (err: unknown, req: Req, res: Res, next: (e?: unknown) => void) => {
     const route = req.route?.path

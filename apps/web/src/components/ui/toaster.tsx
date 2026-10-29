@@ -4,7 +4,6 @@ import { Toaster as Sonner } from 'sonner';
 
 export { toast } from 'sonner';
 
-/** Mount once in the root layout; call `toast()` from anywhere. */
 export function Toaster() {
   return (
     <Sonner

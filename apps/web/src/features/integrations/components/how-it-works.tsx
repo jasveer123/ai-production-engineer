@@ -25,7 +25,6 @@ const STEPS: Array<{ icon: IconName; title: string; text: string; ai?: boolean }
   },
 ];
 
-/** Four numbered steps that explain integrations before anyone has to choose. */
 export function HowItWorks() {
   return (
     <ol className="grid grid-cols-4 max-md:grid-cols-1">

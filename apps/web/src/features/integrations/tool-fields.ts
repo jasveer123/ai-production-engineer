@@ -8,11 +8,10 @@ export type ToolField = {
   placeholder?: string;
   hint?: string;
   required?: boolean;
-  /** Comma-separated input sent as an array. */
+
   list?: boolean;
 };
 
-/** What each tool needs for read-only access (Way 7). Secrets are password fields. */
 export const TOOL_FIELDS: Record<ToolId, { help: string; fields: ToolField[] }> = {
   grafana: {
     help: 'A Grafana service account token with the Viewer role, or Grafana Cloud Loki credentials (user id + API key, basic auth).',
@@ -132,7 +131,6 @@ export const TOOL_FIELDS: Record<ToolId, { help: string; fields: ToolField[] }> 
   },
 };
 
-/** Form values to the API body: empty optional fields are left out, lists are split. */
 export function readerBody(tool: ToolId, form: FormData): Record<string, unknown> {
   const body: Record<string, unknown> = {};
   for (const f of TOOL_FIELDS[tool].fields) {

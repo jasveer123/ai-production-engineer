@@ -9,15 +9,15 @@ import {
 import type { Incident, IncidentInvestigation } from '@ape/api-contracts';
 import { eq } from 'drizzle-orm';
 import type { App } from 'supertest/types';
-import { ArtifactStore } from '../src/artifacts/artifact-store.service';
-import { createDatabase } from '../src/db/client';
-import { approvals, inboundEvents, incidents, outbox } from '../src/db/schema';
-import { IngestionProcessor } from '../src/ingestion/ingestion.processor';
-import { extractError, type JaegerTrace } from '../src/ingestion/jaeger';
-import { JaegerPoller } from '../src/ingestion/jaeger.poller';
-import { FixActivitiesService } from '../src/fixes/fix-activities.service';
-import { InvestigationActivities } from '../src/investigations/investigation-activities.service';
-import { OutboxPublisher } from '../src/temporal/outbox-publisher.service';
+import { ArtifactStore } from '../src/core/artifacts/artifact-store.service';
+import { createDatabase } from '../src/core/db/client';
+import { approvals, inboundEvents, incidents, outbox } from '../src/core/db/schema';
+import { IngestionProcessor } from '../src/ingest/ingestion/application/ingestion.processor';
+import { extractError, type JaegerTrace } from '../src/ingest/ingestion/infrastructure/jaeger';
+import { JaegerPoller } from '../src/ingest/ingestion/application/jaeger.poller';
+import { FixActivitiesService } from '../src/modules/fixes/activities/fix-activities.service';
+import { InvestigationActivities } from '../src/modules/investigations/activities/investigation-activities.service';
+import { OutboxPublisher } from '../src/core/temporal/outbox-publisher.service';
 import s1 from './fixtures/jaeger-trace-s1.json';
 import { createTestApp, createWorkspace, loginAs, resetDatabase } from './helpers';
 
@@ -26,7 +26,6 @@ const NAMESPACE = process.env.TEMPORAL_NAMESPACE!;
 const ADDRESS = process.env.TEMPORAL_ADDRESS ?? 'localhost:7233';
 jest.setTimeout(120_000);
 
-/** Stand-in for the Python `investigate` activity: cites E1 (real) and E99 (made up). */
 function fakeInvestigate(store: Map<string, unknown>) {
   return (input: InvestigateInput): Promise<InvestigateResult> => {
     const ref = `s3://test/reports/${input.investigationId}.json`;
@@ -80,10 +79,10 @@ async function ensureNamespace() {
   try {
     await conn.workflowService.registerNamespace({
       namespace: NAMESPACE,
-      // protobufjs accepts a plain number for this Long field at runtime.
+
       workflowExecutionRetentionPeriod: { seconds: 86_400 as never },
     });
-    await new Promise((r) => setTimeout(r, 1500)); // namespace propagation on the dev server
+    await new Promise((r) => setTimeout(r, 1500));
   } catch (err) {
     if (!String(err).includes('already')) throw err;
   } finally {
@@ -111,7 +110,7 @@ describe('AI investigation workflow (e2e, needs a Temporal server)', () => {
   beforeAll(async () => {
     await ensureNamespace();
     app = await createTestApp();
-    // In-memory object storage and a canned Jaeger trace.
+
     const store = app.get(ArtifactStore);
     store.putJson = (key: string, data: unknown) => {
       const ref = `s3://test/${key}`;
@@ -226,8 +225,8 @@ describe('AI investigation workflow (e2e, needs a Temporal server)', () => {
     expect(inv.evidence.map((e) => e.kind)).toEqual(
       expect.arrayContaining(['error_event', 'trace']),
     );
-    expect(inv.coverage.code).toContain('unavailable'); // no GitHub installation: reported, not invented
-    expect(inv.hypotheses).toHaveLength(1); // the E99 hypothesis was rejected by the API-side guard
+    expect(inv.coverage.code).toContain('unavailable');
+    expect(inv.hypotheses).toHaveLength(1);
     expect(inv.hypotheses[0]).toMatchObject({
       rank: 1,
       confidence: 'high',
@@ -247,7 +246,7 @@ describe('AI investigation workflow (e2e, needs a Temporal server)', () => {
       .post(`/workspaces/${ws}/incidents/${incident.id}/actions`)
       .send({ action: 'approve_reproduction' })
       .expect(200);
-    // Workflow B starts; with no GitHub installation it stops before touching any code and waits.
+
     await until(async () => {
       const r = await investigation(owner, ws, incident.id);
       return r.reproductionApproved && r.workflow?.phase === 'awaiting_fix_decision';

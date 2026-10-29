@@ -1,6 +1,4 @@
 packages:
   - 'apps/*'
-  - 'services/api'
-  - 'services/sandbox-manager'
-  - 'workflows/*'
+  - 'services/*'
   - 'packages/*'

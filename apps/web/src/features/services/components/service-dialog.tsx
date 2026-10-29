@@ -11,7 +11,6 @@ import { api, errorMessage } from '@/lib/api';
 import { useZodForm } from '@/lib/use-zod-form';
 import { repoOptions } from '../repo-options';
 
-/** Fields to start an Add dialog with, e.g. a service discovered in telemetry. */
 export type ServiceDraft = Pick<Service, 'name' | 'environment' | 'repositoryFullName'>;
 
 type ServiceDialogProps = {

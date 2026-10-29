@@ -2,7 +2,6 @@ import { CopyButton } from './copy-button';
 
 type CodeSnippetProps = { label: string; code: string; wrap?: boolean };
 
-/** Copyable setup code. The workspace's own values are already filled in. */
 export function CodeSnippet({ label, code, wrap }: CodeSnippetProps) {
   return (
     <div className="min-w-0 rounded-md border border-line bg-surface-sunken">
@@ -21,7 +20,6 @@ export function CodeSnippet({ label, code, wrap }: CodeSnippetProps) {
 
 type TokenFieldProps = { label: string; masked: string; full?: string; help: string };
 
-/** A secret with Copy. Shows the masked form; copies the full value. */
 export function TokenField({ label, masked, full, help }: TokenFieldProps) {
   return (
     <div className="grid min-w-0 gap-1.5">

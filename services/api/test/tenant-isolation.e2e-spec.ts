@@ -8,7 +8,6 @@ interface RouteInfo {
   path: string;
 }
 
-/** Reads every registered Express route so new routes are covered without editing this test. */
 function workspaceRoutes(app: INestApplication<App>): RouteInfo[] {
   const router = (
     app.getHttpAdapter().getInstance() as {
@@ -62,7 +61,6 @@ describe('Tenant isolation and RBAC (e2e)', () => {
       });
     }
 
-    // Bob's data is untouched and still visible to Bob.
     const list = await bob.get(`/workspaces/${wsB.id}/services`).expect(200);
     expect(list.body).toHaveLength(1);
   });
@@ -154,7 +152,6 @@ describe('Tenant isolation and RBAC (e2e)', () => {
       });
     }
 
-    // Nothing of A's changed.
     const service = await alice.get(`/workspaces/${a}/services/${ids.serviceId}`).expect(200);
     expect((service.body as { name: string }).name).toBe('a-api');
     const incident = await alice.get(`/workspaces/${a}/incidents/${ids.incidentId}`).expect(200);

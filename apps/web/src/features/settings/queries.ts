@@ -42,7 +42,6 @@ export function useNotificationChannels() {
   });
 }
 
-/** Admins only (the API refuses others), so callers pass `enabled`. */
 export function useNotificationDeliveries(enabled: boolean) {
   const { workspace } = useSession();
   return useQuery({

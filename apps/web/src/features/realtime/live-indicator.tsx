@@ -6,11 +6,6 @@ import { LiveStatus, type LiveState } from '@/components/ui/live-status';
 import { useWorkspaceId } from '@/features/auth/session';
 import { apiUrl } from '@/lib/api';
 
-/**
- * Listens to the workspace's server-sent events. A message only says what changed, so on each
- * batch the workspace's active queries refetch through the normal, authorised endpoints.
- * EventSource reconnects on its own after a drop; the queries' slow polling covers the gap.
- */
 function useLiveUpdates(): LiveState {
   const ws = useWorkspaceId();
   const qc = useQueryClient();
@@ -30,7 +25,6 @@ function useLiveUpdates(): LiveState {
   return state;
 }
 
-/** Shown in the header: whether this page updates on its own right now. */
 export function LiveIndicator() {
   const state = useLiveUpdates();
   return (

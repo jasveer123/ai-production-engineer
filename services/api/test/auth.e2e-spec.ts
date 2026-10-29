@@ -2,7 +2,7 @@ import type { InvitationWithLink, Me } from '@ape/api-contracts';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type { App } from 'supertest/types';
-import { Mailer } from '../src/auth/mailer.service';
+import { Mailer } from '../src/modules/auth/infrastructure/mailer.service';
 import { createTestApp, loginAs, resetDatabase } from './helpers';
 
 const PASSWORD = 'tidy-otter-lamp-42';
@@ -106,7 +106,7 @@ describe('Accounts: register, sign in, reset, invitations (e2e)', () => {
       .expect(200);
     expect((reset.body as Me).user.emailVerified).toBe(true);
 
-    await old.get('/auth/me').expect(401); // revoked everywhere
+    await old.get('/auth/me').expect(401);
     await fresh.get('/auth/me').expect(200);
     await http
       .post('/auth/reset-password')
@@ -172,7 +172,7 @@ describe('Accounts: register, sign in, reset, invitations (e2e)', () => {
     const res = await register(eng, 'eng@shop.test', { inviteToken: token }).expect(201);
     expect((res.body as Me).user.emailVerified).toBe(true);
     expect((res.body as Me).workspaces).toEqual([{ id: ws.id, name: 'Shop', role: 'engineer' }]);
-    await request(app.getHttpServer()).get(`/auth/invitations/${token}`).expect(400); // used
+    await request(app.getHttpServer()).get(`/auth/invitations/${token}`).expect(400);
   });
 
   it('does not hand invitations to an unverified account that claims the email', async () => {
@@ -189,7 +189,6 @@ describe('Accounts: register, sign in, reset, invitations (e2e)', () => {
     expect((res.body as Me).workspaces).toEqual([]);
     await attacker.get(`/workspaces/${ws.id}/members`).expect(404);
 
-    // The real owner of the address signs in with a verified identity: the squatter's password is gone.
     await loginAs(app, 'victim@shop.test');
     await attacker.get('/auth/me').expect(401);
     await request(app.getHttpServer())

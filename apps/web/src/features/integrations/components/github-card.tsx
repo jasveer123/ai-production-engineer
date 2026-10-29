@@ -22,7 +22,7 @@ export function GitHubCard({ row }: { row: Integration | undefined }) {
   const test = useMutation({
     mutationFn: (id: string) =>
       api(`/workspaces/${workspace.id}/integrations/${id}/test`, { method: 'POST' }),
-    // Also refreshes the repository list and permission check shown on the card.
+
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ws', workspace.id] }),
     onError: (e) => setError(errorMessage(e)),
   });

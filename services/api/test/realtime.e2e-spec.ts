@@ -1,7 +1,3 @@
-/**
- * Live updates (Phase 8): Postgres NOTIFY -> RealtimeService -> SSE, scoped to one workspace,
- * carrying ids only, and closed for people who lose access.
- */
 import { get, type IncomingMessage } from 'node:http';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -10,10 +6,10 @@ import type { Incident, LiveChange } from '@ape/api-contracts';
 import { firstValueFrom, filter, take, timeout } from 'rxjs';
 import request from 'supertest';
 import type { App } from 'supertest/types';
-import { createDatabase } from '../src/db/client';
-import { incidents, sessions } from '../src/db/schema';
-import { RealtimeService, dedupeChanges, parseChange } from '../src/realtime/realtime.service';
-import { TemporalService } from '../src/temporal/temporal.service';
+import { createDatabase } from '../src/core/db/client';
+import { incidents, sessions } from '../src/core/db/schema';
+import { RealtimeService, dedupeChanges, parseChange } from '../src/core/realtime/realtime.service';
+import { TemporalService } from '../src/core/temporal/temporal.service';
 import { createTestApp, createWorkspace, loginAs, resetDatabase } from './helpers';
 
 interface SseEvent {
@@ -21,7 +17,6 @@ interface SseEvent {
   data: unknown;
 }
 
-/** Minimal SSE client: collects events from a streaming response. */
 function openStream(url: string, cookie: string) {
   const events: SseEvent[] = [];
   let res: IncomingMessage | undefined;
@@ -176,8 +171,8 @@ describe('Live updates over SSE (e2e)', () => {
     expect(await stream.opened).toBe(200);
     await stream.waitFor((e) => e.event === 'ready');
     await db.update(sessions).set({ revokedAt: new Date() });
-    await stream.ended(); // re-checked every 300 ms in this test
-    // Nothing is sent after that, even though changes keep happening.
+    await stream.ended();
+
     const count = stream.events.length;
     await db.update(incidents).set({ title: 'changed' });
     await new Promise((r) => setTimeout(r, 300));

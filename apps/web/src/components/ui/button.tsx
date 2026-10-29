@@ -47,7 +47,6 @@ type ButtonLinkProps = {
   children: ReactNode;
 };
 
-/** A link styled as a button, for actions that navigate. */
 export function ButtonLink({
   href,
   variant = 'primary',

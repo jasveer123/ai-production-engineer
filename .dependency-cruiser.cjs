@@ -1,4 +1,6 @@
-/** Import boundaries from docs/engineering/CODE-STANDARDS.md section 1. */
+const API = '^services/api/src';
+const FEATURES = `${API}/(modules|connectors|ingest)`;
+
 module.exports = {
   forbidden: [
     {
@@ -10,11 +12,27 @@ module.exports = {
     },
     {
       name: 'packages-never-import-apps-or-services',
-      comment:
-        'Dependencies point inward: packages/* are consumed by apps and services, never the reverse.',
+      comment: 'packages/* are consumed by apps and services, never the reverse.',
       severity: 'error',
       from: { path: '^packages/' },
       to: { path: '^(apps|services)/' },
+    },
+    {
+      name: 'api-domain-stays-pure',
+      comment:
+        'domain/ holds pure logic: it never imports application, infrastructure, activities, controllers or modules.',
+      severity: 'error',
+      from: { path: `${FEATURES}/[^/]+/domain/` },
+      to: {
+        path: `${FEATURES}/[^/]+/(application|infrastructure|activities)/|\\.(controller|module)\\.ts$`,
+      },
+    },
+    {
+      name: 'api-core-never-imports-features',
+      comment: 'core/ is shared plumbing: features depend on it, never the reverse.',
+      severity: 'error',
+      from: { path: `${API}/core/` },
+      to: { path: `${FEATURES}/` },
     },
     {
       name: 'web-no-cross-feature-deep-imports',

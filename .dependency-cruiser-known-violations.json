@@ -1,6 +1,133 @@
 [
   {
     "type": "dependency",
+    "from": "services/api/src/core/audit/audit.controller.ts",
+    "to": "services/api/src/modules/workspaces/min-role.decorator.ts",
+    "unresolvedTo": "../../modules/workspaces/min-role.decorator",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "api-core-never-imports-features"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "services/api/src/core/audit/audit.controller.ts",
+    "to": "services/api/src/modules/workspaces/workspace-access.guard.ts",
+    "unresolvedTo": "../../modules/workspaces/workspace-access.guard",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "api-core-never-imports-features"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "services/api/src/core/db/seed.ts",
+    "to": "services/api/src/modules/auth/domain/password.ts",
+    "unresolvedTo": "../../modules/auth/domain/password",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "api-core-never-imports-features"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "services/api/src/core/health/health.controller.ts",
+    "to": "services/api/src/modules/auth/public.decorator.ts",
+    "unresolvedTo": "../../modules/auth/public.decorator",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "api-core-never-imports-features"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "services/api/src/core/realtime/realtime.controller.ts",
+    "to": "services/api/src/modules/workspaces/workspace-access.guard.ts",
+    "unresolvedTo": "../../modules/workspaces/workspace-access.guard",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "api-core-never-imports-features"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "services/api/src/core/realtime/realtime.module.ts",
+    "to": "services/api/src/modules/workspaces/workspaces.module.ts",
+    "unresolvedTo": "../../modules/workspaces/workspaces.module",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "api-core-never-imports-features"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "services/api/src/core/temporal/outbox-publisher.service.ts",
+    "to": "services/api/src/modules/notifications/application/notification-dispatcher.service.ts",
+    "unresolvedTo": "../../modules/notifications/application/notification-dispatcher.service",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "api-core-never-imports-features"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "services/api/src/connectors/setup/domain/setup-config.ts",
+    "to": "services/api/src/core/config/config.module.ts",
+    "unresolvedTo": "../../../core/config/config.module",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "api-domain-stays-pure"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "services/api/src/modules/investigations/domain/evidence-format.ts",
+    "to": "services/api/src/ingest/ingestion/infrastructure/jaeger.ts",
+    "unresolvedTo": "../../../ingest/ingestion/infrastructure/jaeger",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "api-domain-stays-pure"
+    }
+  },
+  {
+    "type": "dependency",
     "from": "apps/web/src/features/account/account-view.tsx",
     "to": "apps/web/src/features/auth/components/password-field.tsx",
     "unresolvedTo": "@/features/auth/components/password-field",

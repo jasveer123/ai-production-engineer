@@ -7,7 +7,7 @@ import request from 'supertest';
 import type { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
-import { createDatabase } from '../src/db/client';
+import { createDatabase } from '../src/core/db/client';
 
 export async function createTestApp(): Promise<INestApplication<App>> {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -17,7 +17,6 @@ export async function createTestApp(): Promise<INestApplication<App>> {
   return app;
 }
 
-/** Empties every table except the audit log, which is append-only (the trigger blocks DELETE). */
 export async function resetDatabase(): Promise<void> {
   const { db, pool } = createDatabase(process.env.DATABASE_URL!);
   await db.execute(sql`
@@ -29,7 +28,6 @@ export async function resetDatabase(): Promise<void> {
   await pool.end();
 }
 
-/** Logs in through the dev login and returns an agent that carries the session cookie. */
 export async function loginAs(app: INestApplication<App>, email: string) {
   const agent = request.agent(app.getHttpServer());
   await agent.post('/auth/dev-login').send({ email }).expect(204);

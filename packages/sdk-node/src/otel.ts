@@ -1,10 +1,6 @@
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 
-/**
- * Optional OpenTelemetry. Packages are resolved from the app (not bundled with the agent), so an
- * app without them simply has no tracing and no trace ids on logs.
- */
 const appRequire = createRequire(join(process.cwd(), 'noop.js'));
 
 function tryRequire<T>(name: string): T | null {
@@ -21,7 +17,6 @@ interface OtelApi {
 
 let api: OtelApi | null | undefined;
 
-/** The active trace and span ids, when OpenTelemetry is in use. */
 export function activeTraceContext(): { traceId: string; spanId: string } | null {
   if (api === undefined) api = tryRequire<OtelApi>('@opentelemetry/api');
   const ctx = api?.trace.getActiveSpan()?.spanContext();
@@ -39,11 +34,6 @@ export interface TracingOptions {
   warn: (m: string) => void;
 }
 
-/**
- * Starts the OpenTelemetry Node SDK with an OTLP exporter pointed at our intake. Uses
- * auto-instrumentations when installed, otherwise the HTTP and Express instrumentations.
- * Returns a shutdown function, or null when the SDK is not installed.
- */
 export function startTracing(o: TracingOptions): (() => Promise<void>) | null {
   const sdkNode = tryRequire<{
     NodeSDK: new (cfg: Record<string, unknown>) => { start(): void; shutdown(): Promise<void> };
@@ -74,7 +64,6 @@ export function startTracing(o: TracingOptions): (() => Promise<void>) | null {
     if (express) instrumentations.push(new express.ExpressInstrumentation());
   }
 
-  // Resource attributes through the standard env var, so we do not depend on a resources version.
   const attrs = [
     `service.name=${o.service}`,
     `deployment.environment.name=${o.environment}`,

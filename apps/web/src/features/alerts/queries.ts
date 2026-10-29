@@ -13,7 +13,7 @@ export function useAlerts(status?: 'firing' | 'resolved') {
     queryKey: [...alertsKey(workspace.id), 'list', status ?? 'all'],
     queryFn: () =>
       api<AlertView[]>(`/workspaces/${workspace.id}/alerts${status ? `?status=${status}` : ''}`),
-    // Alerts arrive from outside tools; keep the list current without a reload.
+
     refetchInterval: 15_000,
   });
 }

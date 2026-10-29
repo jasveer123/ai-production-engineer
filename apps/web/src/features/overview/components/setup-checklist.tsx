@@ -11,7 +11,6 @@ const ACTION: Record<SetupStepId, { href: string; label: string }> = {
   incident: { href: '/integrations/', label: 'Check your data' },
 };
 
-/** Onboarding progress: exactly one current step carries the main action. */
 export function SetupChecklist({ steps }: { steps: SetupStep[] }) {
   const done = steps.filter((s) => s.state === 'done').length;
   return (

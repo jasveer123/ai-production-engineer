@@ -128,7 +128,6 @@ export function CreateSourceDialog({
   );
 }
 
-/** The token exists only in this response, so this is the one chance to copy it. */
 export function RevealDialog({
   source,
   onClose,

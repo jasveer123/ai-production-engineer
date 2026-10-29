@@ -38,7 +38,6 @@ export function useSession(): Session {
   return s;
 }
 
-/** The current workspace id, for building API paths. */
 export const useWorkspaceId = () => useSession().workspace.id;
 
 function readStored(): string | null {
@@ -49,10 +48,6 @@ function readStored(): string | null {
   }
 }
 
-/**
- * Guards the app: signed-out visitors go to /login (and come back after), signed-in users without
- * a workspace go to /onboarding. Children get the session and the selected workspace.
- */
 export function AuthGate({ children }: { children: ReactNode }) {
   const me = useMe();
   const router = useRouter();
@@ -80,9 +75,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       switchWorkspace: (id: string) => {
         try {
           localStorage.setItem(STORAGE_KEY, id);
-        } catch {
-          // private mode: the choice lasts for this page only
-        }
+        } catch {}
         setSelected(id);
       },
     };
@@ -110,7 +103,6 @@ export function FullPageMessage({ children }: { children: ReactNode }) {
   );
 }
 
-/** Clears cached account data after sign-in, sign-out or a workspace change. */
 export function useResetSession() {
   const qc = useQueryClient();
   return () => qc.clear();

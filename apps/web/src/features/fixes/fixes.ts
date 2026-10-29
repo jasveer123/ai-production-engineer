@@ -7,7 +7,6 @@ export const PR_STATUSES = [
 ] as const satisfies readonly PullRequestView['status'][];
 export type PrFilter = PullRequestView['status'] | 'all';
 
-/** Reads the `status` search param; anything unknown means "all". */
 export function parsePrFilter(value: string | null): PrFilter {
   return (PR_STATUSES as readonly string[]).includes(value ?? '') ? (value as PrFilter) : 'all';
 }

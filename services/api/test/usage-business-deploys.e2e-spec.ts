@@ -13,7 +13,7 @@ import type {
 import { and, eq } from 'drizzle-orm';
 import request from 'supertest';
 import type { App } from 'supertest/types';
-import { createDatabase } from '../src/db/client';
+import { createDatabase } from '../src/core/db/client';
 import {
   auditEvents,
   incidentEvents,
@@ -21,11 +21,11 @@ import {
   investigations,
   spans,
   usageRecords,
-} from '../src/db/schema';
-import { IngestionProcessor } from '../src/ingestion/ingestion.processor';
-import { sign } from '../src/ingestion/webhook-signature';
-import { InvestigationActivities } from '../src/investigations/investigation-activities.service';
-import { TemporalService } from '../src/temporal/temporal.service';
+} from '../src/core/db/schema';
+import { IngestionProcessor } from '../src/ingest/ingestion/application/ingestion.processor';
+import { sign } from '../src/ingest/ingestion/domain/webhook-signature';
+import { InvestigationActivities } from '../src/modules/investigations/activities/investigation-activities.service';
+import { TemporalService } from '../src/core/temporal/temporal.service';
 import { createTestApp, createWorkspace, loginAs, resetDatabase } from './helpers';
 
 type Agent = Awaited<ReturnType<typeof loginAs>>;
@@ -116,7 +116,6 @@ describe('Deploys, business impact, usage and limits (e2e)', () => {
     expect(shop.map((d) => d.commitSha)).toEqual(['bbb2222', 'aaa1111']);
     await owner.get(`/workspaces/${ws}/deployments?limit=0`).expect(400);
 
-    // Detail: neighbours of the same service, and incidents opened between it and the next deploy.
     const incident = (minAgo: number, title: string, service = 'shop-api') => ({
       workspaceId: ws,
       title,
@@ -170,14 +169,10 @@ describe('Deploys, business impact, usage and limits (e2e)', () => {
       durationMs: '12',
       statusCode,
     });
-    await db.insert(spans).values([
-      span('t1', 2),
-      span('t2', 2),
-      span('t3', 1), // succeeded: not a failure
-      span('t4', 2, 60 * 24 * 10), // outside a 7-day window
-    ]);
+    await db
+      .insert(spans)
+      .values([span('t1', 2), span('t2', 2), span('t3', 1), span('t4', 2, 60 * 24 * 10)]);
     await db.insert(incidentEvents).values([
-      // t1 is also an error span: one failed request, not two.
       {
         workspaceId: ws,
         incidentId: incident.id,
@@ -297,7 +292,6 @@ describe('Deploys, business impact, usage and limits (e2e)', () => {
         note: null,
       });
 
-    // Budget used up: the manual action is refused with a clear message.
     await db
       .insert(usageRecords)
       .values({ workspaceId: ws, metric: 'model_cost_usd', quantity: '5' });
@@ -313,7 +307,6 @@ describe('Deploys, business impact, usage and limits (e2e)', () => {
     expect((refused.body as ApiError).message).toContain('monthly AI budget of $5.00');
     expect(requested).not.toHaveBeenCalled();
 
-    // The automatic start (workflow activity) is blocked too, and stays blocked on retry.
     const auto = await start('run-1');
     expect(auto.blocked).toContain('monthly AI budget');
     expect(await start('run-1')).toEqual(auto);
@@ -336,7 +329,6 @@ describe('Deploys, business impact, usage and limits (e2e)', () => {
       .where(and(eq(auditEvents.workspaceId, ws), eq(auditEvents.action, 'investigation.blocked')));
     expect(audits.map((a) => a.outcome)).toEqual(['denied', 'denied']);
 
-    // Concurrency: one running investigation with a limit of 1 blocks the next start.
     await owner
       .put(`/workspaces/${ws}/usage/limits`)
       .send({ monthlyAiBudgetUsd: null, maxConcurrentInvestigations: 1 })
@@ -346,7 +338,6 @@ describe('Deploys, business impact, usage and limits (e2e)', () => {
     const second = await start('run-3');
     expect(second.blocked).toContain('1 investigation is already running (limit 1)');
 
-    // Within limits the manual action goes through to the workflow.
     await owner
       .put(`/workspaces/${ws}/usage/limits`)
       .send({ monthlyAiBudgetUsd: null, maxConcurrentInvestigations: null })

@@ -11,11 +11,10 @@ RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev --no-ins
 FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/* \
  && useradd --create-home --uid 10001 app
-# The code finds prompts at <repo>/prompts relative to its own path, so keep the repo layout.
 WORKDIR /srv/services/ai-worker
 COPY --from=build /srv/services/ai-worker/.venv ./.venv
 COPY services/ai-worker/src ./src
-COPY prompts /srv/prompts
+COPY services/ai-worker/prompts ./prompts
 ENV PATH="/srv/services/ai-worker/.venv/bin:$PATH" PYTHONPATH=/srv/services/ai-worker/src \
     PYTHONUNBUFFERED=1 ENV=production PORT=8000
 USER app

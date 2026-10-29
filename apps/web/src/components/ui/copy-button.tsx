@@ -6,7 +6,6 @@ import { Icon } from './icon';
 
 type CopyButtonProps = { text: string; label?: string; variant?: ButtonVariant };
 
-/** Copies text and confirms in place. Falls back to "Select and copy" when the clipboard is blocked. */
 export function CopyButton({ text, label = 'Copy', variant = 'ghost' }: CopyButtonProps) {
   const [state, setState] = useState<'idle' | 'copied' | 'blocked'>('idle');
 

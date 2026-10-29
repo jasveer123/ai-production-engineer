@@ -8,7 +8,6 @@ type PageHeaderProps = {
   actions?: ReactNode;
 };
 
-/** Page title, one sentence on what the page is for, and at most one primary action. */
 export function PageHeader({ title, description, eyebrow, actions }: PageHeaderProps) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">

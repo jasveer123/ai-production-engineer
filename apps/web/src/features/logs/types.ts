@@ -8,7 +8,7 @@ export type LogLine = {
   message: string;
   traceId?: string;
   incidentId?: string;
-  /** The AI cited this line as evidence in an investigation. */
+
   evidence?: boolean;
   source: 'OpenTelemetry' | 'Our package' | 'Server agent' | 'Grafana Loki';
 };

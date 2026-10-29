@@ -1,7 +1,3 @@
-/**
- * Notifications (Phase 8): channel management and RBAC, signed webhook delivery from the outbox,
- * severity and event filters, retries without duplicates, and permanent failures.
- */
 import { createServer, type IncomingHttpHeaders, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { INestApplication } from '@nestjs/common';
@@ -13,11 +9,11 @@ import type {
 } from '@ape/api-contracts';
 import { and, eq, sql } from 'drizzle-orm';
 import type { App } from 'supertest/types';
-import { createDatabase } from '../src/db/client';
-import { notificationDeliveries, outbox, secrets } from '../src/db/schema';
-import { verifySignature } from '../src/ingestion/webhook-signature';
-import { OutboxPublisher } from '../src/temporal/outbox-publisher.service';
-import { TemporalService } from '../src/temporal/temporal.service';
+import { createDatabase } from '../src/core/db/client';
+import { notificationDeliveries, outbox, secrets } from '../src/core/db/schema';
+import { verifySignature } from '../src/ingest/ingestion/domain/webhook-signature';
+import { OutboxPublisher } from '../src/core/temporal/outbox-publisher.service';
+import { TemporalService } from '../src/core/temporal/temporal.service';
 import { createTestApp, createWorkspace, loginAs, resetDatabase } from './helpers';
 
 interface Received {
@@ -33,7 +29,7 @@ describe('Notifications (e2e)', () => {
   let base: string;
   let publisher: OutboxPublisher;
   const received: Received[] = [];
-  /** Response status per path; default 200. */
+
   const respond = new Map<string, number>();
   const { db, pool } = createDatabase(process.env.DATABASE_URL!);
 
@@ -127,7 +123,7 @@ describe('Notifications (e2e)', () => {
 
     const created = await addWebhook(owner, ws, '/a?token=abc');
     expect(created.signingSecret).toMatch(/^whsec_[0-9a-f]{64}$/);
-    expect(created.target).toBe(`${base}/a`); // query string (often a token) is not shown
+    expect(created.target).toBe(`${base}/a`);
 
     await owner
       .post(`/workspaces/${ws}/notifications/channels`)
@@ -155,7 +151,6 @@ describe('Notifications (e2e)', () => {
     expect(JSON.stringify(list)).not.toContain('whsec_');
     expect(list.find((c) => c.kind === 'slack')!.target).toBe('hooks.slack.com/services/T01/…');
 
-    // Deleting a channel deletes its secret.
     const before = (await db.select().from(secrets).where(eq(secrets.workspaceId, ws))).length;
     await owner.delete(`/workspaces/${ws}/notifications/channels/${created.id}`).expect(204);
     expect((await db.select().from(secrets).where(eq(secrets.workspaceId, ws))).length).toBe(
@@ -245,7 +240,7 @@ describe('Notifications (e2e)', () => {
     const [row] = await notifyRows(ws);
     expect(row).toMatchObject({ attempts: 1, publishedAt: null });
     expect(row!.lastError).toContain('hook /flaky');
-    // Backed off: an immediate second pass does not retry.
+
     await publisher.publishBatch();
     expect(received).toHaveLength(2);
 

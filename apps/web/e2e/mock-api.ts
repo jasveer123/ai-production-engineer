@@ -26,10 +26,6 @@ const EMPTY_INGEST = {
   streams: [],
 };
 
-/**
- * Answers every API call in the browser. `overrides` maps a path suffix to a response body or a
- * handler; anything else in a workspace is an empty list, and anything unmocked fails loudly.
- */
 export async function mockApi(
   page: Page,
   { me, overrides = {} }: { me: unknown | null; overrides?: Record<string, unknown | Handler> },

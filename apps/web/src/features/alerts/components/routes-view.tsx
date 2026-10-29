@@ -170,7 +170,6 @@ export function RoutesView() {
   );
 }
 
-/** Dry run: parse a sample payload and show where each alert would go. Stores nothing. */
 function PreviewCard({ workspaceId, sources }: { workspaceId: string; sources: AlertSource[] }) {
   const [payload, setPayload] = useState(JSON.stringify(SAMPLE_HTTP_ALERT, null, 2));
   const [sourceId, setSourceId] = useState(sources[0]?.id ?? '');

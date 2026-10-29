@@ -25,9 +25,7 @@ function readStored(): ThemeChoice {
   }
 }
 
-/** Light, Dark or System. The choice is a per-browser convenience kept in local storage. */
 export function ThemeSwitch() {
-  // Server render and first client render agree on "system"; the stored choice is synced after mount.
   const [choice, setChoice] = useState<ThemeChoice>('system');
 
   useEffect(() => {
@@ -42,9 +40,7 @@ export function ThemeSwitch() {
     try {
       if (next === 'system') localStorage.removeItem(THEME_STORAGE_KEY);
       else localStorage.setItem(THEME_STORAGE_KEY, next);
-    } catch {
-      // Storage can be blocked (private mode); the theme still applies for this page view.
-    }
+    } catch {}
   }
 
   return (

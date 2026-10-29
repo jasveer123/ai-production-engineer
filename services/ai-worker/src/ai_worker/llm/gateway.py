@@ -18,8 +18,6 @@ from ai_worker.config import Settings
 tracer = trace.get_tracer("ai_worker.llm")
 log = logging.getLogger("ai_worker")
 
-# USD per million tokens: (input, output, prompt-size threshold, input above it, output above it).
-# Unknown models are recorded with cost 0. Haiku 5.5 charges more once a prompt passes 100K tokens.
 PRICING: dict[str, tuple[float, float, int | None, float, float]] = {
     "claude-opus-5-5": (4.0, 20.0, None, 4.0, 20.0),
     "claude-opus-5": (5.0, 25.0, None, 5.0, 25.0),
@@ -28,16 +26,13 @@ PRICING: dict[str, tuple[float, float, int | None, float, float]] = {
     "claude-haiku-5-5": (0.10, 0.50, 100_000, 0.50, 2.50),
     "claude-fable-5-1": (10.0, 50.0, None, 10.0, 50.0),
 }
-CACHE_READ_FACTOR = 0.1  # cache hits cost a tenth of the input price
-CACHE_WRITE_FACTOR = 1.25  # writing a 5-minute cache entry costs a quarter more
+CACHE_READ_FACTOR = 0.1
+CACHE_WRITE_FACTOR = 1.25
 
-# Models that accept the server-side refusal fallback. Haiku 5.5 does not, and sending the
-# setting to it is rejected, so it is only added for the models listed here.
 FALLBACK_MODELS = frozenset(
     {"claude-fable-5-1", "claude-opus-5-5", "claude-opus-5", "claude-sonnet-5-5"}
 )
 
-# Purposes that write code or tests (see fixing.py); everything else reads evidence.
 FIX_PURPOSES = frozenset({"TestOut", "PatchOut"})
 
 
@@ -187,7 +182,7 @@ class AnthropicProvider:
         self.client = anthropic.AsyncAnthropic(
             api_key=settings.anthropic_api_key.get_secret_value(),
             timeout=settings.ai_timeout_seconds,
-            max_retries=2,  # SDK retries 429/5xx/connection errors with backoff
+            max_retries=2,
         )
 
     async def structured(
@@ -287,7 +282,7 @@ def get_provider(settings: Settings) -> ModelProvider:
     if choice in ("auto", "anthropic") and _has(settings.anthropic_api_key):
         return AnthropicProvider(settings)
     if choice in ("auto", "gemini") and _has(settings.gemini_api_key):
-        from ai_worker.llm.gemini import GeminiProvider  # optional dependency path
+        from ai_worker.llm.gemini import GeminiProvider
 
         return GeminiProvider(settings)
     if choice == "openai" and _has(settings.openai_api_key):

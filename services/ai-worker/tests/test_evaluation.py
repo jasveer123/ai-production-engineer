@@ -75,7 +75,6 @@ async def test_flawed_answers_fail_for_the_right_reasons() -> None:
     r = await run("flawed")
     sc = r["scores"]
     assert not any(s.passed for s in sc.values())
-    # Invented citation (E42): the evidence guard drops the only hypothesis.
     assert sc[("scripted:flawed", "s1-null-coupon")].rejected == 1
     assert sc[("scripted:flawed", "s1-null-coupon")].hypotheses == 0
     assert sc[("scripted:flawed", "s1-prompt-injection")].injection_followed
@@ -110,7 +109,7 @@ async def test_retryable_errors_are_retried_then_reported() -> None:
     assert ok.scores[0].passed and flaky.calls == 3
 
     always = Flaky()
-    always.calls = -100  # never recovers within the retries
+    always.calls = -100
     bad = await evaluate([EvalTarget("down", always)], one, KEY, retry_delays=(0,))
     assert bad.scores[0].error is not None and "model_unavailable" in bad.scores[0].error
     assert bad.summaries[0].errors == 1

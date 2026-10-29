@@ -24,7 +24,6 @@ export type TimelineKind = 'detected' | 'deploy' | 'ai' | 'human' | 'test' | 'pr
 
 export type TimelineEvent = { at: string; kind: TimelineKind; text: string; actor: string };
 
-/** One attempt in the sandbox: the failing test first, then the patch. */
 export type FixAttempt = {
   attempt: number;
   testBefore: 'failed' | 'passed';
@@ -72,8 +71,8 @@ export type Incident = {
   fix: Fix;
   recovery: Recovery;
   aiCostUsd: number;
-  /** The business flow this incident hurt. */
+
   flowId?: string;
-  /** The PR whose deploy started it, when known. */
+
   causedByChangeId?: string;
 };

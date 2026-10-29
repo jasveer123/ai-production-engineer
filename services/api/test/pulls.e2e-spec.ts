@@ -3,8 +3,8 @@ import type { INestApplication } from '@nestjs/common';
 import type { IncidentFixes, PullRequestView } from '@ape/api-contracts';
 import { and, eq } from 'drizzle-orm';
 import type { App } from 'supertest/types';
-import { ArtifactStore } from '../src/artifacts/artifact-store.service';
-import { createDatabase } from '../src/db/client';
+import { ArtifactStore } from '../src/core/artifacts/artifact-store.service';
+import { createDatabase } from '../src/core/db/client';
 import {
   approvals,
   auditEvents,
@@ -14,23 +14,22 @@ import {
   pullRequests,
   workspaceMembers,
   workspaces,
-} from '../src/db/schema';
+} from '../src/core/db/schema';
 import {
   GitHubAppClient,
   GitHubError,
   type GitHubInstallation,
   type GitHubPull,
-} from '../src/github/github-app';
-import { GitHubService } from '../src/github/github.service';
-import { PrActivitiesService } from '../src/pulls/pr-activities.service';
-import { PullSyncService } from '../src/pulls/pull-sync.service';
-import { TemporalService } from '../src/temporal/temporal.service';
+} from '../src/connectors/github/infrastructure/github-app';
+import { GitHubService } from '../src/connectors/github/github.service';
+import { PrActivitiesService } from '../src/modules/pulls/activities/pr-activities.service';
+import { PullSyncService } from '../src/modules/pulls/application/pull-sync.service';
+import { TemporalService } from '../src/core/temporal/temporal.service';
 import { createTestApp, createWorkspace, loginAs, resetDatabase } from './helpers';
 
 const REPO = 'acct42/demo-shop';
 const WRITE = { contents: 'write', pull_requests: 'write', metadata: 'read' };
 
-/** In-memory GitHub with a git ref store and pull requests. `dropNext` loses one response. */
 class FakeGitHub extends GitHubAppClient {
   permissions: Record<string, string> = { ...WRITE };
   uninstalled = false;
@@ -43,7 +42,7 @@ class FakeGitHub extends GitHubAppClient {
   constructor() {
     super('1', 'unused');
   }
-  /** Simulates a timeout after GitHub already applied the write. */
+
   private lose<T>(name: string, value: T): Promise<T> {
     this.calls.push(name);
     if (this.dropNext.delete(name)) return Promise.reject(new Error(`socket hang up (${name})`));
@@ -152,7 +151,6 @@ describe('Approval gate and pull requests (e2e)', () => {
     await app.close();
   });
 
-  /** Workspace with a connected installation, a mapped service and a validated fix. */
   async function setup() {
     const owner = await loginAs(app, 'owner@pr.test');
     const ws = (await createWorkspace(owner, 'PR')).id;
@@ -341,7 +339,7 @@ describe('Approval gate and pull requests (e2e)', () => {
       merged_at: '2026-10-20T10:00:00Z',
       merge_commit_sha: 'merge123',
     });
-    // The webhook and the poller race: the workflow is still told only once.
+
     const secret = process.env.GITHUB_WEBHOOK_SECRET!;
     const body = JSON.stringify({ repository: { full_name: REPO }, pull_request: { number: 7 } });
     const sig = `sha256=${createHmac('sha256', secret).update(body).digest('hex')}`;

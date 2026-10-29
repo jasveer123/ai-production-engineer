@@ -12,7 +12,6 @@ type FieldProps = {
   children: ReactNode;
 };
 
-/** Label, control, then the error (or a hint). The control gets aria-describedby from the caller. */
 export function Field({ id, label, hint, error, children }: FieldProps) {
   return (
     <div className="grid gap-1.5">
@@ -56,7 +55,6 @@ export function Select({ className, children, ...rest }: SelectHTMLAttributes<HT
   );
 }
 
-/** A form-level message: what went wrong, in words. */
 export function FormError({ children }: { children: ReactNode }) {
   if (!children) return null;
   return (

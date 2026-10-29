@@ -19,7 +19,6 @@ import { NewIncidentDialog } from './new-incident-dialog';
 
 type FilterKey = 'status' | 'severity' | 'serviceId' | 'environment';
 
-/** The incident inbox: filter by status, severity, service and environment (FRD FR-13). */
 export function IncidentsView() {
   const { can } = useSession();
   const params = useSearchParams();
@@ -28,10 +27,8 @@ export function IncidentsView() {
   const [creating, setCreating] = useState(false);
   const services = useServices();
 
-  // Filters live in the URL so a filtered inbox can be shared; open incidents by default.
   const status = params.get('status') ?? 'open';
   const filters = {
-    // "all" is a UI choice meaning no status filter; the API has no such value.
     status: (status === 'all' ? undefined : status) as IncidentListQuery['status'],
     severity: (params.get('severity') ?? undefined) as IncidentListQuery['severity'],
     serviceId: params.get('serviceId') ?? undefined,

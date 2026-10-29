@@ -1,7 +1,6 @@
 import { INCIDENTS } from './fixtures';
 import type { Incident, IncidentStatus, Severity } from './types';
 
-/** Data access for incidents. Static today; this is the one place to swap in the real API later. */
 export function listIncidents(): Incident[] {
   return [...INCIDENTS].sort((a, b) => b.openedAt.localeCompare(a.openedAt));
 }

@@ -28,7 +28,7 @@ export function SeverityRulesCard() {
   const isAdmin = can('admin');
   const rules = useSeverityRules();
   const [error, setError] = useState<string | null>(null);
-  // The form mirrors the server's rules until the admin edits; `isDirty` replaces a draft copy.
+
   const form = useZodForm(severityRulesSchema, {
     values: { rules: rules.data ?? [] },
     defaultValues: { rules: [] },

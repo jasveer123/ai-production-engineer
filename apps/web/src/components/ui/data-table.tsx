@@ -14,7 +14,6 @@ import { cn } from '@/lib/cn';
 import { Table, Td, Th, Tr } from './table';
 
 declare module '@tanstack/react-table' {
-  // Lets a column pick up alignment/width classes without a wrapper component.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface ColumnMeta<TData extends RowData, TValue> {
     className?: string;
@@ -29,7 +28,6 @@ type DataTableProps<T> = {
   initialSorting?: SortingState;
 };
 
-/** TanStack Table rendered with the app's table primitives. Sortable columns get a labelled button. */
 export function DataTable<T>({
   label,
   columns,

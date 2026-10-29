@@ -7,7 +7,6 @@ import { api } from '@/lib/api';
 
 export const AUDIT_PAGE = 50;
 
-/** Admins only (the API refuses others), so callers pass `enabled`. */
 export function useAuditEvents(enabled: boolean) {
   const { workspace } = useSession();
   return useInfiniteQuery({

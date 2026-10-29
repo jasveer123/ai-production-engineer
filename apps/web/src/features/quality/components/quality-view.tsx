@@ -14,7 +14,6 @@ import { formatCount, formatDuration, formatPercent, formatUsd } from '@/lib/for
 import { MIN_SAMPLE, RANGES, parseDays, ratio } from '../quality';
 import { useQuality } from '../queries';
 
-/** How the AI did on this workspace's real incidents, from stored outcomes only (ADR-021). */
 export function QualityView() {
   const params = useSearchParams();
   const router = useRouter();
@@ -70,7 +69,6 @@ export function QualityView() {
   );
 }
 
-/** A rate, or only the counts when there are too few to call it a rate. */
 function RatioStat({
   label,
   part,

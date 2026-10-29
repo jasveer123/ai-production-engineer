@@ -5,7 +5,6 @@ import { CodeSnippet } from '@/components/ui/code-snippet';
 import { useRevealedToken } from '@/features/integrations/token-context';
 import { useSetupCapabilities } from '../queries';
 
-/** Way 4 in one command: Linux (systemd or Docker) and Kubernetes. */
 export function AgentInstallPanel() {
   const caps = useSetupCapabilities();
   const { snippetToken } = useRevealedToken();

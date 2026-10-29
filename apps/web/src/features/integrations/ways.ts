@@ -5,7 +5,7 @@ export type WayStatus = StreamState;
 
 export type SendWay = {
   slug: string;
-  /** How the API names this way in stream status. */
+
   apiWay: IngestWay;
   number: 1 | 2 | 3 | 4 | 5;
   title: string;
@@ -24,10 +24,9 @@ export type SetupStep = {
   snippets?: { label: string; code: string }[];
 };
 
-/** What the snippets need: where to send, which token, and the syslog address for Render. */
 export type SnippetContext = {
   ingestUrl: string;
-  /** The full token when it was just created in this browser tab; otherwise a placeholder. */
+
   token: string;
   syslog: { host: string; port: number; tls: boolean } | null;
 };
@@ -102,7 +101,6 @@ export function getSendWay(slug: string): SendWay | undefined {
   return SEND_WAYS.find((way) => way.slug === slug);
 }
 
-/** Setup steps with this workspace's URL and token filled in. Pure, so it can be tested. */
 export function stepsFor(slug: string, c: SnippetContext): SetupStep[] {
   const url = c.ingestUrl;
   const t = c.token;
@@ -291,7 +289,6 @@ function portOf(u: string): string {
   }
 }
 
-/** Tool monograms (never the company's logo). */
 export const TOOL_MONOGRAM: Record<string, string> = {
   grafana: 'Gr',
   datadog: 'Dd',

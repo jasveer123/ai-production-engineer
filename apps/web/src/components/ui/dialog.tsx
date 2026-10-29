@@ -15,7 +15,6 @@ type DialogProps = {
   wide?: boolean;
 };
 
-/** Radix dialog: focus trap, Escape, focus return and aria wiring come from the primitive. */
 export function Dialog({ open, onClose, title, description, children, wide }: DialogProps) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(next) => !next && onClose()}>
@@ -23,7 +22,6 @@ export function Dialog({ open, onClose, title, description, children, wide }: Di
         <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-black/40" />
         <DialogPrimitive.Content
           onOpenAutoFocus={(e) => {
-            // Start on the form, not on the close button.
             const field = (e.currentTarget as HTMLElement).querySelector<HTMLElement>(
               'input:not([type=hidden]), select, textarea',
             );

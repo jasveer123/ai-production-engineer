@@ -11,10 +11,6 @@ const LEVEL_TEXT: Record<LogLevel, string> = {
 
 type LogViewerProps = { lines: LogLine[]; label: string; freshIds?: ReadonlySet<string> };
 
-/**
- * Log lines in a mono grid. Errors get a danger edge; lines the AI cited get an amber edge.
- * No hooks, so it renders on the server and inside client components alike.
- */
 export function LogViewer({ lines, label, freshIds }: LogViewerProps) {
   return (
     <div className="overflow-hidden rounded-md border border-line bg-surface-sunken">

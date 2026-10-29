@@ -7,8 +7,6 @@ import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3
 import * as tar from 'tar';
 import { workRoot } from './runner';
 
-// Local: RustFS with static keys (defaults below). AWS: set S3_USE_AWS=true and the instance role
-// supplies credentials.
 const useAws = process.env.S3_USE_AWS === 'true';
 const s3 = new S3Client({
   region: process.env.S3_REGION ?? 'us-east-1',
@@ -48,11 +46,6 @@ export async function putJson(key: string, data: unknown): Promise<string> {
   return `s3://${bucket()}/${key}`;
 }
 
-/**
- * Downloads a source tarball (GitHub's format: one top-level directory) and extracts it once per
- * reference. Extraction refuses absolute paths, `..` and links, so a hostile archive can't write
- * outside its directory.
- */
 export async function materializeSource(sourceRef: string): Promise<string> {
   const dir = join(
     workRoot(),

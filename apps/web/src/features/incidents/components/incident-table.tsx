@@ -12,7 +12,7 @@ const COLUMNS: ColumnDef<Incident>[] = [
   {
     id: 'severity',
     header: 'Severity',
-    // Most serious first when ascending.
+
     accessorFn: (i) => SEVERITIES.indexOf(i.severity),
     cell: ({ row }) => <SeverityBadge severity={row.original.severity} />,
   },

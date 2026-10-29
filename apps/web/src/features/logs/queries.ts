@@ -12,7 +12,6 @@ export const logKeys = {
 
 type LogSearchParams = { q: string; range: string; rangeMs: number; to: number };
 
-/** One window of log lines ending at `to`, older pages on demand. */
 export function useLogSearch({ q, range, rangeMs, to }: LogSearchParams) {
   const ws = useWorkspaceId();
   return useInfiniteQuery({

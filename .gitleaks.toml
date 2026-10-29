@@ -1,15 +1,12 @@
-# Keep the default ruleset; allow only reviewed false positives.
 [extend]
 useDefault = true
 
 [allowlist]
 description = "Reviewed false positives"
-# Fake credentials that exist to test the redaction rules.
 paths = [
+  '''services/api/src/modules/investigations/domain/redact\.spec\.ts''',
   '''services/api/src/investigations/redact\.spec\.ts''',
-  # Throwaway passwords in the password-change tests.
   '''services/api/test/auth\.e2e-spec\.ts''',
 ]
-# Passing configuration values by name, not literal secrets.
 regexTarget = "line"
 regexes = ['''secretAccessKey: env\.S3_SECRET_KEY''']

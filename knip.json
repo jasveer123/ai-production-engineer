@@ -3,9 +3,8 @@
   "workspaces": {
     ".": { "entry": ["scripts/*.{js,mjs,ts}"] },
     "apps/web": { "entry": ["src/app/**/{page,layout,route,loading,error,not-found}.tsx"] },
-    "services/api": { "entry": ["src/main.ts", "test/**/*.ts"] },
+    "services/api": { "entry": ["src/main.ts", "src/worker.ts", "test/**/*.ts"] },
     "services/sandbox-manager": {},
-    "workflows/temporal": {},
     "packages/*": {}
   },
   "ignoreWorkspaces": ["packages/sdk-python"]

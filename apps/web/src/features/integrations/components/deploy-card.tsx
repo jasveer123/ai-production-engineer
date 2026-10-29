@@ -15,7 +15,6 @@ import { formatAgo } from '@/lib/format';
 import { SetupPrPanel } from '@/features/setup';
 import { CARD, FOOTER, STATUS_BADGE } from './card-styles';
 
-/** The deploy step for GitHub Actions: an HMAC-signed JSON body, like the server verifies. */
 export function deployActionStep(service = 'checkout-api'): string {
   return `- name: Tell AI Production Engineer about this deploy
   env:
@@ -135,5 +134,3 @@ export function DeployCard({ row }: { row: Integration | undefined }) {
     </article>
   );
 }
-
-/** The repositories the AI can read, plus one short notice per thing GitHub is not allowing. */

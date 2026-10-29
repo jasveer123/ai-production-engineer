@@ -18,7 +18,6 @@ export function useServices() {
   });
 }
 
-/** Service names arriving in telemetry with no service set up yet. */
 export function useDiscoveredServices() {
   const { workspace } = useSession();
   return useQuery({

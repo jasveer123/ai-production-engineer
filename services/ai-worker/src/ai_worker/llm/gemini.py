@@ -43,7 +43,6 @@ def map_error(err: Exception) -> ModelError:
     text = str(err)[:300]
     if status in (401, 403):
         return ModelNotConfigured(f"Gemini rejected the API key: {text}")
-    # A hung model must not end the investigation: let the next model or a retry try.
     if (
         isinstance(err, TimeoutError)
         or "timeout" in type(err).__name__.lower()
@@ -83,7 +82,6 @@ class GeminiProvider:
             response_mime_type="application/json",
             response_json_schema=schema,
             max_output_tokens=s.ai_max_tokens,
-            # Per-model timeout, so a slow model leaves time to fall back to the next one.
             http_options=types.HttpOptions(timeout=int(s.gemini_timeout_seconds * 1000)),
         )
         with tracer.start_as_current_span("llm.structured") as span:
@@ -93,14 +91,13 @@ class GeminiProvider:
             started = time.monotonic()
             r = None
             last: ModelError | None = None
-            # Free-tier capacity varies per model: fall back on overload/quota errors only.
             for model in dict.fromkeys([s.gemini_model, *s.gemini_fallback_models]):
                 try:
                     r = await self.client.aio.models.generate_content(
                         model=model, contents=user, config=config
                     )
                     break
-                except Exception as e:  # SDK raises several unrelated classes; map them all
+                except Exception as e:
                     last = map_error(e)
                     if not last.retryable:
                         raise last from e
@@ -111,7 +108,6 @@ class GeminiProvider:
 
             meta = r.usage_metadata
             input_tokens = (meta.prompt_token_count or 0) if meta else 0
-            # Thinking tokens are billed as output on paid tiers.
             output_tokens = (
                 ((meta.candidates_token_count or 0) + (meta.thoughts_token_count or 0))
                 if meta

@@ -1,7 +1,3 @@
-/**
- * Phase 10: alert intake (token auth, durable buffer), routing, grouping into incidents,
- * dedup of repeats, resolution, heartbeats, previews and permissions.
- */
 import type { INestApplication } from '@nestjs/common';
 import type {
   AlertPreview,
@@ -15,10 +11,10 @@ import type {
 import { and, eq } from 'drizzle-orm';
 import request from 'supertest';
 import type { App } from 'supertest/types';
-import { AlertSourcesService } from '../src/alerts/alert-sources.service';
-import { createDatabase } from '../src/db/client';
-import { auditEvents, incidents } from '../src/db/schema';
-import { IngestionProcessor } from '../src/ingestion/ingestion.processor';
+import { AlertSourcesService } from '../src/modules/alerts/application/alert-sources.service';
+import { createDatabase } from '../src/core/db/client';
+import { auditEvents, incidents } from '../src/core/db/schema';
+import { IngestionProcessor } from '../src/ingest/ingestion/application/ingestion.processor';
 import { createTestApp, createWorkspace, loginAs, resetDatabase } from './helpers';
 
 const am = (alerts: { status: string; name: string; service: string; fp: string }[]) => ({
@@ -88,7 +84,7 @@ describe('Alerts, routes and heartbeats (e2e)', () => {
     const body = am([{ status: 'firing', name: 'HighErrorRate', service: 'checkout', fp: 'fp1' }]);
     expect((await send(body).expect(202)).body).toEqual({ accepted: true, duplicate: false });
     expect((await send(body).expect(202)).body).toEqual({ accepted: true, duplicate: true });
-    // Token in the query string works for tools that cannot set headers.
+
     await request(app.getHttpServer())
       .post(`/ingest/alerts/${source.id}?token=${source.token}`)
       .send(am([{ status: 'firing', name: 'Other', service: 'x', fp: 'fp2' }]))
@@ -97,9 +93,9 @@ describe('Alerts, routes and heartbeats (e2e)', () => {
     expect(await processor.processBatch()).toMatchObject({ processed: 2, dead: 0 });
     const alerts = await list(owner, ws);
     expect(alerts).toHaveLength(2);
-    // No route yet: alerts are kept, but nothing is opened.
+
     expect(alerts.every((a) => a.routeId === null && a.incidentId === null)).toBe(true);
-    // Alert sources live on their own page, not in Integrations.
+
     expect(
       ((await owner.get(`/workspaces/${ws}/integrations`).expect(200)).body as Integration[])
         .length,
@@ -138,7 +134,7 @@ describe('Alerts, routes and heartbeats (e2e)', () => {
 
     const open = (await owner.get(`/workspaces/${ws}/incidents?status=open`).expect(200))
       .body as Incident[];
-    expect(open).toHaveLength(2); // checkout (2 alerts) and search (1 alert)
+    expect(open).toHaveLength(2);
     const checkout = open.find((i) => i.title.includes('checkout'))!;
     expect(checkout).toMatchObject({
       severity: 'critical',
@@ -158,7 +154,6 @@ describe('Alerts, routes and heartbeats (e2e)', () => {
       sourceKind: 'alertmanager',
     });
 
-    // A repeat notification counts but adds no timeline noise.
     await send({
       ...am([{ status: 'firing', name: 'HighErrorRate', service: 'checkout', fp: 'a' }]),
       receiver: 'again',
@@ -191,7 +186,7 @@ describe('Alerts, routes and heartbeats (e2e)', () => {
     expect(fired!.attributes.reason).toBe(
       'Grouped by route "Production by service" on service=checkout',
     );
-    // Resolving alerts does not close the incident: a human (or verification) decides.
+
     const [inc] = await db.select().from(incidents).where(eq(incidents.id, checkout.id));
     expect(inc!.status).not.toBe('resolved');
     expect(await list(owner, ws, '?status=firing')).toHaveLength(1);
@@ -240,7 +235,6 @@ describe('Alerts, routes and heartbeats (e2e)', () => {
     expect(hb.url).toContain(`/ingest/heartbeats/${hb.id}`);
     const sources = app.get(AlertSourcesService);
 
-    // Pings keep it up; heartbeats reject alert payloads and alert sources reject pings.
     await request(app.getHttpServer())
       .get(`/ingest/heartbeats/${hb.id}?token=${hb.token}`)
       .expect(202);
@@ -252,7 +246,7 @@ describe('Alerts, routes and heartbeats (e2e)', () => {
     expect(await sources.checkHeartbeats(new Date(Date.now() + 30_000))).toBe(0);
 
     expect(await sources.checkHeartbeats(new Date(Date.now() + 120_000))).toBe(1);
-    expect(await sources.checkHeartbeats(new Date(Date.now() + 180_000))).toBe(0); // already down
+    expect(await sources.checkHeartbeats(new Date(Date.now() + 180_000))).toBe(0);
     await processor.processBatch();
     let [a] = await list(owner, ws);
     expect(a).toMatchObject({
@@ -315,7 +309,6 @@ describe('Alerts, routes and heartbeats (e2e)', () => {
       .send({ name: 'Bad regex', conditions: [{ field: 'title', op: 'regex', value: '(' }] })
       .expect(400);
 
-    // A route cannot point at another workspace's source.
     const other = (await createWorkspace(owner, 'Other ws')).id;
     await owner
       .post(`/workspaces/${other}/alert-routes`)

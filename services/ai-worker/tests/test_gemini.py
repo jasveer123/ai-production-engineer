@@ -124,7 +124,7 @@ async def test_sends_schema_and_system_prompt() -> None:
     assert cfg.response_json_schema is OUTPUT_SCHEMA
     assert cfg.response_mime_type == "application/json"
     assert fake.kwargs["contents"] == "USER"
-    assert (call.input_tokens, call.output_tokens) == (100, 50)  # thinking counted as output
+    assert (call.input_tokens, call.output_tokens) == (100, 50)
     assert call.text.startswith('{"observations"')
 
 

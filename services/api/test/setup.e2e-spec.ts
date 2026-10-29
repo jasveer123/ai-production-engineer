@@ -9,17 +9,20 @@ import type { INestApplication } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import type { App } from 'supertest/types';
-import { createDatabase } from '../src/db/client';
-import { alerts, deployments } from '../src/db/schema';
-import { GitHubAppClient, GitHubError, type GitHubPull } from '../src/github/github-app';
-import { GitHubService } from '../src/github/github.service';
-import { IngestionProcessor } from '../src/ingestion/ingestion.processor';
-import { GITHUB_OIDC_ISSUER } from '../src/setup/github-oidc';
-import { SetupSupport } from '../src/setup/setup-support.service';
-import { ToolsService } from '../src/tools/tools.service';
+import { createDatabase } from '../src/core/db/client';
+import { alerts, deployments } from '../src/core/db/schema';
+import {
+  GitHubAppClient,
+  GitHubError,
+  type GitHubPull,
+} from '../src/connectors/github/infrastructure/github-app';
+import { GitHubService } from '../src/connectors/github/github.service';
+import { IngestionProcessor } from '../src/ingest/ingestion/application/ingestion.processor';
+import { GITHUB_OIDC_ISSUER } from '../src/connectors/setup/infrastructure/github-oidc';
+import { SetupSupport } from '../src/connectors/setup/application/setup-support.service';
+import { ToolsService } from '../src/connectors/tools/tools.service';
 import { createTestApp, createWorkspace, loginAs, resetDatabase } from './helpers';
 
-/** GitHub with one repository holding a small Node app, and real-ish write calls. */
 class FakeGitHub extends GitHubAppClient {
   permissions: Record<string, string> = {
     contents: 'write',
@@ -120,7 +123,7 @@ class FakeGitHub extends GitHubAppClient {
     this.pulls.push(p);
     return Promise.resolve(p);
   }
-  /** Content of a file in the last created commit. */
+
   committed(path: string) {
     const entry = this.trees.get('t1')?.find((f) => f.path === path);
     return entry ? this.blobs.get(entry.sha) : undefined;
@@ -163,8 +166,6 @@ describe('One-click setup (e2e)', () => {
     await app.close();
   });
 
-  // GitHub's redirect only lands on the "select repositories" page; connecting is the second call
-  // that page makes with the chosen repositories (all of them here).
   const connectGitHub = async () => {
     const { state } = (await owner.get(`/workspaces/${ws}/setup/github/state`).expect(200))
       .body as { state: string };
@@ -189,10 +190,10 @@ describe('One-click setup (e2e)', () => {
       .post(`/workspaces/${ws}/setup/github/callback`)
       .send({ installationId: 42, state })
       .expect(200);
-    // Landing from GitHub connects nothing yet; the person picks repositories on the next page.
+
     expect((res.body as OAuthCallbackResult).githubInstallationId).toBe(42);
     await owner.post(`/workspaces/${ws}/github/connect`).send({ installationId: 42 }).expect(201);
-    // Coming back again (repositories changed) refreshes instead of failing.
+
     const again = await owner
       .post(`/workspaces/${ws}/setup/github/callback`)
       .send({ installationId: 42, state })
@@ -202,7 +203,7 @@ describe('One-click setup (e2e)', () => {
 
   it('says where a GitHub installation is already connected, naming only your own workspaces', async () => {
     await connectGitHub();
-    // A second workspace of the same person sees which of their workspaces has it.
+
     const ws2 = (await createWorkspace(owner, 'Second')).id;
     const mineElsewhere = (await owner.get(`/workspaces/${ws2}/github/app`).expect(200)).body as {
       connectedElsewhere: {
@@ -214,7 +215,7 @@ describe('One-click setup (e2e)', () => {
     expect(mineElsewhere.connectedElsewhere).toEqual([
       { id: 42, account: 'acme', workspaceId: ws, workspaceName: 'Setup' },
     ]);
-    // Someone else learns that it is taken, not where.
+
     const stranger = await loginAs(app, 'stranger@setup.test');
     const ws3 = (await createWorkspace(stranger, 'Stranger')).id;
     const theirs = (await stranger.get(`/workspaces/${ws3}/github/app`).expect(200))

@@ -6,7 +6,6 @@ import { DrainPanel } from './drain-panel';
 import { LocalUrlWarning } from './local-url-warning';
 import { SetupPrPanel } from './setup-pr-panel';
 
-/** "Let us do it": the automatic path for each way, shown above the manual steps. */
 export function AutomaticSetup({ slug }: { slug: string }) {
   const body =
     slug === 'package' ? (

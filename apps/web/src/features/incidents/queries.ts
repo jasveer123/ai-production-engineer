@@ -14,11 +14,8 @@ import { useWorkspaceId } from '@/features/auth/session';
 import { api } from '@/lib/api';
 import { incidentLogWindow } from './live';
 
-// Live updates arrive over the workspace stream (features/realtime); this slow poll only covers
-// a dropped connection.
 const POLL_MS = 60_000;
 
-/** Detail reads share one key prefix per incident so an action can refresh all of them. */
 export const incidentKeys = {
   all: (ws: string) => ['ws', ws, 'incidents'] as const,
   list: (ws: string, filters: object) => [...incidentKeys.all(ws), filters] as const,
@@ -57,7 +54,6 @@ export const useFixes = (id: string) => useIncidentPart<IncidentFixes>(id, 'fixe
 export const useVerification = (id: string) =>
   useIncidentPart<IncidentVerification>(id, 'verification', '/verification');
 
-/** Log lines from the incident's service around the time it happened. */
 export function useIncidentLogs(incident: Incident | undefined) {
   const ws = useWorkspaceId();
   const window = incident ? incidentLogWindow(incident) : null;

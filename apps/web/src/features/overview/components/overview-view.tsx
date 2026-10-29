@@ -19,7 +19,6 @@ import { formatAgo } from '@/lib/format';
 import { setupSteps } from '../setup-steps';
 import { SetupChecklist } from './setup-checklist';
 
-/** Statuses where the platform is waiting on a person. */
 const NEEDS_YOU: IncidentStatus[] = [
   'awaiting_review',
   'needs_attention',
@@ -27,7 +26,6 @@ const NEEDS_YOU: IncidentStatus[] = [
   'verification_inconclusive',
 ];
 
-/** What needs a person now, what is open, and how far setup has come. */
 export function OverviewView() {
   const { me } = useSession();
   const incidents = useIncidents({ status: 'open' });
@@ -48,12 +46,12 @@ export function OverviewView() {
     githubConnected: (integrations.data ?? []).some(
       (i) => i.provider === 'github' && i.status === 'connected',
     ),
-    // Setup counts any data ever received; the headline counts what is arriving right now.
+
     sendingServices: [...new Set((ingest.data?.streams ?? []).map((s) => s.serviceName))],
     servicesSetUp: services.data?.length ?? 0,
     servicesWithoutRepo: (services.data ?? []).filter((s) => !s.repositoryFullName).length,
     discoveredNotSetUp: (discovered.data ?? []).map((d) => d.name),
-    // Any incident ever, open or closed, counts as having seen the first one.
+
     incidents: everIncidents.data?.length ?? 0,
   });
   const firstName = me.user.name?.split(' ')[0] ?? me.user.email.split('@')[0];

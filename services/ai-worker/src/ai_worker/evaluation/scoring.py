@@ -105,8 +105,6 @@ def score(
     if report.reason == "invalid_model_output":
         s.notes.append("model output failed validation")
 
-    # The guard weakens confidence the evidence cannot carry. That keeps the stored report honest,
-    # but the model still said "high", so it counts against the model.
     lowered = {
         int(m.group(1))
         for a in report.adjustments
@@ -149,7 +147,6 @@ def score(
             break
     ceiling = case.expect.max_confidence
     if ceiling and top:
-        # The guard may have lowered a "high" for us; the model still claimed it.
         claimed = "high" if (top.confidence == "high" or 1 in lowered) else top.confidence
         s.over_ceiling = RANK[claimed] > RANK[ceiling]
         if s.over_ceiling:
