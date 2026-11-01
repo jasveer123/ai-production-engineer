@@ -102,7 +102,7 @@ jobs:
         run: |
           pnpm knip > knip-report.txt || true
           { echo '### knip report'; echo '```'; cat knip-report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: knip-report
           path: knip-report.txt
@@ -187,7 +187,7 @@ jobs:
           if [ ! -f apps/web/playwright.config.ts ]; then echo "No Playwright config yet; skipping."; exit 0; fi
           pnpm --filter @ape/web exec playwright install --with-deps chromium
           pnpm --filter @ape/web exec playwright test
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: playwright-report
