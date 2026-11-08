@@ -22,9 +22,9 @@
   "devDependencies": {
     "@commitlint/cli": "^21.2.4",
     "@commitlint/config-conventional": "^21.2.4",
-    "dependency-cruiser": "^18.7.0",
+    "dependency-cruiser": "^18.7.2",
     "husky": "^9.1.7",
-    "knip": "^6.43.0",
+    "knip": "^6.44.1",
     "prettier": "^3.9.10"
   }
 }
