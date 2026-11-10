@@ -13,7 +13,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui"
-import { MiniBars, Section } from "../components"
+import { MiniBars } from "@/components/shared"
+import { Section } from "../components"
 
 type ServiceState = "live" | "waiting" | "failed"
 

@@ -8,6 +8,8 @@ export const ROUTES = {
   checkEmail: "/check-email",
   dashboard: "/dashboard",
   liveTail: "/live-tail",
+  liveTailFor: (service: string) => `/live-tail?service=${encodeURIComponent(service)}`,
+  services: "/services",
   integrations: "/integrations",
   integrationDetail: (id: string) => `/integrations/${id}`,
   collectorDocs: (anchor?: string) => `/docs/collector${anchor ? `#${anchor}` : ""}`,

@@ -12,9 +12,15 @@ import { LogFilters } from "./log-filters"
 import { LogHistogram } from "./log-histogram"
 import { LogList } from "./log-list"
 
+function initialFilters(): Filters {
+  if (typeof window === "undefined") return EMPTY_FILTERS
+  const service = new URLSearchParams(window.location.search).get("service")
+  return service ? { ...EMPTY_FILTERS, services: [service] } : EMPTY_FILTERS
+}
+
 export function LiveTailPage() {
   const { workspace, isPending } = useCurrentWorkspace()
-  const [filters, setFilters] = React.useState<Filters>(EMPTY_FILTERS)
+  const [filters, setFilters] = React.useState<Filters>(initialFilters)
   const [paused, setPaused] = React.useState(false)
   const [range, setRange] = React.useState<TimeRangeId>(DEFAULT_RANGE)
   const query = buildLogQuery(filters)

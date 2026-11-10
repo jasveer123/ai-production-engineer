@@ -6,5 +6,6 @@ export const INGEST_ENDPOINTS = {
   REVOKE_TOKEN: (workspaceId: string, tokenId: string) =>
     `/workspaces/${workspaceId}/ingest/tokens/${tokenId}`,
   LOGS: (workspaceId: string) => `/workspaces/${workspaceId}/logs`,
+  SERVICE_SUMMARY: (workspaceId: string) => `/workspaces/${workspaceId}/logs/services`,
   SEND_LOGS: "/v1/logs",
 } as const

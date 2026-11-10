@@ -1,9 +1,9 @@
 import {
   Blocks,
+  Layers,
   ChartLine,
   Radio,
   LayoutDashboard,
-  Database,
   Users,
   BellRing,
   GitPullRequest,
@@ -29,7 +29,6 @@ export const PLACEHOLDER_ITEMS: PlaceholderItem[] = [
   { label: "Fixes", icon: GitPullRequest },
   { label: "Metrics", icon: ChartLine },
   { label: "Alerts", icon: BellRing },
-  { label: "Sources", icon: Database },
   { label: "Team", icon: Users },
   { label: "Settings", icon: Settings },
 ]
@@ -37,5 +36,6 @@ export const PLACEHOLDER_ITEMS: PlaceholderItem[] = [
 export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: ROUTES.dashboard, icon: LayoutDashboard },
   { label: "Live tail", href: ROUTES.liveTail, icon: Radio },
+  { label: "Services", href: ROUTES.services, icon: Layers },
   { label: "Integrations", href: ROUTES.integrations, icon: Blocks },
 ]
