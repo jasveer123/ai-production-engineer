@@ -75,7 +75,7 @@ jobs:
           }
           build api Dockerfile.node api
           build migrate Dockerfile.node migrate
-          build web Dockerfile.node web --build-arg "NEXT_PUBLIC_API_URL=$PUBLIC_URL/api"
+          build web Dockerfile.node web
           build ai-worker Dockerfile.ai-worker ""
 
       - name: Build the release image (host files + sandbox worker)
