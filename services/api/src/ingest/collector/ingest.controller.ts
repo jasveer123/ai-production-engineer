@@ -46,7 +46,7 @@ export class IngestController {
     @Actor() actor: ActorContext,
     @Body(new ZodValidationPipe(createIngestTokenSchema)) body: CreateIngestTokenInput,
   ): Promise<IngestTokenWithSecret> {
-    return this.tokens.create(actor, body.name);
+    return this.tokens.create(actor, body.name, body.platform);
   }
 
   @Post('ingest/tokens/:tokenId/rotate')

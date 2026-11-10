@@ -21,6 +21,7 @@ export const ingestTokens = pgTable(
     id: id(),
     workspaceId: workspaceRef(),
     name: text('name').notNull(),
+    platform: text('platform'),
     tokenHash: text('token_hash').notNull(),
     last4: text('last4').notNull(),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),

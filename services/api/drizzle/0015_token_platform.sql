@@ -1,0 +1,1 @@
+ALTER TABLE "ingest_tokens" ADD COLUMN "platform" text;

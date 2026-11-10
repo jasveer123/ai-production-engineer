@@ -4,12 +4,27 @@ import { nameSchema, type IsoTimestamp, type Uuid, type ValueOf, type WithSecret
 export const INGEST_WAYS = ['package', 'otlp', 'http', 'agent', 'drain'] as const;
 export type IngestWay = ValueOf<typeof INGEST_WAYS> | 'syslog';
 
-export const createIngestTokenSchema = z.object({ name: nameSchema(80) });
+export const INGEST_PLATFORMS = [
+  'opentelemetry',
+  'docker',
+  'kubernetes',
+  'vector',
+  'fluent-bit',
+  'javascript',
+  'python',
+] as const;
+export type IngestPlatform = ValueOf<typeof INGEST_PLATFORMS>;
+
+export const createIngestTokenSchema = z.object({
+  name: nameSchema(80),
+  platform: z.enum(INGEST_PLATFORMS).optional(),
+});
 export type CreateIngestTokenInput = z.infer<typeof createIngestTokenSchema>;
 
 export interface IngestToken {
   id: Uuid;
   name: string;
+  platform: IngestPlatform | null;
   masked: string;
   createdAt: IsoTimestamp;
   lastUsedAt: IsoTimestamp | null;

@@ -62,6 +62,29 @@ describe('Telemetry intake, ingest tokens and tools (e2e)', () => {
     await viewer.post(`/workspaces/${ws.id}/ingest/tokens`).send({ name: 'x' }).expect(403);
   });
 
+  it('ties a token to one platform and keeps that when it is rotated', async () => {
+    const created = (
+      await owner
+        .post(`/workspaces/${ws.id}/ingest/tokens`)
+        .send({ name: 'Prod cluster', platform: 'kubernetes' })
+        .expect(201)
+    ).body as IngestTokenWithSecret;
+    expect(created.platform).toBe('kubernetes');
+    await owner
+      .post(`/workspaces/${ws.id}/ingest/tokens`)
+      .send({ name: 'x', platform: 'nope' })
+      .expect(400);
+    const rotated = (
+      await owner.post(`/workspaces/${ws.id}/ingest/tokens/${created.id}/rotate`).expect(200)
+    ).body as IngestTokenWithSecret;
+    expect(rotated.platform).toBe('kubernetes');
+    const overview = (await owner.get(`/workspaces/${ws.id}/ingest`).expect(200))
+      .body as IngestOverview;
+    const byName = overview.tokens.filter((t) => t.name === 'Prod cluster');
+    expect(byName.map((t) => t.platform)).toEqual(['kubernetes']);
+    expect(overview.tokens.find((t) => t.name === 'Default')?.platform).toBeNull();
+  });
+
   it('rejects missing, unknown and revoked tokens', async () => {
     await http().post('/v1/logs').send({ message: 'x' }).expect(401);
     await http()
