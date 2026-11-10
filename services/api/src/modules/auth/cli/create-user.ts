@@ -2,9 +2,9 @@ import { existsSync } from 'node:fs';
 import { Logger } from '@nestjs/common';
 import { PASSWORD_MAX, PASSWORD_MIN } from '@ape/api-contracts';
 import { and, eq } from 'drizzle-orm';
-import { hashPassword } from '../../modules/auth/domain/password';
-import { createDatabase } from './client';
-import { users, workspaceMembers, workspaces } from './schema';
+import { hashPassword } from '../domain/password';
+import { createDatabase } from '../../../core/db/client';
+import { users, workspaceMembers, workspaces } from '../../../core/db/schema';
 
 if (existsSync('.env')) process.loadEnvFile('.env');
 
