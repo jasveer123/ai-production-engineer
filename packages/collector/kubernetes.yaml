@@ -1,0 +1,28 @@
+data_dir: /var/lib/pramaan-collector
+
+sources:
+  pods:
+    type: kubernetes_logs
+
+transforms:
+  label:
+    type: remap
+    inputs:
+      - pods
+    source: |
+      .service = .kubernetes.pod_labels."app.kubernetes.io/name"
+      if is_null(.service) {
+        .service = .kubernetes.container_name
+      }
+
+sinks:
+  pramaan:
+    type: http
+    inputs:
+      - label
+    uri: '${PRAMAAN_INGEST_URL}/v1/logs?env=${PRAMAAN_ENV:-production}'
+    encoding:
+      codec: json
+    auth:
+      strategy: bearer
+      token: '${PRAMAAN_TOKEN}'

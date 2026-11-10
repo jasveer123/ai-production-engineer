@@ -14,8 +14,18 @@
 		-Server
 	}
 
-	handle_path /api/* {
+	# Machine traffic goes straight to the API: log shippers, deploy hooks, provider webhooks, installers.
+	@machine path /api/v1/* /api/ingest/* /api/webhooks/* /api/install/* /api/setup/*
+	handle @machine {
+		uri strip_prefix /api
 		reverse_proxy api:4000 {
+			flush_interval -1
+		}
+	}
+
+	# Everything else under /api goes through the web app, which proxies to the API and owns the cookies.
+	handle /api/* {
+		reverse_proxy web:3000 {
 			flush_interval -1
 		}
 	}

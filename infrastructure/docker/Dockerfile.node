@@ -7,13 +7,12 @@ RUN corepack enable && corepack prepare pnpm@10.16.1 --activate
 WORKDIR /repo
 
 FROM base AS build
+COPY --from=ghcr.io/astral-sh/uv:0.12.15 /uv /usr/local/bin/uv
 COPY . .
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lockfile
 RUN pnpm --filter @ape/config --filter @ape/api-contracts --filter @ape/temporal-workflows build
 RUN pnpm --filter @ape/api build && pnpm --filter @ape/sandbox-manager build
-# The web app bakes the public API address in at build time.
-ARG NEXT_PUBLIC_API_URL=http://localhost:4000
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm --filter @ape/web build
 RUN pnpm --filter @ape/api --prod deploy --legacy /out/api \
  && pnpm --filter @ape/sandbox-manager --prod deploy --legacy /out/sandbox \

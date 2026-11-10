@@ -1,62 +1,51 @@
-import Link from 'next/link';
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
-import { cn } from '@/lib/cn';
+import { Button as ButtonPrimitive } from "@base-ui/react/button"
+import { cva, type VariantProps } from "class-variance-authority"
+import { cn } from "@/lib/utils"
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
-export type ButtonSize = 'md' | 'sm';
+const buttonVariants = cva(
+  "group/button inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md border text-sm font-medium whitespace-nowrap transition-[transform,background-color,border-color,color] duration-150 ease-out outline-none select-none hover:-translate-y-px focus-visible:ring-3 focus-visible:ring-brand/40 focus-visible:ring-offset-2 focus-visible:ring-offset-bg active:translate-y-0 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-danger [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  {
+    variants: {
+      variant: {
+        default:
+          "border-brand bg-brand font-semibold text-on-brand hover:border-brand-strong hover:bg-brand-strong",
+        outline:
+          "border-line-strong bg-panel-2 text-text hover:border-muted-foreground aria-expanded:border-brand",
+        secondary: "border-line bg-brand-soft text-brand-strong hover:border-brand",
+        ghost:
+          "border-transparent bg-transparent text-muted-foreground hover:bg-panel-2 hover:text-text aria-expanded:bg-panel-2 aria-expanded:text-text",
+        destructive:
+          "border-transparent bg-danger-soft text-danger hover:border-danger focus-visible:ring-danger/40",
+        link: "h-auto border-transparent px-0 text-brand underline underline-offset-4 hover:translate-y-0 hover:text-brand-strong active:scale-100",
+      },
+      size: {
+        default: "h-10 px-4",
+        sm: "h-8 px-3 text-[0.8125rem]",
+        xs: "h-6 px-2 text-xs [&_svg:not([class*='size-'])]:size-3",
+        lg: "h-12 px-6 text-base",
+        icon: "size-10",
+        "icon-sm": "size-8",
+        "icon-xs": "size-6 [&_svg:not([class*='size-'])]:size-3",
+        "icon-lg": "size-12",
+      },
+    },
+    defaultVariants: { variant: "default", size: "default" },
+  }
+)
 
-const BASE =
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap border font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50';
-
-const VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'border-transparent bg-brand text-on-brand hover:bg-brand-strong',
-  secondary: 'border-line-strong bg-surface-raised text-ink hover:bg-surface-hover',
-  ghost: 'border-transparent bg-transparent text-ink hover:bg-surface-hover',
-  danger: 'border-line-strong bg-surface-raised text-danger hover:bg-danger-soft',
-};
-
-const SIZES: Record<ButtonSize, string> = {
-  md: 'h-10 rounded-md px-4 text-sm',
-  sm: 'h-8 rounded-sm px-3 text-[13px]',
-};
-
-export function buttonClasses(variant: ButtonVariant = 'primary', size: ButtonSize = 'md') {
-  return cn(BASE, VARIANTS[variant], SIZES[size]);
-}
-
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: ButtonVariant;
-  size?: ButtonSize;
-};
-
-export function Button({
-  variant = 'primary',
-  size = 'md',
+function Button({
   className,
-  type = 'button',
-  ...rest
-}: ButtonProps) {
-  return <button type={type} className={cn(buttonClasses(variant, size), className)} {...rest} />;
-}
-
-type ButtonLinkProps = {
-  href: string;
-  variant?: ButtonVariant;
-  size?: ButtonSize;
-  className?: string;
-  children: ReactNode;
-};
-
-export function ButtonLink({
-  href,
-  variant = 'primary',
-  size = 'md',
-  className,
-  children,
-}: ButtonLinkProps) {
+  variant = "default",
+  size = "default",
+  ...props
+}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
   return (
-    <Link href={href} className={cn(buttonClasses(variant, size), className)}>
-      {children}
-    </Link>
-  );
+    <ButtonPrimitive
+      data-slot="button"
+      className={cn(buttonVariants({ variant, size, className }))}
+      {...props}
+    />
+  )
 }
+
+export { Button, buttonVariants }

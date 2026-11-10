@@ -1,0 +1,56 @@
+<svg viewBox="0 0 600 240" xmlns="http://www.w3.org/2000/svg" class="block w-full overflow-visible">
+  <g class="stroke-brand opacity-20">
+    <line x1="0" x2="600" y1="50" y2="50" />
+    <line x1="0" x2="600" y1="100" y2="100" />
+    <line x1="0" x2="600" y1="150" y2="150" />
+  </g>
+  <line x1="0" x2="600" y1="200" y2="200" class="stroke-brand opacity-45" />
+  <path
+    class="incident-area fill-danger-soft"
+    d="M0 192 L60 190 L100 192 L118 186 L130 70 L150 84 L170 62 L195 78 L220 58 L250 74 L260 68 L275 60 L300 80 L325 64 L350 76 L380 66 L400 72 L400 200 L0 200 Z"
+  />
+  <line
+    class="incident-fix stroke-brand"
+    x1="400"
+    x2="400"
+    y1="10"
+    y2="200"
+    stroke-dasharray="4 5"
+    stroke-width="1.5"
+  />
+  <text class="incident-fix fill-brand font-sans font-semibold" x="408" y="22" font-size="13">
+    Fix deployed
+  </text>
+  <path
+    class="incident-spike fill-none stroke-danger"
+    pathLength="1"
+    d="M0 192 L60 190 L100 192 L118 186 L130 70 L150 84 L170 62 L195 78 L220 58 L250 74 L260 68 L275 60 L300 80 L325 64 L350 76 L380 66 L400 72"
+    stroke-width="3"
+    stroke-linejoin="round"
+    stroke-linecap="round"
+  />
+  <path
+    class="incident-rec fill-none stroke-brand"
+    pathLength="1"
+    d="M400 72 L415 120 L430 170 L445 192 L480 194 L540 193 L600 194"
+    stroke-width="3"
+    stroke-linejoin="round"
+    stroke-linecap="round"
+  />
+  <g class="incident-p1">
+    <circle cx="130" cy="70" r="11" class="fill-text stroke-panel" stroke-width="3" />
+    <text x="130" y="74" text-anchor="middle" class="fill-bg font-sans font-bold" font-size="12">1</text>
+  </g>
+  <g class="incident-p2">
+    <circle cx="260" cy="68" r="11" class="fill-text stroke-panel" stroke-width="3" />
+    <text x="260" y="72" text-anchor="middle" class="fill-bg font-sans font-bold" font-size="12">2</text>
+  </g>
+  <g class="incident-p3">
+    <circle cx="400" cy="72" r="11" class="fill-ai stroke-panel" stroke-width="3" />
+    <text x="400" y="76" text-anchor="middle" class="fill-bg font-sans font-bold" font-size="12">3</text>
+  </g>
+  <g class="incident-p4">
+    <circle cx="540" cy="193" r="11" class="fill-text stroke-panel" stroke-width="3" />
+    <text x="540" y="197" text-anchor="middle" class="fill-bg font-sans font-bold" font-size="12">4</text>
+  </g>
+</svg>

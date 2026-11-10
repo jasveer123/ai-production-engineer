@@ -19,7 +19,7 @@ import {
 } from './domain/password';
 
 export interface IdentityProfile {
-  provider: 'github' | 'dev';
+  provider: 'github' | 'slack' | 'dev';
   providerId: string;
   email: string;
   name: string | null;
@@ -55,8 +55,8 @@ export class AuthService {
       const changes: Partial<typeof users.$inferInsert> = {};
       if (profile.name) changes.name = profile.name;
       if (profile.avatarUrl) changes.avatarUrl = profile.avatarUrl;
-      if (profile.provider === 'github') {
-        changes.identityProvider = 'github';
+      if (profile.provider !== 'dev') {
+        changes.identityProvider = profile.provider;
         changes.identityProviderId = profile.providerId;
       }
       if (!existing.emailVerifiedAt) {
@@ -86,7 +86,10 @@ export class AuthService {
     return created!.id;
   }
 
-  async register(input: RegisterInput, correlationId: string): Promise<string> {
+  async register(
+    input: RegisterInput,
+    correlationId: string,
+  ): Promise<{ userId: string; verified: boolean }> {
     const weak = weakPasswordReason(input.password, input.email);
     if (weak) throw new ApiException(HttpStatus.BAD_REQUEST, 'weak_password', weak);
 
@@ -147,7 +150,7 @@ export class AuthService {
       metadata: { method: 'password', invited: Boolean(invitation) },
     });
     if (!verified) await this.links.sendVerification(userId, input.email);
-    return userId;
+    return { userId, verified: Boolean(verified) };
   }
 
   async login(input: LoginInput, correlationId: string, ip: string | undefined): Promise<string> {
@@ -208,6 +211,14 @@ export class AuthService {
         .update(users)
         .set({ failedLoginCount: 0, lockedUntil: null })
         .where(eq(users.id, user.id));
+    }
+    if (!user.emailVerifiedAt) {
+      await deny('email_not_verified', user.id);
+      throw new ApiException(
+        HttpStatus.FORBIDDEN,
+        'email_not_verified',
+        'Confirm your email first. We sent you a link when you signed up.',
+      );
     }
     return user.id;
   }
@@ -311,13 +322,13 @@ export class AuthService {
     });
   }
 
-  async resendVerification(userId: string): Promise<void> {
-    const [user] = await this.db.select().from(users).where(eq(users.id, userId));
-    if (!user || user.emailVerifiedAt) return;
+  async resendVerification(email: string): Promise<void> {
+    const user = await findUserByEmail(this.db, email);
+    if (!user || user.emailVerifiedAt || !user.passwordHash) return;
     await this.links.sendVerification(user.id, user.email);
   }
 
-  async verifyEmail(token: string, correlationId: string): Promise<void> {
+  async verifyEmail(token: string, correlationId: string): Promise<string> {
     const userId = await this.links.consume(token, 'email_verify');
     await this.db.update(users).set({ emailVerifiedAt: new Date() }).where(eq(users.id, userId));
     await this.audit.record({
@@ -329,6 +340,7 @@ export class AuthService {
       correlationId,
     });
     await this.invitations.acceptPending(userId, correlationId);
+    return userId;
   }
 
   async recordLoginFailure(

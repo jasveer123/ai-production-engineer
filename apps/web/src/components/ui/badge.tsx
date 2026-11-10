@@ -1,40 +1,40 @@
-import type { ReactNode } from 'react';
-import { cn } from '@/lib/cn';
-import { Icon, type IconName } from './icon';
+import { mergeProps } from "@base-ui/react/merge-props"
+import { useRender } from "@base-ui/react/use-render"
+import { cva, type VariantProps } from "class-variance-authority"
+import { cn } from "@/lib/utils"
 
-export type BadgeTone = 'neutral' | 'ok' | 'warn' | 'danger' | 'info' | 'brand' | 'ai';
+const badgeVariants = cva(
+  "inline-flex h-[1.375rem] w-fit shrink-0 items-center justify-center gap-1.5 overflow-hidden rounded-sm border px-2 text-xs font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-3 focus-visible:ring-brand/40 [&>svg]:pointer-events-none [&>svg]:size-3",
+  {
+    variants: {
+      variant: {
+        default:
+          "border-line bg-panel-2 text-muted-foreground [a]:hover:border-line-strong [a]:hover:text-text",
+        brand: "border-transparent bg-brand-soft text-brand-strong [a]:hover:border-brand",
+        ai: "border-transparent bg-ai-soft text-ai-ink before:size-1.5 before:rounded-full before:bg-ai before:content-[''] [a]:hover:border-ai",
+        success: "border-transparent bg-ok-soft text-ok [a]:hover:border-ok",
+        warning: "border-transparent bg-warn-soft text-warn [a]:hover:border-warn",
+        destructive: "border-transparent bg-danger-soft text-danger [a]:hover:border-danger",
+        info: "border-transparent bg-info-soft text-info [a]:hover:border-info",
+        outline: "border-line-strong bg-transparent text-text [a]:hover:bg-panel-2",
+      },
+    },
+    defaultVariants: { variant: "default" },
+  }
+)
 
-const TONES: Record<BadgeTone, string> = {
-  neutral: 'bg-surface-sunken text-ink-muted',
-  ok: 'bg-ok-soft text-ok',
-  warn: 'bg-warn-soft text-warn',
-  danger: 'bg-danger-soft text-danger',
-  info: 'bg-info-soft text-info',
-  brand: 'bg-brand-soft text-brand-strong',
-  ai: 'bg-spark-soft text-spark-ink',
-};
-
-const DEFAULT_ICON: Partial<Record<BadgeTone, IconName>> = {
-  ok: 'check',
-  warn: 'clock',
-  danger: 'alert',
-  info: 'info',
-};
-
-type BadgeProps = { tone?: BadgeTone; icon?: IconName | null; children: ReactNode };
-
-export function Badge({ tone = 'neutral', icon, children }: BadgeProps) {
-  const iconName = icon === null ? undefined : (icon ?? DEFAULT_ICON[tone]);
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1 whitespace-nowrap rounded-sm px-2 py-0.5 text-xs font-semibold leading-4',
-        TONES[tone],
-      )}
-    >
-      {tone === 'ai' && <span aria-hidden="true" className="size-1.5 rounded-full bg-spark" />}
-      {iconName && <Icon name={iconName} size="sm" />}
-      {children}
-    </span>
-  );
+function Badge({
+  className,
+  variant = "default",
+  render,
+  ...props
+}: useRender.ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
+  return useRender({
+    defaultTagName: "span",
+    props: mergeProps<"span">({ className: cn(badgeVariants({ variant }), className) }, props),
+    render,
+    state: { slot: "badge", variant },
+  })
 }
+
+export { Badge, badgeVariants }

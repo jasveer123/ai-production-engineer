@@ -11,10 +11,13 @@ import { sessions } from '../../core/db/schema';
 import { IS_PUBLIC_KEY } from './public.decorator';
 
 export const SESSION_COOKIE = 'ape_session';
+export const REFRESH_COOKIE = 'ape_refresh';
+export const REFRESH_COOKIE_PATH = '/auth';
 
 interface SessionToken {
   sub: string;
   sid: string;
+  typ?: 'access' | 'refresh';
 }
 
 @Injectable()
@@ -42,6 +45,8 @@ export class SessionGuard implements CanActivate {
     } catch {
       throw unauthorized();
     }
+
+    if (payload.typ === 'refresh') throw unauthorized();
 
     const [session] = await this.db
       .select({ id: sessions.id })

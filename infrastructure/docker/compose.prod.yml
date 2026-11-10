@@ -22,6 +22,8 @@ services:
   web:
     <<: [*restart, *logging]
     image: ${REGISTRY}/ape-web:${TAG}
+    environment:
+      API_URL: http://api:4000
     mem_limit: 384m
 
   api:
