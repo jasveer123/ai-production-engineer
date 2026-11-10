@@ -1,0 +1,25 @@
+sources:
+  containers:
+    type: docker_logs
+    exclude_containers:
+      - pramaan-collector
+
+transforms:
+  label:
+    type: remap
+    inputs:
+      - containers
+    source: |
+      .service = .container_name
+
+sinks:
+  pramaan:
+    type: http
+    inputs:
+      - label
+    uri: "${PRAMAAN_INGEST_URL}/v1/logs?env=${PRAMAAN_ENV:-production}"
+    encoding:
+      codec: json
+    auth:
+      strategy: bearer
+      token: "${PRAMAAN_TOKEN}"
