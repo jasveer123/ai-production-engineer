@@ -1,40 +1,67 @@
 import { RotateCw } from "lucide-react"
-import { Button } from "@/components/ui"
+import { Badge, Button } from "@/components/ui"
 import { formatRelativeTime } from "@/lib/format/relative-time"
+import { getSourceState } from "../lib"
 import type { IngestToken } from "../schemas"
 import { RevokeTokenDialog } from "./revoke-token-dialog"
+import { SourceField } from "./source-field"
+import { StateBadge } from "./state-badge"
 
 interface TokenRowProps {
   token: IngestToken
+  platformName: string | null
+  ingestUrl: string
   canManage: boolean
   pending: boolean
   onRotate: (id: string) => void
   onRevoke: (id: string) => void
 }
 
-export function TokenRow({ token, canManage, pending, onRotate, onRevoke }: TokenRowProps) {
+export function TokenRow({
+  token,
+  platformName,
+  ingestUrl,
+  canManage,
+  pending,
+  onRotate,
+  onRevoke,
+}: TokenRowProps) {
+  const state = token.platform ? getSourceState([token], token.platform) : "not_set_up"
+
   return (
-    <li className="flex flex-wrap items-center justify-between gap-3 border border-line px-3 py-2">
-      <div className="grid min-w-0 gap-0.5">
-        <span className="truncate text-[0.8125rem] font-medium">{token.name}</span>
-        <span className="font-mono text-[0.75rem] text-muted-foreground">
-          {token.masked}
-          {" · "}
-          {token.lastUsedAt ? `used ${formatRelativeTime(token.lastUsedAt)}` : "never used"}
-        </span>
-      </div>
-      {canManage && (
-        <div className="flex gap-2">
-          <Button variant="outline" size="xs" disabled={pending} onClick={() => onRotate(token.id)}>
-            <RotateCw /> Rotate
-          </Button>
-          <RevokeTokenDialog
-            tokenName={token.name}
-            pending={pending}
-            onConfirm={() => onRevoke(token.id)}
-          />
+    <li className="grid gap-4 border border-line p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-sm font-medium">{token.name}</span>
+          {token.lastUsedAt ? <StateBadge state={state} /> : <Badge>Waiting for data</Badge>}
+          <span className="text-[0.8125rem] text-muted-foreground">
+            {token.lastUsedAt ? `Last log ${formatRelativeTime(token.lastUsedAt)}` : "Never used"}
+          </span>
         </div>
-      )}
+        {canManage && (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="xs"
+              disabled={pending}
+              onClick={() => onRotate(token.id)}
+            >
+              <RotateCw /> Rotate
+            </Button>
+            <RevokeTokenDialog
+              tokenName={token.name}
+              pending={pending}
+              onConfirm={() => onRevoke(token.id)}
+            />
+          </div>
+        )}
+      </div>
+      <dl className="grid gap-3 sm:grid-cols-2">
+        <SourceField label="Platform">{platformName ?? "Any (older workspace token)"}</SourceField>
+        <SourceField label="Source ID">{`src_${token.id.slice(0, 8)}`}</SourceField>
+        <SourceField label="Source token">{token.masked}</SourceField>
+        <SourceField label="Ingest URL">{ingestUrl}</SourceField>
+      </dl>
     </li>
   )
 }

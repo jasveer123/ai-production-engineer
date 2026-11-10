@@ -13,6 +13,7 @@ export type StreamState = z.infer<typeof streamStateSchema>
 export const ingestTokenSchema = z.object({
   id: z.string(),
   name: z.string(),
+  platform: z.string().nullable(),
   masked: z.string(),
   createdAt: z.string(),
   lastUsedAt: z.string().nullable(),
@@ -80,6 +81,7 @@ export type LogSearchResult = z.infer<typeof logSearchResultSchema>
 
 export interface CreateTokenRequest {
   name: string
+  platform?: string
 }
 
 export interface TestLogRequest {

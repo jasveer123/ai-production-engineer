@@ -3,6 +3,7 @@ import { Button } from "@/components/ui"
 import { ROUTES } from "@/lib/constants/routes"
 import { formatRelativeTime } from "@/lib/format/relative-time"
 import type { IntegrationDefinition } from "../catalog"
+import { getSourceState } from "../lib"
 import type { IngestOverview } from "../schemas"
 import { StatusCard } from "./status-card"
 
@@ -15,8 +16,7 @@ interface StatusCardsProps {
 
 export function StatusCards({ definitions, overview }: StatusCardsProps) {
   const waiting = definitions.filter(
-    (item) =>
-      (overview?.ways.find((way) => way.way === item.way)?.state ?? "not_set_up") === "not_set_up"
+    (item) => getSourceState(overview?.tokens, item.id) === "not_set_up"
   )
   const silent = (overview?.streams ?? []).filter((stream) => stream.state === "silent")
   const first = waiting[0]

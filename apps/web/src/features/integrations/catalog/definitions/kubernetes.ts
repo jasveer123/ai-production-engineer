@@ -41,7 +41,7 @@ export const kubernetes: IntegrationDefinition = {
   name: "Kubernetes",
   tagline: "Every pod in a cluster",
   description:
-    "Install a log reader on every node with Helm. It collects all your pods' logs and labels them with the app name.",
+    "Run one command to put a log reader on every node. It collects all your pods' logs and labels them with the app name.",
   group: INTEGRATION_GROUP.COLLECT,
   way: "agent",
   icon: KubernetesLogo,

@@ -88,7 +88,7 @@ export const TEST_LOG = {
   MESSAGE: "Test log sent from the Pramaan integrations page",
 } as const
 
-export const TOKEN_NAME_DEFAULT = "My first token"
+export const SOURCE_QUIET_AFTER_MS = 15 * 60 * 1000
 
 export const STATE_LABEL = {
   receiving: "Receiving",
