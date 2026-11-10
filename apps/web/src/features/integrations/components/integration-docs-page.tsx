@@ -1,9 +1,12 @@
+"use client"
+
 import Link from "next/link"
 import { ExternalLink } from "lucide-react"
 import { Badge, Button, Eyebrow, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui"
 import { ROUTES } from "@/lib/constants/routes"
 import { INTEGRATIONS, type IntegrationDefinition } from "../catalog"
 import { SNIPPET_DEFAULTS, type IntegrationId } from "../constants"
+import { useSiteOrigin } from "../hooks"
 import { buildSnippetContext } from "../lib"
 import { CheckList } from "./check-list"
 import { FactsList } from "./facts-list"
@@ -16,10 +19,11 @@ interface IntegrationDocsPageProps {
 }
 
 export function IntegrationDocsPage({ id }: IntegrationDocsPageProps) {
+  const webUrl = useSiteOrigin()
   const definition = INTEGRATIONS.find((item) => item.id === id)!
   const Icon = definition.icon
   const context = buildSnippetContext({
-    webUrl: SNIPPET_DEFAULTS.WEB_URL_PLACEHOLDER,
+    webUrl,
     ingestUrl: SNIPPET_DEFAULTS.INGEST_URL_PLACEHOLDER,
     token: null,
   })

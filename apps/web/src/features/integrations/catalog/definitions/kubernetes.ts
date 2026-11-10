@@ -1,5 +1,6 @@
 import KubernetesLogo from "@/assets/svg/kubernetes.svg"
 import { INTEGRATION_GROUP, INTEGRATION_ID } from "../../constants"
+import { COLLECTOR_TROUBLESHOOT, collectorKubernetesSteps } from "../collector"
 import { fluentBitOutput, vectorSink } from "../snippets"
 import type { IntegrationDefinition, IntegrationStep, SnippetContext } from "../types"
 
@@ -58,6 +59,13 @@ export const kubernetes: IntegrationDefinition = {
   docsUrl: "https://vector.dev/docs/setup/installation/platforms/kubernetes/",
   related: [INTEGRATION_ID.VECTOR, INTEGRATION_ID.FLUENT_BIT],
   methods: [
+    {
+      id: "one-command",
+      label: "One command",
+      summary: "Run one command in your cluster. Every pod is collected.",
+      troubleshoot: COLLECTOR_TROUBLESHOOT.kubernetes,
+      steps: collectorKubernetesSteps,
+    },
     {
       id: "helm-vector",
       label: "Helm with Vector",

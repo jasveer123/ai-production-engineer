@@ -1,3 +1,5 @@
+"use client"
+
 import Link from "next/link"
 import { Eyebrow } from "@/components/ui"
 import { ROUTES } from "@/lib/constants/routes"
@@ -9,6 +11,7 @@ import {
   collectorKubernetesSteps,
 } from "../catalog"
 import { COLLECTOR, INTEGRATION_ID, SNIPPET_DEFAULTS } from "../constants"
+import { useSiteOrigin } from "../hooks"
 import { buildSnippetContext } from "../lib"
 import { CheckList } from "./check-list"
 import { StepList } from "./step-list"
@@ -32,8 +35,9 @@ const PLATFORMS = [
 ]
 
 export function CollectorDocsPage() {
+  const webUrl = useSiteOrigin()
   const context = buildSnippetContext({
-    webUrl: SNIPPET_DEFAULTS.WEB_URL_PLACEHOLDER,
+    webUrl,
     ingestUrl: SNIPPET_DEFAULTS.INGEST_URL_PLACEHOLDER,
     token: null,
   })
@@ -57,10 +61,9 @@ export function CollectorDocsPage() {
       <section className="grid gap-2 border border-line bg-panel-2 p-5">
         <h2 className="font-heading text-base font-semibold">Before you start</h2>
         <p className="text-[0.8125rem] leading-5 text-muted-foreground">
-          Copy your ingest URL and token from your integration page in the app, then paste them
-          wherever a step shows{" "}
-          <code className="font-mono">{SNIPPET_DEFAULTS.TOKEN_PLACEHOLDER}</code> or{" "}
-          <code className="font-mono">{SNIPPET_DEFAULTS.INGEST_URL_PLACEHOLDER}</code>.
+          Copy your token from your integration page in the app and paste it in place of{" "}
+          <code className="font-mono">{SNIPPET_DEFAULTS.TOKEN_PLACEHOLDER}</code>. That is the only
+          thing to change.
         </p>
       </section>
       {PLATFORMS.map((platform) => (
