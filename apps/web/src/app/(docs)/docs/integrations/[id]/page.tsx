@@ -8,13 +8,7 @@ export function generateStaticParams() {
   return INTEGRATIONS.map((item) => ({ id: item.id }))
 }
 
-export async function generateMetadata({
-  params,
-}: PageProps<"/docs/integrations/[id]">): Promise<Metadata> {
-  const { id } = await params
-  const definition = INTEGRATIONS.find((item) => item.id === id)
-  return { title: definition?.name ?? "Integration" }
-}
+export const metadata: Metadata = { title: "Integration guide" }
 
 export default async function Page({ params }: PageProps<"/docs/integrations/[id]">) {
   const { id } = await params
