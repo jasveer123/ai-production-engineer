@@ -7,6 +7,7 @@ import {
   type IngestWay,
   type LogQuery,
   type LogSearchResult,
+  type ServiceSummaryResult,
   type StreamState,
 } from '@ape/api-contracts';
 import { ENV, type ApiEnv } from '../../../core/config/config.module';
@@ -22,6 +23,8 @@ import {
   toLogLine,
 } from '../infrastructure/log-search';
 import { SyslogServer } from '../infrastructure/syslog.server';
+
+const SUMMARY_BUCKETS = 24;
 
 export const RECEIVING_MS = 5 * 60 * 1000;
 export const SILENT_MS = 15 * 60 * 1000;
@@ -134,6 +137,56 @@ export class IngestService {
       histogram: histogramOf(hist, from, bucketMs),
       nextBefore: more ? (lines[lines.length - 1]?.id ?? null) : null,
       services: services.map((s) => s.service),
+    };
+  }
+
+  async serviceSummary(workspaceId: string, hours: number): Promise<ServiceSummaryResult> {
+    const to = new Date();
+    const from = new Date(to.getTime() - hours * 3600 * 1000);
+    const bucketMs = Math.ceil((to.getTime() - from.getTime()) / SUMMARY_BUCKETS);
+    const rows = await this.db
+      .select({
+        service: logRecords.service,
+        environment: logRecords.environment,
+        bucket: sql<number>`least(${SUMMARY_BUCKETS - 1}, floor(extract(epoch from (${logRecords.ts} - ${from.toISOString()}::timestamptz)) * 1000 / ${bucketMs}))::int`,
+        total: sql<number>`count(*)::int`,
+        errors: sql<number>`count(*) filter (where ${logRecords.level} in ('error','fatal'))::int`,
+        lastAt: sql<Date>`max(${logRecords.ts})`,
+      })
+      .from(logRecords)
+      .where(
+        and(
+          eq(logRecords.workspaceId, workspaceId),
+          gte(logRecords.ts, from),
+          lt(logRecords.ts, new Date(to.getTime() + 1000)),
+        ),
+      )
+      .groupBy(logRecords.service, logRecords.environment, sql`3`);
+
+    const byKey = new Map<string, ServiceSummaryResult['services'][number]>();
+    for (const row of rows) {
+      const key = `${row.service}\u0000${row.environment}`;
+      const entry = byKey.get(key) ?? {
+        service: row.service,
+        environment: row.environment,
+        total: 0,
+        errors: 0,
+        lastAt: new Date(row.lastAt).toISOString(),
+        buckets: new Array<number>(SUMMARY_BUCKETS).fill(0),
+      };
+      entry.total += row.total;
+      entry.errors += row.errors;
+      entry.buckets[Math.max(0, row.bucket)] =
+        (entry.buckets[Math.max(0, row.bucket)] ?? 0) + row.total;
+      const last = new Date(row.lastAt).toISOString();
+      if (last > entry.lastAt) entry.lastAt = last;
+      byKey.set(key, entry);
+    }
+    return {
+      from: from.toISOString(),
+      to: to.toISOString(),
+      bucketCount: SUMMARY_BUCKETS,
+      services: [...byKey.values()].sort((a, b) => (a.lastAt < b.lastAt ? 1 : -1)),
     };
   }
 

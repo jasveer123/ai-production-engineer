@@ -40,3 +40,22 @@ export interface LogSearchResult {
   nextBefore: number | null;
   services: string[];
 }
+
+export const serviceSummaryQuerySchema = z.object({ hours: coercedInt(168, 24) });
+export type ServiceSummaryQuery = z.input<typeof serviceSummaryQuerySchema>;
+
+export interface ServiceLogSummary {
+  service: string;
+  environment: string;
+  total: number;
+  errors: number;
+  lastAt: IsoTimestamp;
+  buckets: number[];
+}
+
+export interface ServiceSummaryResult {
+  from: IsoTimestamp;
+  to: IsoTimestamp;
+  bucketCount: number;
+  services: ServiceLogSummary[];
+}

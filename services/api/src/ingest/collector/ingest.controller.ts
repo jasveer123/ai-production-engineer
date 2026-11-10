@@ -13,10 +13,12 @@ import {
 import {
   createIngestTokenSchema,
   logQuerySchema,
+  serviceSummaryQuerySchema,
   type CreateIngestTokenInput,
   type IngestOverview,
   type IngestTokenWithSecret,
   type LogSearchResult,
+  type ServiceSummaryResult,
 } from '@ape/api-contracts';
 import type { z } from 'zod';
 import { Actor } from '../../core/common/actor.decorator';
@@ -64,6 +66,15 @@ export class IngestController {
   @HttpCode(204)
   revoke(@Actor() actor: ActorContext, @Param('tokenId', ParseUUIDPipe) id: string): Promise<void> {
     return this.tokens.revoke(actor, id);
+  }
+
+  @Get('logs/services')
+  serviceSummary(
+    @Actor() actor: ActorContext,
+    @Query(new ZodValidationPipe(serviceSummaryQuerySchema))
+    query: z.output<typeof serviceSummaryQuerySchema>,
+  ): Promise<ServiceSummaryResult> {
+    return this.ingest.serviceSummary(actor.workspaceId, query.hours);
   }
 
   @Get('logs')
