@@ -10,6 +10,7 @@ import {
   FeedbackSection,
   FormsSection,
   OverlaysSection,
+  ServicesScreenSection,
   TableSection,
   TabsChipsSection,
   TraceSection,
@@ -25,6 +26,7 @@ const NAV = [
   "alerts",
   "trace",
   "table",
+  "services-screen",
   "overlays",
   "feedback",
   "colors",
@@ -71,6 +73,7 @@ export function ComponentsShowcase() {
         <AlertsSection />
         <TraceSection />
         <TableSection />
+        <ServicesScreenSection />
         <OverlaysSection />
         <FeedbackSection />
         <ColorsSection />
