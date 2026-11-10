@@ -1,9 +1,14 @@
 import { execFileSync } from 'node:child_process';
 import { createHmac, generateKeyPairSync, createSign, type JsonWebKey } from 'node:crypto';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { installScript, kubernetesManifest, vectorConfig } from './domain/agent-install';
+import {
+  installScript,
+  kubernetesInstallScript,
+  kubernetesManifest,
+  vectorConfig,
+} from './domain/agent-install';
 import { cloudFormationCommand, cloudFormationTemplate } from './domain/aws';
 import { GITHUB_OIDC_ISSUER, verifyGitHubOidc } from './infrastructure/github-oidc';
 import { verifySentrySignature } from './domain/oauth';
@@ -283,7 +288,32 @@ describe('agent installer and AWS template', () => {
     writeFileSync(join(dir, 'agent.sh'), script);
     expect(() => execFileSync('sh', ['-n', join(dir, 'agent.sh')])).not.toThrow();
     expect(script).toContain('${APE_TOKEN}');
+    expect(script).toContain('.service = .container_name');
     expect(script).not.toMatch(/token=\$APE_TOKEN/);
+  });
+  it('the Kubernetes install script does everything in one run and needs a token', () => {
+    const script = kubernetesInstallScript('https://i.example.com/api');
+    const dir = mkdtempSync(join(tmpdir(), 'ape-k8s-'));
+    const log = join(dir, 'calls.log');
+    writeFileSync(join(dir, 'install.sh'), script);
+    writeFileSync(
+      join(dir, 'kubectl'),
+      `#!/bin/sh\necho "kubectl $*" >> ${log}\n[ "$1" = apply ] && cat >/dev/null\nexit 0\n`,
+      { mode: 0o755 },
+    );
+    writeFileSync(join(dir, 'curl'), '#!/bin/sh\necho "kind: DaemonSet"\n', { mode: 0o755 });
+    const env = { ...process.env, PATH: `${dir}:${process.env.PATH}` };
+    expect(() => execFileSync('sh', ['-n', join(dir, 'install.sh')])).not.toThrow();
+    expect(() => execFileSync('sh', [join(dir, 'install.sh')], { env, stdio: 'pipe' })).toThrow();
+    execFileSync('sh', [join(dir, 'install.sh')], {
+      env: { ...env, APE_TOKEN: 'ape_live_x' },
+      stdio: 'pipe',
+    });
+    const calls = readFileSync(log, 'utf8');
+    expect(calls).toContain('create namespace ape-agent');
+    expect(calls).toContain('--from-literal=APE_TOKEN=ape_live_x');
+    expect(calls).toContain('rollout restart daemonset/ape-agent');
+    expect(calls).toContain('rollout status daemonset/ape-agent');
   });
   it('the Kubernetes manifest takes the token from a secret', () => {
     const m = kubernetesManifest('https://i.example.com', 'shop');

@@ -114,7 +114,12 @@ DOCKER=false; [ -S /var/run/docker.sock ] && DOCKER=true
   echo "$APE_LOG_PATHS" | tr ',' '\\n' | while read -r p; do [ -n "$p" ] && echo "      - \\"$p\\""; done
   INPUTS="files"
   if [ "$JOURNALD" = true ] && [ "$MODE" = systemd ]; then echo "  journald:"; echo "    type: journald"; INPUTS="$INPUTS, journald"; fi
-  if [ "$DOCKER" = true ]; then echo "  docker:"; echo "    type: docker_logs"; INPUTS="$INPUTS, docker"; fi
+  if [ "$DOCKER" = true ]; then
+    echo "  docker:"; echo "    type: docker_logs"; echo "    exclude_containers: [ape-agent]"
+    INPUTS="$INPUTS, docker_service"
+    echo "transforms:"; echo "  docker_service:"; echo "    type: remap"; echo "    inputs: [docker]"
+    echo "    source: .service = .container_name"
+  fi
   echo "sinks:"
   echo "  ape:"
   echo "    type: http"
@@ -163,6 +168,30 @@ UNIT
   say "Running as systemd service ape-agent (journalctl -u ape-agent)."
 fi
 say "Done. The Integrations page turns green when the first logs arrive."
+`;
+}
+
+export function kubernetesInstallScript(endpoint: string): string {
+  return `#!/bin/sh
+# Pramaan Kubernetes install. Usage:
+#   curl -fsSL ${endpoint}/install/kubernetes.sh | APE_TOKEN=ape_live_... sh
+set -eu
+
+say() { printf '[pramaan] %s\\n' "$*"; }
+die() { say "$*" >&2; exit 1; }
+
+[ -n "\${APE_TOKEN:-}" ] || die "Set APE_TOKEN (copy it from the Integrations page)."
+command -v kubectl >/dev/null 2>&1 || die "kubectl is required."
+command -v curl >/dev/null 2>&1 || die "curl is required."
+kubectl version --request-timeout=10s >/dev/null 2>&1 || die "kubectl cannot reach a cluster."
+
+kubectl create namespace ape-agent --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+kubectl -n ape-agent create secret generic ape-agent --from-literal=APE_TOKEN="$APE_TOKEN" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+curl -fsSL "${endpoint}/install/kubernetes.yaml" | kubectl apply -f - >/dev/null
+kubectl -n ape-agent rollout restart daemonset/ape-agent >/dev/null
+say "Waiting for the collector to start..."
+kubectl -n ape-agent rollout status daemonset/ape-agent --timeout=180s || die "The collector did not start. Run: kubectl -n ape-agent get pods"
+say "Done. The collector is running on every node. Your logs appear in Pramaan within a minute."
 `;
 }
 
