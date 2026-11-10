@@ -21,6 +21,8 @@ export const histogramBucketSchema = z.object({
   errors: z.number(),
 })
 
+export type HistogramBucket = z.infer<typeof histogramBucketSchema>
+
 export const logSearchSchema = z.object({
   lines: z.array(logLineSchema),
   histogram: z.array(histogramBucketSchema),

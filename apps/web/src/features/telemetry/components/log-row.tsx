@@ -34,6 +34,7 @@ export function LogRow({ line }: LogRowProps) {
       <button
         type="button"
         aria-expanded={open}
+        title={`${line.service} · ${line.level} · ${line.message}`}
         onClick={() => setOpen((value) => !value)}
         className="grid w-full grid-cols-[1rem_4.5rem_3.5rem_9rem_1fr] items-baseline gap-2 px-3 py-1.5 text-left font-mono text-[0.75rem] outline-none hover:bg-panel-2 focus-visible:ring-3 focus-visible:ring-brand/40"
       >
