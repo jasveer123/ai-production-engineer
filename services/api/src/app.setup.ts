@@ -1,9 +1,11 @@
 import type { INestApplication } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
-import { json, raw, text, type Request } from 'express';
+import { json, raw, text, type Application, type Request } from 'express';
 import type { ApiEnv } from '@ape/config';
 
 export function configureApp(app: INestApplication, env: ApiEnv): void {
+  if (env.TRUST_PROXY > 0)
+    (app.getHttpAdapter().getInstance() as Application).set('trust proxy', env.TRUST_PROXY);
   app.use(cookieParser());
 
   app.use('/v1', raw({ type: () => true, limit: `${env.INGEST_MAX_BODY_MB}mb`, inflate: true }));

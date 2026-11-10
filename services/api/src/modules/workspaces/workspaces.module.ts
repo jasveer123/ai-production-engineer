@@ -8,6 +8,6 @@ import { WorkspacesService } from './workspaces.service';
 @Module({
   controllers: [WorkspacesController, MembersController],
   providers: [WorkspacesService, MembersService, WorkspaceAccessGuard],
-  exports: [WorkspaceAccessGuard],
+  exports: [WorkspaceAccessGuard, WorkspacesService],
 })
 export class WorkspacesModule {}

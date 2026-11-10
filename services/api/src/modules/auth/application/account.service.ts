@@ -6,6 +6,7 @@ import { ENV, type ApiEnv } from '../../../core/config/config.module';
 import type { Database } from '../../../core/db/client';
 import { DB } from '../../../core/db/database.module';
 import { users, workspaceMembers, workspaces } from '../../../core/db/schema';
+import { WorkspacesService } from '../../workspaces/workspaces.service';
 import { InvitationService } from './invitation.service';
 
 @Injectable()
@@ -14,7 +15,12 @@ export class AccountService {
     @Inject(DB) private readonly db: Database,
     @Inject(ENV) private readonly env: ApiEnv,
     private readonly invitations: InvitationService,
+    private readonly workspaces: WorkspacesService,
   ) {}
+
+  async createFirstWorkspace(userId: string, name: string, correlationId: string): Promise<void> {
+    await this.workspaces.create(userId, name, correlationId);
+  }
 
   async me(userId: string, correlationId: string): Promise<Me> {
     await this.invitations.acceptPending(userId, correlationId);
@@ -44,6 +50,7 @@ export class AccountService {
     return {
       password: true,
       github: Boolean(this.env.GITHUB_OAUTH_CLIENT_ID && this.env.GITHUB_OAUTH_CLIENT_SECRET),
+      slack: Boolean(this.env.SLACK_OAUTH_CLIENT_ID && this.env.SLACK_OAUTH_CLIENT_SECRET),
       devLogin: this.env.AUTH_DEV_LOGIN,
     };
   }

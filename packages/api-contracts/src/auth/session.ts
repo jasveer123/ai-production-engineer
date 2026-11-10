@@ -14,7 +14,7 @@ export interface Me {
     hasPassword: boolean;
   };
   workspaces: { id: Uuid; name: string; role: Role }[];
-  authProviders: { password: boolean; github: boolean; devLogin: boolean };
+  authProviders: { password: boolean; github: boolean; slack: boolean; devLogin: boolean };
 }
 
 export interface InvitationPreview {

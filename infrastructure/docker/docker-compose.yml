@@ -43,6 +43,15 @@ services:
     ports: ['9000:9000', '9001:9001']
     volumes: [s3-data:/data]
 
+  mailpit:
+    image: axllent/mailpit:latest
+    ports: ['1025:1025', '8025:8025']
+    healthcheck:
+      test: ['CMD', '/mailpit', 'readyz']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   jaeger:
     image: jaegertracing/all-in-one:latest
     environment:

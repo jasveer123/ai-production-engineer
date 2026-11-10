@@ -19,7 +19,8 @@ export class GitHubOAuthService {
   constructor(@Inject(ENV) private readonly env: ApiEnv) {}
 
   get callbackUrl(): string {
-    return `http://localhost:${this.env.API_PORT}/auth/github/callback`;
+    const base = this.env.OAUTH_CALLBACK_BASE_URL ?? `http://localhost:${this.env.API_PORT}`;
+    return `${base}/auth/github/callback`;
   }
 
   authorizeUrl(state: string): string {

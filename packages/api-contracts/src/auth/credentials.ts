@@ -20,6 +20,7 @@ export const registerSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
   inviteToken: longToken.optional(),
+  workspaceName: nameSchema(80, 'Name your workspace').min(2).optional(),
 });
 export type RegisterInput = z.infer<typeof registerSchema>;
 
@@ -28,6 +29,9 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Enter your password').max(PASSWORD_MAX),
 });
 export type LoginInput = z.infer<typeof loginSchema>;
+
+export const resendVerificationSchema = z.object({ email: emailSchema });
+export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>;
 
 export const forgotPasswordSchema = z.object({ email: emailSchema });
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
