@@ -32,8 +32,6 @@ export const COLLECTOR = {
   CONTAINER: "pramaan-collector",
   IMAGE: "pramaan/collector:0.1.0",
   CHART_NAME: "pramaan-collector",
-  SECRET_NAME: "pramaan-token",
-  SECRET_KEY: "token",
   INTEGRATIONS: ["docker", "kubernetes"],
   ANCHOR: { DOCKER: "docker", KUBERNETES: "kubernetes" },
 } as const

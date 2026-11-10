@@ -2,28 +2,20 @@ import { COLLECTOR } from "../constants"
 import { downloadUrl, SDK_DOWNLOADS } from "./snippets"
 import type { IntegrationStep, SnippetContext } from "./types"
 
-const downloadStep = (context: SnippetContext, registry: boolean): IntegrationStep => ({
-  title: registry
-    ? "Download the collector and push its image"
-    : "Download and build the collector",
-  description: registry
-    ? "Your nodes must be able to pull the image, so push it to a registry you use."
-    : undefined,
+const downloadStep = (context: SnippetContext): IntegrationStep => ({
+  title: "Download and build the collector",
   code: {
     filename: "terminal",
     content: [
       `curl -O ${downloadUrl(context.webUrl, SDK_DOWNLOADS.COLLECTOR)}`,
       `mkdir ${COLLECTOR.CHART_NAME} && tar xzf ${SDK_DOWNLOADS.COLLECTOR} -C ${COLLECTOR.CHART_NAME}`,
-      registry
-        ? `docker build -t YOUR_REGISTRY/${COLLECTOR.CHART_NAME}:0.1.0 ${COLLECTOR.CHART_NAME}`
-        : `docker build -t ${COLLECTOR.IMAGE} ${COLLECTOR.CHART_NAME}`,
-      ...(registry ? [`docker push YOUR_REGISTRY/${COLLECTOR.CHART_NAME}:0.1.0`] : []),
+      `docker build -t ${COLLECTOR.IMAGE} ${COLLECTOR.CHART_NAME}`,
     ].join("\n"),
   },
 })
 
 export const collectorDockerSteps = (context: SnippetContext): IntegrationStep[] => [
-  downloadStep(context, false),
+  downloadStep(context),
   {
     title: "Start it",
     description: "It labels each log with the container's name.",
@@ -42,28 +34,23 @@ export const collectorDockerSteps = (context: SnippetContext): IntegrationStep[]
 ]
 
 export const collectorKubernetesSteps = (context: SnippetContext): IntegrationStep[] => [
-  downloadStep(context, true),
   {
     title: "Store your token as a secret",
     description: "Run this once in the cluster where you want to collect logs.",
     code: {
       filename: "terminal",
-      content: `kubectl create secret generic ${COLLECTOR.SECRET_NAME} --from-literal=${COLLECTOR.SECRET_KEY}=${context.token}`,
+      content: [
+        "kubectl create namespace ape-agent",
+        `kubectl -n ape-agent create secret generic ape-agent --from-literal=APE_TOKEN=${context.token}`,
+      ].join("\n"),
     },
   },
   {
-    title: "Install it with Helm",
-    description:
-      "Your cluster must be able to reach the ingest address. localhost only works on your own machine.",
+    title: "Install the collector",
+    description: "One command puts a collector on every node. Nothing else to configure.",
     code: {
       filename: "terminal",
-      content: [
-        `helm install ${COLLECTOR.CHART_NAME} ${COLLECTOR.CHART_NAME}/chart \\`,
-        `  --set image.repository=YOUR_REGISTRY/${COLLECTOR.CHART_NAME} \\`,
-        `  --set ingestUrl=${context.ingestUrl} \\`,
-        `  --set environment=${context.environment} \\`,
-        `  --set existingSecret=${COLLECTOR.SECRET_NAME}`,
-      ].join("\n"),
+      content: `kubectl apply -f ${context.webUrl}/api/install/kubernetes.yaml`,
     },
   },
 ]
@@ -75,9 +62,9 @@ export const COLLECTOR_TROUBLESHOOT = {
     "The collector needs the Docker socket mounted. Check the -v /var/run/docker.sock line.",
   ],
   kubernetes: [
-    "Run kubectl get pods and check a collector pod is Running on every node.",
-    "Run kubectl logs on one collector pod and look for errors reaching the ingest address.",
-    `Check the secret exists with kubectl get secret ${COLLECTOR.SECRET_NAME}.`,
+    "Run kubectl -n ape-agent get pods and check a pod is Running on every node.",
+    "Run kubectl -n ape-agent logs ds/ape-agent. Unauthorized means the token is wrong or was revoked.",
+    "After you change or rotate the token, recreate the secret and run kubectl -n ape-agent rollout restart daemonset/ape-agent. Pods keep the old token until they restart.",
   ],
 }
 

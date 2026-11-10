@@ -72,6 +72,10 @@ export const kubernetes: IntegrationDefinition = {
             filename: "values.yaml",
             content: [
               "role: Agent",
+              "service:",
+              "  enabled: false",
+              "serviceHeadless:",
+              "  enabled: false",
               ...envBlock(""),
               "customConfig:",
               "  data_dir: /vector-data-dir",
