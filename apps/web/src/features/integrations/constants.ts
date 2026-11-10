@@ -29,11 +29,6 @@ export type IntegrationId = (typeof INTEGRATION_ID)[keyof typeof INTEGRATION_ID]
 
 export const COLLECTOR = {
   NAME: "Pramaan collector",
-  CONTAINER: "pramaan-collector",
-  IMAGE: "pramaan/collector:0.1.0",
-  CHART_NAME: "pramaan-collector",
-  SECRET_NAME: "pramaan-token",
-  SECRET_KEY: "token",
   INTEGRATIONS: ["docker", "kubernetes"],
   ANCHOR: { DOCKER: "docker", KUBERNETES: "kubernetes" },
 } as const

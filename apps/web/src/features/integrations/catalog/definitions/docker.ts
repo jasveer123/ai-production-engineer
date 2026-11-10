@@ -1,5 +1,6 @@
 import DockerLogo from "@/assets/svg/docker.svg"
 import { INTEGRATION_GROUP, INTEGRATION_ID } from "../../constants"
+import { COLLECTOR_TROUBLESHOOT, collectorDockerSteps } from "../collector"
 import { fluentBitOutput, vectorSink } from "../snippets"
 import type { IntegrationDefinition, SnippetContext } from "../types"
 
@@ -45,6 +46,13 @@ export const docker: IntegrationDefinition = {
   docsUrl: "https://vector.dev/docs/reference/configuration/sources/docker_logs/",
   related: [INTEGRATION_ID.VECTOR, INTEGRATION_ID.FLUENT_BIT],
   methods: [
+    {
+      id: "one-command",
+      label: "One command",
+      summary: "Run one command on your server. Every container is collected.",
+      troubleshoot: COLLECTOR_TROUBLESHOOT.docker,
+      steps: collectorDockerSteps,
+    },
     {
       id: "vector",
       label: "Vector container",

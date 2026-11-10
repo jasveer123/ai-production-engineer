@@ -45,7 +45,7 @@ import { ENV, type ApiEnv } from '../../core/config/config.module';
 import { ToolsService } from '../tools/tools.service';
 import { MinRole } from '../../modules/workspaces/min-role.decorator';
 import { WorkspaceAccessGuard } from '../../modules/workspaces/workspace-access.guard';
-import { installScript, kubernetesManifest } from './domain/agent-install';
+import { installScript, kubernetesInstallScript, kubernetesManifest } from './domain/agent-install';
 import { cloudFormationTemplate } from './domain/aws';
 import { verifySentrySignature } from './domain/oauth';
 import { ingestUrl } from './domain/setup-config';
@@ -201,6 +201,13 @@ export class SetupPublicController {
   @Header('Content-Type', 'text/x-shellscript; charset=utf-8')
   agentScript(): string {
     return installScript(ingestUrl(this.env));
+  }
+
+  @Public()
+  @Get('install/kubernetes.sh')
+  @Header('Content-Type', 'text/x-shellscript; charset=utf-8')
+  kubernetesScript(): string {
+    return kubernetesInstallScript(ingestUrl(this.env));
   }
 
   @Public()

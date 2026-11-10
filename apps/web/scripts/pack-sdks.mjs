@@ -7,7 +7,6 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const repo = resolve(root, "../..")
 const out = join(root, "public", "downloads")
 const NODE_FILE = "ape-agent.tgz"
-const COLLECTOR_FILE = "pramaan-collector.tgz"
 const PYTHON_FILE = "ape_agent-0.1.0-py3-none-any.whl"
 
 const run = (command, args, cwd) =>
@@ -27,21 +26,6 @@ const packed = run(
 renameSync(join(out, packed.split("\n").pop()), join(out, NODE_FILE))
 
 run("uv", ["build", "--wheel", "--out-dir", out, join(repo, "packages/sdk-python")], repo)
-
-run(
-  "tar",
-  [
-    "czf",
-    join(out, COLLECTOR_FILE),
-    "-C",
-    join(repo, "packages/collector"),
-    "Dockerfile",
-    "docker.yaml",
-    "kubernetes.yaml",
-    "chart",
-  ],
-  repo
-)
 
 const version = JSON.parse(
   readFileSync(join(repo, "packages/sdk-node/package.json"), "utf8")
