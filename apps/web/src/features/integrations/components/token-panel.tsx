@@ -1,98 +1,71 @@
-'use client';
+"use client"
 
-import type { IngestTokenWithSecret } from '@ape/api-contracts';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { ListSkeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button';
-import { TokenField } from '@/components/ui/code-snippet';
-import { FormError } from '@/components/ui/form';
-import { useSession } from '@/features/auth/session';
-import { api, errorMessage } from '@/lib/api';
-import { formatAgo } from '@/lib/format';
-import { useIngestOverview } from '../queries';
-import { useRevealedToken } from '../token-context';
+import { Eyebrow } from "@/components/ui"
+import { useRevokeToken, useRotateToken } from "../hooks"
+import type { IngestToken } from "../schemas"
+import type { TokenSecret } from "../types"
+import { TokenCreateForm } from "./token-create-form"
+import { TokenRow } from "./token-row"
+import { TokenSecretNotice } from "./token-secret-notice"
 
-export function TokenPanel() {
-  const { workspace, can } = useSession();
-  const overview = useIngestOverview();
-  const { token, setToken } = useRevealedToken();
-  const qc = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
-  const current = overview.data?.tokens[0];
+interface TokenPanelProps {
+  workspaceId: string
+  tokens: IngestToken[]
+  canManage: boolean
+  secret: TokenSecret | null
+  onSecretChange: (secret: TokenSecret | null) => void
+}
 
-  const create = useMutation({
-    mutationFn: () =>
-      current
-        ? api<IngestTokenWithSecret>(
-            `/workspaces/${workspace.id}/ingest/tokens/${current.id}/rotate`,
-            { method: 'POST' },
-          )
-        : api<IngestTokenWithSecret>(`/workspaces/${workspace.id}/ingest/tokens`, {
-            method: 'POST',
-            json: { name: 'Default' },
-          }),
-    onSuccess: (t) => {
-      setError(null);
-      setToken(t.token);
-      void qc.invalidateQueries({ queryKey: ['ws', workspace.id, 'ingest'] });
-    },
-    onError: (e) => setError(errorMessage(e)),
-  });
+export function TokenPanel({
+  workspaceId,
+  tokens,
+  canManage,
+  secret,
+  onSecretChange,
+}: TokenPanelProps) {
+  const rotate = useRotateToken(workspaceId)
+  const revoke = useRevokeToken(workspaceId)
+  const activeTokens = tokens.filter((token) => !token.revokedAt)
+  const pending = rotate.isPending || revoke.isPending
 
-  if (overview.isPending) return <ListSkeleton label="Loading your token" />;
-  if (overview.isError)
-    return <FormError>Could not load the ingest token: {errorMessage(overview.error)}</FormError>;
+  const onRotate = (id: string) =>
+    rotate.mutate(id, { onSuccess: (rotated) => onSecretChange({ id, token: rotated.token }) })
 
-  if (!current)
-    return (
-      <div className="grid gap-2">
-        <span className="text-[13px] font-semibold">Your workspace token</span>
-        {can('admin') ? (
-          <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={() => create.mutate()} disabled={create.isPending}>
-              {create.isPending ? 'Creating…' : 'Create workspace token'}
-            </Button>
-            <span className="text-[13px] text-ink-muted">Every way below uses it.</span>
-          </div>
-        ) : (
-          <span className="text-[13px] text-ink-muted">
-            No token yet. Ask an admin to create one.
-          </span>
-        )}
-        <FormError>{error}</FormError>
-      </div>
-    );
-
-  const rotate = () => {
-    if (
-      window.confirm(
-        'Rotate the token? The current one stops working right away, so every app must get the new one.',
-      )
-    )
-      create.mutate();
-  };
+  const onRevoke = (id: string) =>
+    revoke.mutate(id, { onSuccess: () => secret?.id === id && onSecretChange(null) })
 
   return (
-    <div className="grid gap-2">
-      <TokenField
-        label="Your workspace token"
-        masked={token ?? current.masked}
-        full={token ?? undefined}
-        help={
-          token
-            ? 'Copy it now. It is shown only once; the snippets below already include it.'
-            : `Created ${formatAgo(current.createdAt)}, last used ${formatAgo(current.lastUsedAt)}. The full value is only shown when created.`
-        }
-      />
-      {can('admin') && (
-        <div>
-          <Button size="sm" variant="secondary" onClick={rotate} disabled={create.isPending}>
-            {create.isPending ? 'Rotating…' : 'Rotate token'}
-          </Button>
-        </div>
+    <div className="grid gap-3">
+      <div className="grid gap-1">
+        <Eyebrow>Your token</Eyebrow>
+        <p className="text-[0.8125rem] leading-5 text-muted-foreground">
+          A token tells us which workspace your data belongs to. Keep it private.
+        </p>
+      </div>
+      {secret && <TokenSecretNotice token={secret.token} />}
+      {activeTokens.length > 0 && (
+        <ul className="grid gap-2">
+          {activeTokens.map((token) => (
+            <TokenRow
+              key={token.id}
+              token={token}
+              canManage={canManage}
+              pending={pending}
+              onRotate={onRotate}
+              onRevoke={onRevoke}
+            />
+          ))}
+        </ul>
       )}
-      <FormError>{error}</FormError>
+      {canManage ? (
+        <TokenCreateForm workspaceId={workspaceId} onCreated={onSecretChange} />
+      ) : (
+        activeTokens.length === 0 && (
+          <p className="text-[0.8125rem] text-muted-foreground">
+            Ask an admin or owner of this workspace to create a token.
+          </p>
+        )
+      )}
     </div>
-  );
+  )
 }

@@ -1,0 +1,12 @@
+<svg viewBox="0 0 150 72" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <g stroke="currentColor" stroke-dasharray="3 5" opacity="0.5">
+    <line x1="8" x2="142" y1="14" y2="14" />
+    <line x1="8" x2="142" y1="36" y2="36" />
+    <line x1="8" x2="142" y1="58" y2="58" />
+  </g>
+  <g fill="currentColor">
+    <rect x="20" y="10" width="8" height="8" />
+    <rect x="62" y="32" width="8" height="8" />
+    <rect x="104" y="54" width="8" height="8" />
+  </g>
+</svg>

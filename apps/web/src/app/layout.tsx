@@ -1,29 +1,46 @@
-import type { Metadata } from 'next';
-import { Atkinson_Hyperlegible_Next, JetBrains_Mono, Schibsted_Grotesk } from 'next/font/google';
-import { THEME_INIT_SCRIPT } from '@/features/theme/theme';
-import { Providers } from './providers';
-import './globals.css';
+import type { Metadata } from "next"
+import { Geist, Geist_Mono, Outfit } from "next/font/google"
+import "./globals.css"
+import { QueryProvider } from "@/components/providers"
+import { Toaster, TooltipProvider } from "@/components/ui"
+import { themeInitScript } from "@/lib/theme"
 
-const body = Atkinson_Hyperlegible_Next({ subsets: ['latin'], variable: '--font-body' });
-const heading = Schibsted_Grotesk({ subsets: ['latin'], variable: '--font-heading' });
-const code = JetBrains_Mono({ subsets: ['latin'], variable: '--font-code' });
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+})
+
+const outfit = Outfit({
+  variable: "--font-outfit",
+  subsets: ["latin"],
+})
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+})
 
 export const metadata: Metadata = {
-  title: { default: 'AI Production Engineer', template: '%s · AI Production Engineer' },
-  description: 'Find the cause, prove it with a test, ship the fix. A person always approves.',
-};
+  title: "Pramaan",
+  description: "Every incident ends with proof it is fixed.",
+}
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} h-full antialiased`}
+    >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body
-        className={`${body.variable} ${heading.variable} ${code.variable} font-sans antialiased`}
-      >
-        <Providers>{children}</Providers>
+      <body className="flex min-h-full flex-col">
+        <QueryProvider>
+          <TooltipProvider>{children}</TooltipProvider>
+          <Toaster />
+        </QueryProvider>
       </body>
     </html>
-  );
+  )
 }
