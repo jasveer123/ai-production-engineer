@@ -7,3 +7,5 @@ pnpm-lock.yaml
 services/ai-worker
 services/api/drizzle
 .dependency-cruiser-known-violations.json
+packages/collector/chart/templates
+apps/web/next-env.d.ts

@@ -1,13 +1,13 @@
 image:
   repository: pramaan/collector
-  tag: "0.1.0"
+  tag: '0.1.0'
   pullPolicy: IfNotPresent
 
-ingestUrl: ""
+ingestUrl: ''
 environment: production
 
-token: ""
-existingSecret: ""
+token: ''
+existingSecret: ''
 secretKey: token
 
 resources:

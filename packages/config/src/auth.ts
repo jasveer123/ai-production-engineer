@@ -1,5 +1,12 @@
 import { z } from 'zod';
-import { booleanFlag, nonNegativeInt, optionalText, optionalUrl, positiveInt, text } from './helpers';
+import {
+  booleanFlag,
+  nonNegativeInt,
+  optionalText,
+  optionalUrl,
+  positiveInt,
+  text,
+} from './helpers';
 
 export const authEnv = {
   JWT_SECRET: z.string().min(32),

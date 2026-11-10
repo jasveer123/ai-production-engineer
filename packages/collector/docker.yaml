@@ -17,9 +17,9 @@ sinks:
     type: http
     inputs:
       - label
-    uri: "${PRAMAAN_INGEST_URL}/v1/logs?env=${PRAMAAN_ENV:-production}"
+    uri: '${PRAMAAN_INGEST_URL}/v1/logs?env=${PRAMAAN_ENV:-production}'
     encoding:
       codec: json
     auth:
       strategy: bearer
-      token: "${PRAMAAN_TOKEN}"
+      token: '${PRAMAAN_TOKEN}'
