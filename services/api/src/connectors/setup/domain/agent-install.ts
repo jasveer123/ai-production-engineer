@@ -35,7 +35,13 @@ export function vectorConfig(opts: {
     type: remap
     inputs: [k8s]
     source: |
-      .service = .kubernetes.pod_labels."app.kubernetes.io/name" ?? .kubernetes.pod_labels.app ?? .kubernetes.container_name
+      .service = .kubernetes.pod_labels."app.kubernetes.io/name"
+      if is_null(.service) {
+        .service = .kubernetes.pod_labels.app
+      }
+      if is_null(.service) {
+        .service = .kubernetes.container_name
+      }
       .host = .kubernetes.pod_node_name
 `
     : '';

@@ -289,6 +289,8 @@ describe('agent installer and AWS template', () => {
     const m = kubernetesManifest('https://i.example.com', 'shop');
     expect(m).toContain('secretRef: { name: ape-agent }');
     expect(m).toContain('type: kubernetes_logs');
+    expect(m).not.toContain('??');
+    expect(m).toContain('is_null(.service)');
     expect(
       vectorConfig({
         endpoint: 'https://i',
