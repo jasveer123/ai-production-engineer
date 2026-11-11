@@ -45,9 +45,7 @@ export function LiveTailPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="grid gap-1.5">
           <Eyebrow>Workspace · {workspace.name}</Eyebrow>
-          <h1 className="font-heading text-[1.75rem] leading-[2.125rem] font-semibold tracking-tight">
-            Live tail
-          </h1>
+          <h1 className="font-heading text-xl font-semibold tracking-tight">Live tail</h1>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-[0.8125rem] text-muted-foreground">

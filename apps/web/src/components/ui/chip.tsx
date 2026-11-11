@@ -11,7 +11,7 @@ export function Chip({ selected, className, ...props }: ChipProps) {
       type="button"
       aria-pressed={selected}
       className={cn(
-        "inline-flex h-8 cursor-pointer items-center gap-1.5 border border-line-strong bg-panel px-3 text-[0.8125rem] text-text transition-colors outline-none hover:bg-panel-2 focus-visible:ring-3 focus-visible:ring-brand/40 aria-pressed:border-brand aria-pressed:bg-brand-soft aria-pressed:font-semibold aria-pressed:text-brand-strong",
+        "inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-line bg-panel px-2.5 text-[0.8125rem] text-muted-foreground transition-colors outline-none hover:bg-panel-2 hover:text-text focus-visible:ring-2 focus-visible:ring-brand/50 aria-pressed:border-line-strong aria-pressed:bg-panel-2 aria-pressed:font-medium aria-pressed:text-text",
         className
       )}
       {...props}

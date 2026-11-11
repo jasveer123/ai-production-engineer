@@ -275,9 +275,7 @@ export function ServicesScreenSection() {
           <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {DETAIL.map(([label, value]) => (
               <div key={label} className="grid gap-1">
-                <dt className="font-mono text-[0.6875rem] tracking-[0.12em] text-muted-foreground uppercase">
-                  {label}
-                </dt>
+                <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
                 <dd className="text-sm">{value}</dd>
               </div>
             ))}

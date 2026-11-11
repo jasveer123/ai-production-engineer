@@ -9,9 +9,7 @@ interface SourceFieldProps {
 export function SourceField({ label, children, className }: SourceFieldProps) {
   return (
     <div className={cn("grid min-w-0 gap-1", className)}>
-      <dt className="font-mono text-[0.6875rem] tracking-[0.12em] text-muted-foreground uppercase">
-        {label}
-      </dt>
+      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
       <dd className="truncate border border-line bg-sunken px-3 py-2 font-mono text-[0.8125rem]">
         {children}
       </dd>

@@ -10,9 +10,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
   if (message.role === "user") {
     return (
       <div className="grid gap-1 border-t border-line pt-4 first:border-t-0 first:pt-0">
-        <span className="font-mono text-[0.6875rem] tracking-wider text-muted-foreground uppercase">
-          Question
-        </span>
+        <span className="text-xs font-medium text-muted-foreground">Question</span>
         <p className="text-[0.9375rem] font-medium whitespace-pre-wrap">{message.content}</p>
       </div>
     )
@@ -20,13 +18,11 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
   return (
     <div className="grid gap-3">
-      <span className="font-mono text-[0.6875rem] tracking-wider text-muted-foreground uppercase">
-        Answer
-      </span>
+      <span className="text-xs font-medium text-muted-foreground">Answer</span>
       <p className="max-w-prose text-sm leading-6 whitespace-pre-wrap">{message.content}</p>
       {message.sources.length > 0 ? (
         <div className="grid gap-1">
-          <span className="font-mono text-[0.6875rem] tracking-wider text-muted-foreground uppercase">
+          <span className="text-xs font-medium text-muted-foreground">
             Evidence, {message.sources.length}
           </span>
           <ul className="divide-y divide-line border border-line bg-panel">
@@ -34,7 +30,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
               const href = sourceHref(source)
               const row = (
                 <span className="flex items-center gap-3 px-3 py-2 text-[0.8125rem]">
-                  <span className="w-20 shrink-0 font-mono text-[0.6875rem] text-muted-foreground uppercase">
+                  <span className="w-20 shrink-0 font-mono text-xs text-muted-foreground">
                     {source.kind}
                   </span>
                   <span className="min-w-0 flex-1 truncate">{source.title}</span>

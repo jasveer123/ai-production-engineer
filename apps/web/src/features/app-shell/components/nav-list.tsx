@@ -13,10 +13,10 @@ export function NavList({ onNavigate }: NavListProps) {
   const pathname = usePathname()
 
   return (
-    <nav aria-label="Main" className="grid gap-5">
+    <nav aria-label="Main" className="grid gap-4 px-2">
       {NAV_GROUPS.map((group) => (
-        <div key={group.label} className="grid gap-1">
-          <p className="px-3 font-mono text-[0.6875rem] tracking-wide text-muted-foreground uppercase">
+        <div key={group.label} className="grid gap-0.5">
+          <p className="px-2 pb-1 text-[0.6875rem] font-medium text-muted-foreground">
             {group.label}
           </p>
           {group.items.map((item) => {
@@ -29,11 +29,11 @@ export function NavList({ onNavigate }: NavListProps) {
                 onClick={onNavigate}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-3 border-l-2 border-transparent px-3 py-1.5 text-[0.8125rem] text-muted-foreground outline-none hover:bg-panel-2 hover:text-text focus-visible:ring-3 focus-visible:ring-brand/40",
-                  active && "border-brand bg-brand-soft font-medium text-brand-strong"
+                  "flex h-8 items-center gap-2.5 rounded-md px-2 text-[0.8125rem] text-muted-foreground outline-none hover:bg-panel-2 hover:text-text focus-visible:ring-2 focus-visible:ring-brand/50",
+                  active && "bg-panel-2 font-medium text-text"
                 )}
               >
-                <item.icon className="size-4 shrink-0" />
+                <item.icon className={cn("size-4 shrink-0", active && "text-brand")} />
                 {item.label}
               </Link>
             )

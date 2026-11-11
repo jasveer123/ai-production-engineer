@@ -41,7 +41,7 @@ export function UsageLimitsPanel({ workspaceId, isOwner }: UsageLimitsPanelProps
       )}
       <div className="overflow-x-auto border border-line">
         <table className="w-full text-sm">
-          <thead className="bg-panel-2 text-left text-[0.75rem] text-muted-foreground uppercase">
+          <thead className="bg-panel-2 text-left text-xs font-medium text-muted-foreground">
             <tr>
               <th className="p-3">Month</th>
               <th className="p-3">Investigations</th>

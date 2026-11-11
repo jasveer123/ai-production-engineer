@@ -18,9 +18,7 @@ function Bullets({ title, items }: { title: string; items: string[] }) {
 
   return (
     <div className="grid gap-1">
-      <span className="font-mono text-[0.6875rem] tracking-[0.12em] text-muted-foreground uppercase">
-        {title}
-      </span>
+      <span className="text-xs font-medium text-muted-foreground">{title}</span>
       <ul className="grid gap-0.5 text-[0.8125rem] leading-5">
         {items.map((item) => (
           <li key={item}>· {item}</li>

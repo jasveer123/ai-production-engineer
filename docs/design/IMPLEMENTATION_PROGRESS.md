@@ -17,3 +17,15 @@
 | Ask AI | question, answer, evidence list, no bubbles | tsc, lint, browser (existing conversation renders question, answer, evidence) |
 
 Open: browser QA of the three items above, sortable tables, URL-persisted filters, shared chart component, status page admin split.
+
+## Round four: foundation and dashboard
+
+| Item | Original problem | Decision | Tested |
+|---|---|---|---|
+| Tokens and primitives | purple/teal brand, sharp corners, mono uppercase labels, hover lift, glow and grid | zinc neutrals, indigo accent, 0.375rem radius, quiet labels, underline tabs | browser, light and dark |
+| Dashboard | three flow cards, integration tiles, hero and a story panel | KPI row, needs-attention table, one-line setup path, usage, source health | browser, light and dark |
+| Monitors | cards | dense table with status dot and uptime bar | browser |
+| Sidebar and page heading | eyebrow on every page, tinted active item | plain title, neutral active state | browser |
+| Removed | OverviewHero, StatusCards, flow cards, TodayStory, MonitorCard, corner-dot decoration | dead after the above | tsc, lint |
+
+Browser-checked pages (light): dashboard, monitors, monitor detail, incidents, incident detail, errors, status pages, integrations, real users, services, on-call, settings. Dark: dashboard, incidents. Not checked: phone width, login pages, public status page, error detail, session replay, alerts, escalation, metrics, notifications, heartbeats, fixes, live tail after the token change.

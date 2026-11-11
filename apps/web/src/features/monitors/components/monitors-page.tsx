@@ -1,12 +1,12 @@
 "use client"
 
 import { StatusStrip, StorySteps } from "@/components/shared"
-import { Spinner } from "@/components/ui"
+import { Spinner, Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui"
 import { useCurrentWorkspace } from "@/features/auth"
 import { PageHeading } from "@/features/integrations"
 import { useMonitors } from "../hooks"
 import { MonitorCreateDialog } from "./monitor-create-dialog"
-import { MonitorCard } from "./monitor-card"
+import { MonitorRow } from "./monitor-row"
 
 export function MonitorsPage() {
   const { workspace, canManage, isPending } = useCurrentWorkspace()
@@ -93,11 +93,23 @@ export function MonitorsPage() {
               { label: "Paused", value: items.length - active.length },
             ]}
           />
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {items.map((monitor) => (
-              <MonitorCard key={monitor.id} monitor={monitor} />
-            ))}
-          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Monitor</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Uptime, 24h</TableHead>
+                <TableHead>Response</TableHead>
+                <TableHead>Checks</TableHead>
+                <TableHead>Last check</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((monitor) => (
+                <MonitorRow key={monitor.id} monitor={monitor} />
+              ))}
+            </TableBody>
+          </Table>
         </>
       )}
     </div>

@@ -24,15 +24,14 @@ export function IncidentKpis({ incidents }: IncidentKpisProps) {
         : fresh > 0
           ? `${fresh} new incident${fresh === 1 ? "" : "s"} to look at`
           : `${open.length} incident${open.length === 1 ? " is" : "s are"} being worked on`
-  const breakdown = [
+  const parts = [
     [fresh, "new"],
     [working, "being investigated"],
     [waiting.length, "waiting for you"],
     [watching.length, "watching production"],
-  ]
-    .filter(([n]) => Number(n) > 0)
-    .map(([n, label]) => `${n} ${label}`)
-    .join(", ")
+  ].filter(([n]) => Number(n) > 0)
+  const breakdown =
+    parts.length > 1 ? `${parts.map(([n, label]) => `${n} ${label}`).join(", ")}. ` : ""
 
   return (
     <StatusStrip
@@ -41,7 +40,7 @@ export function IncidentKpis({ incidents }: IncidentKpisProps) {
       detail={
         open.length === 0
           ? "When logs show a new problem, Pramaan opens an incident and starts investigating."
-          : `${breakdown}. Open one to follow it from what happened to proof it is fixed.`
+          : `${breakdown}Open one to follow it from what happened to proof it is fixed.`
       }
       stats={[
         { label: "Open", value: open.length },

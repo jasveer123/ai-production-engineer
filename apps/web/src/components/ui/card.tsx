@@ -4,12 +4,10 @@ import { cn } from "@/lib/utils"
 function Card({
   className,
   size = "default",
-  ticked = false,
   interactive = false,
   ...props
 }: React.ComponentProps<"div"> & {
   size?: "default" | "sm"
-  ticked?: boolean
   interactive?: boolean
 }) {
   return (
@@ -18,9 +16,8 @@ function Card({
       data-size={size}
       className={cn(
         "group/card relative flex flex-col gap-(--card-spacing) rounded-lg border border-line bg-card py-(--card-spacing) text-sm text-card-foreground [--card-spacing:--spacing(5)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(4)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-lg *:[img:last-child]:rounded-b-lg",
-        ticked && "ticked",
         interactive &&
-          "cursor-pointer transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-line-strong hover:shadow-[0_0_0_0.0625rem_var(--glow-strong),0_0.875rem_2rem_rgba(0,0,0,0.25)] focus-visible:ring-3 focus-visible:ring-brand/40 focus-visible:outline-none",
+          "cursor-pointer transition-colors hover:border-line-strong hover:bg-panel-2 focus-visible:ring-2 focus-visible:ring-brand/50 focus-visible:outline-none",
         className
       )}
       {...props}

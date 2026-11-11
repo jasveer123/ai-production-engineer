@@ -14,7 +14,7 @@ export function DocsShell({ children }: DocsShellProps) {
     <div className="stage min-h-screen">
       <header className="sticky top-0 z-30 flex items-center gap-4 border-b border-line bg-panel px-6 py-3">
         <Logo />
-        <span className="border-l border-line pl-4 font-mono text-[0.6875rem] tracking-[0.12em] text-muted-foreground uppercase">
+        <span className="border-l border-line pl-4 text-xs font-medium text-muted-foreground">
           Docs
         </span>
         <div className="ml-auto flex items-center gap-3">

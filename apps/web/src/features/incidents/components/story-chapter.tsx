@@ -40,9 +40,7 @@ export function StoryChapter({ index, title, summary, state, last, children }: S
       </div>
       <section aria-label={title} className={cn("grid min-w-0 gap-4 pb-10", last && "pb-0")}>
         <header className="grid gap-1">
-          <p className="font-mono text-[0.6875rem] tracking-wide text-muted-foreground uppercase">
-            Chapter {index}
-          </p>
+          <p className="text-xs font-medium text-muted-foreground">Chapter {index}</p>
           <h2
             className={cn(
               "font-heading text-xl font-semibold tracking-tight",

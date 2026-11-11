@@ -36,13 +36,13 @@ export function OverviewPanel({ workspaceId, appId, minutes }: OverviewPanelProp
           ["Errors", data.errors],
         ].map(([label, value]) => (
           <div key={label} className="border border-line bg-panel p-4">
-            <dt className="text-[0.75rem] text-muted-foreground uppercase">{label}</dt>
+            <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
             <dd className="font-heading text-2xl font-semibold">{value!.toLocaleString()}</dd>
           </div>
         ))}
       </dl>
       <section className="grid gap-2" aria-label="Sessions over time">
-        <h2 className="text-[0.75rem] text-muted-foreground uppercase">Sessions over time</h2>
+        <h2 className="text-xs font-medium text-muted-foreground">Sessions over time</h2>
         <div className="flex h-24 items-end gap-px border-b border-line">
           {data.trend.map((t) => (
             <span
@@ -59,7 +59,7 @@ export function OverviewPanel({ workspaceId, appId, minutes }: OverviewPanelProp
         </div>
       </section>
       <section className="grid gap-2" aria-label="Web vitals">
-        <h2 className="text-[0.75rem] text-muted-foreground uppercase">
+        <h2 className="text-xs font-medium text-muted-foreground">
           How fast pages feel (75th percentile)
         </h2>
         <div className="grid gap-3 sm:grid-cols-5">
@@ -85,7 +85,7 @@ export function OverviewPanel({ workspaceId, appId, minutes }: OverviewPanelProp
         </div>
       </section>
       <section className="grid gap-2" aria-label="Top pages">
-        <h2 className="text-[0.75rem] text-muted-foreground uppercase">Top pages</h2>
+        <h2 className="text-xs font-medium text-muted-foreground">Top pages</h2>
         {data.topPages.length === 0 ? (
           <p className="text-sm text-muted-foreground">No page views yet.</p>
         ) : (

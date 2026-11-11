@@ -40,7 +40,7 @@ export function Catalogue({
   return (
     <section className="grid gap-4" aria-labelledby="catalogue-title">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 id="catalogue-title" className="font-heading text-xl font-semibold">
+        <h2 id="catalogue-title" className="font-heading text-sm font-semibold">
           Catalogue
         </h2>
         <span className="font-mono text-[0.8125rem] text-muted-foreground">

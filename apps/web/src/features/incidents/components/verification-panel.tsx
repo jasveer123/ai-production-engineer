@@ -71,9 +71,7 @@ export function VerificationPanel({ workspaceId, incidentId }: VerificationPanel
           <dl className="grid gap-3 sm:grid-cols-2">
             {run.baseline && (
               <div className="grid gap-1">
-                <dt className="font-mono text-[0.6875rem] tracking-[0.12em] text-muted-foreground uppercase">
-                  Before the fix
-                </dt>
+                <dt className="text-xs font-medium text-muted-foreground">Before the fix</dt>
                 <dd className="text-sm">
                   {run.baseline.errors} errors, {run.baseline.errorsPerHour.toFixed(1)} per hour
                 </dd>
@@ -81,9 +79,7 @@ export function VerificationPanel({ workspaceId, incidentId }: VerificationPanel
             )}
             {run.observed && (
               <div className="grid gap-1">
-                <dt className="font-mono text-[0.6875rem] tracking-[0.12em] text-muted-foreground uppercase">
-                  After the fix
-                </dt>
+                <dt className="text-xs font-medium text-muted-foreground">After the fix</dt>
                 <dd className="text-sm">
                   {run.observed.errors} errors over {formatDuration(run.observed.durationMs)}
                   {run.observed.requests !== null ? ` in ${run.observed.requests} requests` : ""}
