@@ -2,9 +2,11 @@ import { z } from "zod"
 import { METRICS_ENDPOINTS, http } from "@/lib/api"
 import {
   dashboardSchema,
+  labelKeysSchema,
   metricNameSchema,
   seriesSchema,
   type Dashboard,
+  type LabelKey,
   type MetricName,
   type MetricSeries,
   type Widget,
@@ -16,9 +18,22 @@ export const metricsService = {
       schema: z.array(metricNameSchema),
     }),
 
+  labels: (workspaceId: string, name: string) =>
+    http.get<LabelKey[]>(METRICS_ENDPOINTS.LABELS(workspaceId), {
+      query: { name },
+      schema: labelKeysSchema,
+    }),
+
   series: (
     workspaceId: string,
-    query: { name: string; agg: string; minutes: number; service?: string }
+    query: {
+      name: string
+      agg: string
+      minutes: number
+      service?: string
+      groupBy?: string
+      filters?: string
+    }
   ) =>
     http.get<MetricSeries>(METRICS_ENDPOINTS.SERIES(workspaceId), { query, schema: seriesSchema }),
 

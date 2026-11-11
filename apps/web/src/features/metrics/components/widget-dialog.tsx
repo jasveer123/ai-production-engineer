@@ -17,21 +17,26 @@ import {
   Input,
 } from "@/components/ui"
 import { AGGS } from "../constants"
+import { useMetricLabels } from "../hooks"
 import type { MetricName, Widget } from "../schemas"
 
 interface WidgetDialogProps {
+  workspaceId: string
   metrics: MetricName[]
   onAdd: (widget: Widget) => void
   pending: boolean
 }
 
-export function WidgetDialog({ metrics, onAdd, pending }: WidgetDialogProps) {
+export function WidgetDialog({ workspaceId, metrics, onAdd, pending }: WidgetDialogProps) {
   const [open, setOpen] = React.useState(false)
   const [metric, setMetric] = React.useState("")
   const [agg, setAgg] = React.useState<string>("avg")
   const [service, setService] = React.useState("")
   const [title, setTitle] = React.useState("")
+  const [groupBy, setGroupBy] = React.useState("")
+  const [filter, setFilter] = React.useState<{ key: string; value: string } | null>(null)
   const chosen = metrics.find((item) => item.name === metric)
+  const labels = useMetricLabels(workspaceId, metric)
   const valid = Boolean(chosen)
 
   const onSubmit = (event: React.FormEvent) => {
@@ -43,11 +48,15 @@ export function WidgetDialog({ metrics, onAdd, pending }: WidgetDialogProps) {
       metric: chosen.name,
       agg,
       ...(service ? { service } : {}),
+      ...(groupBy ? { groupBy } : {}),
+      ...(filter ? { filters: `${filter.key}=${filter.value}` } : {}),
     })
     setOpen(false)
     setMetric("")
     setTitle("")
     setService("")
+    setGroupBy("")
+    setFilter(null)
   }
 
   return (
@@ -71,6 +80,8 @@ export function WidgetDialog({ metrics, onAdd, pending }: WidgetDialogProps) {
                   onClick={() => {
                     setMetric(item.name)
                     setService("")
+                    setGroupBy("")
+                    setFilter(null)
                     setAgg(item.kind === "counter" ? "rate" : "avg")
                   }}
                 >
@@ -105,6 +116,45 @@ export function WidgetDialog({ metrics, onAdd, pending }: WidgetDialogProps) {
                     {name}
                   </Chip>
                 ))}
+              </div>
+            </div>
+          )}
+          {chosen && (
+            <div className="grid gap-2">
+              <Eyebrow>Split into lines by</Eyebrow>
+              <div className="flex flex-wrap gap-2">
+                <Chip selected={groupBy === ""} onClick={() => setGroupBy("")}>
+                  One line
+                </Chip>
+                {["service", ...(labels.data ?? []).map((l) => l.key)].map((key) => (
+                  <Chip key={key} selected={groupBy === key} onClick={() => setGroupBy(key)}>
+                    {key}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          )}
+          {(labels.data ?? []).length > 0 && (
+            <div className="grid gap-2">
+              <Eyebrow>Only where</Eyebrow>
+              <div className="flex flex-wrap gap-2">
+                {(labels.data ?? []).flatMap((l) =>
+                  l.values.map((value) => (
+                    <Chip
+                      key={`${l.key}=${value}`}
+                      selected={filter?.key === l.key && filter.value === value}
+                      onClick={() =>
+                        setFilter(
+                          filter?.key === l.key && filter.value === value
+                            ? null
+                            : { key: l.key, value }
+                        )
+                      }
+                    >
+                      {l.key}={value}
+                    </Chip>
+                  ))
+                )}
               </div>
             </div>
           )}

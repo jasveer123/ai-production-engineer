@@ -130,6 +130,7 @@ export const metricPoints = pgTable(
     kind: text('kind').notNull(),
     unit: text('unit'),
     value: doublePrecision('value').notNull(),
+    attributes: jsonb('attributes').$type<Record<string, unknown>>().notNull().default({}),
   },
   (t) => [
     index('metric_points_name_ts_idx').on(t.workspaceId, t.name, t.ts),

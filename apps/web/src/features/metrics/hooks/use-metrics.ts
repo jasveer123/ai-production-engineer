@@ -14,7 +14,7 @@ export function useMetricNames(workspaceId: string | undefined) {
 
 export function useMetricSeries(
   workspaceId: string,
-  widget: Pick<Widget, "metric" | "agg" | "service">,
+  widget: Pick<Widget, "metric" | "agg" | "service" | "groupBy" | "filters">,
   minutes: number
 ) {
   return useQuery({
@@ -25,6 +25,8 @@ export function useMetricSeries(
       widget.metric,
       widget.agg,
       widget.service,
+      widget.groupBy,
+      widget.filters,
       minutes,
     ],
     queryFn: () =>
@@ -33,8 +35,18 @@ export function useMetricSeries(
         agg: widget.agg,
         minutes,
         ...(widget.service ? { service: widget.service } : {}),
+        ...(widget.groupBy ? { groupBy: widget.groupBy } : {}),
+        ...(widget.filters ? { filters: widget.filters } : {}),
       }),
     refetchInterval: METRICS_POLL_MS,
+  })
+}
+
+export function useMetricLabels(workspaceId: string, name: string) {
+  return useQuery({
+    queryKey: ["metrics", workspaceId, "labels", name],
+    queryFn: () => metricsService.labels(workspaceId, name),
+    enabled: Boolean(name),
   })
 }
 

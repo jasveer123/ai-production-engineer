@@ -10,12 +10,18 @@ export const metricNameSchema = z.object({
 })
 export type MetricName = z.infer<typeof metricNameSchema>
 
+const bucketsSchema = z.array(z.object({ at: z.string(), value: z.number().nullable() }))
+
 export const seriesSchema = z.object({
   name: z.string(),
   agg: z.string(),
   unit: z.string().nullable(),
-  buckets: z.array(z.object({ at: z.string(), value: z.number().nullable() })),
+  buckets: bucketsSchema,
+  groups: z.array(z.object({ key: z.string(), buckets: bucketsSchema })).optional(),
 })
+
+export const labelKeysSchema = z.array(z.object({ key: z.string(), values: z.array(z.string()) }))
+export type LabelKey = z.infer<typeof labelKeysSchema>[number]
 export type MetricSeries = z.infer<typeof seriesSchema>
 
 export const widgetSchema = z.object({
@@ -24,6 +30,8 @@ export const widgetSchema = z.object({
   metric: z.string(),
   agg: z.string(),
   service: z.string().optional(),
+  groupBy: z.string().optional(),
+  filters: z.string().optional(),
 })
 export type Widget = z.infer<typeof widgetSchema>
 

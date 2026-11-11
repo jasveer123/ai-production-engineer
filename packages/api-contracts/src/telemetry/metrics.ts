@@ -12,6 +12,8 @@ export const metricQuerySchema = z.object({
   agg: z.enum(METRIC_AGGS).default('avg'),
   minutes: z.coerce.number().int().min(5).max(10_080).default(60),
   service: z.string().trim().min(1).max(120).optional(),
+  groupBy: z.string().trim().min(1).max(100).optional(),
+  filters: z.string().trim().max(500).optional(),
 });
 export type MetricQuery = z.input<typeof metricQuerySchema>;
 
@@ -21,6 +23,8 @@ export const widgetSchema = z.object({
   metric: z.string().trim().min(1).max(200),
   agg: z.enum(METRIC_AGGS),
   service: z.string().trim().min(1).max(120).optional(),
+  groupBy: z.string().trim().min(1).max(100).optional(),
+  filters: z.string().trim().max(500).optional(),
 });
 export type DashboardWidget = z.infer<typeof widgetSchema>;
 
@@ -55,6 +59,12 @@ export interface MetricSeries {
   agg: MetricAgg;
   unit: string | null;
   buckets: MetricBucket[];
+  groups?: { key: string; buckets: MetricBucket[] }[];
+}
+
+export interface MetricLabelKey {
+  key: string;
+  values: string[];
 }
 
 export interface DashboardView {

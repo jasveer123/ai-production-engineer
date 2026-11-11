@@ -1,0 +1,1 @@
+ALTER TABLE "metric_points" ADD COLUMN "attributes" jsonb DEFAULT '{}'::jsonb NOT NULL;

@@ -39,6 +39,8 @@ describe('Metrics and dashboards (e2e)', () => {
   });
   afterAll(() => app.close());
 
+  const sendTo = (path: string) =>
+    request(app.getHttpServer()).post(path).set('Authorization', `Bearer ${token}`);
   const send = () =>
     request(app.getHttpServer()).post('/v1/metrics').set('Authorization', `Bearer ${token}`);
 
@@ -176,5 +178,82 @@ describe('Metrics and dashboards (e2e)', () => {
       .expect(404);
     await owner.delete(`/workspaces/${ws}/metrics/dashboards/${created.id}`).expect(204);
     expect((await owner.get(`/workspaces/${ws}/metrics/dashboards`).expect(200)).body).toEqual([]);
+  });
+
+  it('groups and filters by labels', async () => {
+    const ts = String(nowNs());
+    const point = (value: number, region: string) => ({
+      timeUnixNano: ts,
+      asDouble: value,
+      attributes: [{ key: 'region', value: { stringValue: region } }],
+    });
+    await send()
+      .send({
+        resourceMetrics: [
+          {
+            resource: { attributes: [{ key: 'service.name', value: { stringValue: 'api' } }] },
+            scopeMetrics: [
+              {
+                metrics: [
+                  {
+                    name: 'queue.depth',
+                    gauge: { dataPoints: [point(10, 'eu'), point(30, 'us'), point(50, 'us')] },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      })
+      .expect(200);
+    const get = async (query: Record<string, string>) =>
+      (await owner.get(`/workspaces/${ws}/metrics/series`).query(query).expect(200))
+        .body as MetricSeries;
+    const last = (b: MetricSeries['buckets']) => b.filter((x) => x.value !== null).at(-1)!.value;
+
+    const grouped = await get({ name: 'queue.depth', agg: 'avg', groupBy: 'region' });
+    expect(grouped.groups!.map((g) => g.key)).toEqual(['eu', 'us']);
+    expect(last(grouped.groups![1]!.buckets)).toBe(40);
+    expect(
+      last((await get({ name: 'queue.depth', agg: 'max', filters: 'region=eu' })).buckets),
+    ).toBe(10);
+    const labels = (
+      await owner.get(`/workspaces/${ws}/metrics/labels`).query({ name: 'queue.depth' }).expect(200)
+    ).body as { key: string; values: string[] }[];
+    expect(labels).toEqual([{ key: 'region', values: expect.arrayContaining(['eu', 'us']) }]);
+  });
+
+  it('accepts Prometheus remote write', async () => {
+    const label = (n: string, v: string) => new Writer().string(1, n).string(2, v);
+    const sample = new Writer().fixed64(1, doubleBits(3.5)).uint(2, Date.now());
+    const write = new Writer()
+      .message(
+        1,
+        new Writer()
+          .message(1, label('__name__', 'http_requests_total'))
+          .message(1, label('job', 'web'))
+          .message(1, label('code', '500'))
+          .message(2, sample),
+      )
+      .finish();
+    const header = Buffer.from([(write.length & 0x7f) | 0x80, write.length >> 7]);
+    const literal = Buffer.from([60 << 2, write.length - 1]);
+    const body = Buffer.concat([header, literal, write]);
+    await sendTo('/v1/prometheus/write')
+      .set('Content-Encoding', 'snappy')
+      .set('Content-Type', 'application/x-protobuf')
+      .send(body)
+      .expect(204);
+    const names = (await owner.get(`/workspaces/${ws}/metrics/names`).expect(200))
+      .body as MetricName[];
+    expect(names[0]).toMatchObject({
+      name: 'http_requests_total',
+      kind: 'counter',
+      services: ['web'],
+    });
+    await sendTo('/v1/prometheus/write')
+      .set('Content-Encoding', 'snappy')
+      .send(Buffer.from([5, 1, 2]))
+      .expect(400);
   });
 });

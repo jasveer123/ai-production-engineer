@@ -1,4 +1,4 @@
-class Reader {
+export class Reader {
   pos = 0;
   constructor(
     readonly buf: Uint8Array,
@@ -84,7 +84,7 @@ class Reader {
 
 const hex = (b: Uint8Array) => Buffer.from(b).toString('hex');
 
-function message<T extends object>(
+export function message<T extends object>(
   r: Reader,
   init: T,
   handlers: Record<number, (r: Reader, out: T, wire: number) => void>,
@@ -221,8 +221,9 @@ function logRecord(r: Reader): Json {
 function numberPoint(r: Reader): Json {
   return message<Json>(
     r,
-    {},
+    { attributes: [] },
     {
+      7: attrs,
       3: (r, o) => (o.timeUnixNano = r.fixed64().toString()),
       4: (r, o) => (o.asDouble = r.double()),
       6: (r, o) => (o.asInt = BigInt.asIntN(64, r.fixed64()).toString()),
@@ -233,8 +234,9 @@ function numberPoint(r: Reader): Json {
 function histogramPoint(r: Reader): Json {
   return message<Json>(
     r,
-    {},
+    { attributes: [] },
     {
+      9: attrs,
       3: (r, o) => (o.timeUnixNano = r.fixed64().toString()),
       4: (r, o) => (o.count = r.fixed64().toString()),
       5: (r, o) => (o.sum = r.double()),

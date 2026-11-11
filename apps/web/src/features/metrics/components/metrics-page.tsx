@@ -85,6 +85,7 @@ export function MetricsPage() {
           {canEdit && (
             <div className="flex flex-wrap items-center justify-between gap-2">
               <WidgetDialog
+                workspaceId={workspace.id}
                 metrics={metrics}
                 pending={save.isPending}
                 onAdd={(widget) => save.mutate([...selected.widgets, widget])}

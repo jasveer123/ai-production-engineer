@@ -5,6 +5,7 @@ import { Badge, Button, Spinner } from "@/components/ui"
 import { AGGS } from "../constants"
 import { useMetricSeries } from "../hooks"
 import type { Widget } from "../schemas"
+import { LineChart } from "./line-chart"
 import { MetricChart } from "./metric-chart"
 
 interface WidgetCardProps {
@@ -28,6 +29,8 @@ export function WidgetCard({ workspaceId, widget, minutes, canEdit, onRemove }: 
             <span className="font-mono text-[0.75rem] text-muted-foreground">{widget.metric}</span>
             <Badge>{agg}</Badge>
             {widget.service && <Badge>{widget.service}</Badge>}
+            {widget.groupBy && <Badge>by {widget.groupBy}</Badge>}
+            {widget.filters && <Badge>{widget.filters}</Badge>}
           </div>
         </div>
         {canEdit && (
@@ -46,7 +49,11 @@ export function WidgetCard({ workspaceId, widget, minutes, canEdit, onRemove }: 
           <Spinner />
         </div>
       ) : series.data ? (
-        <MetricChart series={series.data} />
+        series.data.groups ? (
+          <LineChart series={series.data} />
+        ) : (
+          <MetricChart series={series.data} />
+        )
       ) : (
         <p className="text-sm text-muted-foreground">Could not load this chart.</p>
       )}

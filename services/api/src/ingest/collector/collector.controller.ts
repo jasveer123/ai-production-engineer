@@ -11,11 +11,13 @@ import {
   type Defaults,
 } from './domain/formats';
 import { IngestTokensService } from './application/ingest-tokens.service';
+import { prometheusToPoints } from './domain/prometheus';
+import { snappyDecode } from './domain/snappy';
 import { logsToBatch, metricsToBatch, tracesToBatch } from './domain/otlp';
 import { decodeLogs, decodeMetrics, decodeTraces } from './domain/protobuf';
 import { logplexToBatch } from './domain/syslog-format';
 import { TelemetryStore } from './application/telemetry-store.service';
-import type { Batch } from './domain/types';
+import { emptyBatch, type Batch } from './domain/types';
 
 export function ingestTokenOf(req: Request): string | null {
   const auth = req.header('authorization');
@@ -140,6 +142,20 @@ export class CollectorController {
     batch.way = wayOf(req, 'otlp');
     await this.store.write(ws, batch);
     this.otlpOk(req, res);
+  }
+
+  @Public()
+  @Post('prometheus/write')
+  async prometheusWrite(@Req() req: Request, @Res() res: Response): Promise<void> {
+    const ws = await this.workspace(req);
+    const batch = this.decode(() => {
+      const raw = this.body(req);
+      const encoding = (req.header('content-encoding') ?? 'snappy').toLowerCase();
+      const buf = encoding === 'snappy' ? snappyDecode(raw) : raw;
+      return { ...emptyBatch('http'), points: prometheusToPoints(buf) };
+    });
+    await this.store.write(ws, batch);
+    res.status(204).send();
   }
 
   @Public()

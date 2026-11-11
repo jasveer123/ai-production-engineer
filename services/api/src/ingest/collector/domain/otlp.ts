@@ -336,6 +336,7 @@ function errorFromLog(input: ErrorFromLogInput): ErrorInput {
 }
 
 interface OtlpPoint {
+  attributes?: KeyValue[];
   timeUnixNano?: string | number;
   asDouble?: number;
   asInt?: string | number;
@@ -378,6 +379,7 @@ function pointsOf(m: OtlpMetric, res: ResourceInfo): Batch['points'] {
           kind,
           unit,
           value,
+          attributes: Object.fromEntries(Object.entries(attributesOf(p.attributes)).slice(0, 20)),
         },
       ];
     });

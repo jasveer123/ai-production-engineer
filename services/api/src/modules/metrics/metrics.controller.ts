@@ -17,6 +17,7 @@ import {
   updateDashboardSchema,
   type CreateDashboardInput,
   type DashboardView,
+  type MetricLabelKey,
   type MetricName,
   type MetricSeries,
   type UpdateDashboardInput,
@@ -36,6 +37,11 @@ export class MetricsController {
   @Get('names')
   names(@Actor() actor: ActorContext): Promise<MetricName[]> {
     return this.metrics.names(actor);
+  }
+
+  @Get('labels')
+  labels(@Actor() actor: ActorContext, @Query('name') name: string): Promise<MetricLabelKey[]> {
+    return this.metrics.labels(actor, name ?? '');
   }
 
   @Get('series')

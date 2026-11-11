@@ -66,6 +66,7 @@ export interface MetricPointInput {
   kind: 'gauge' | 'counter' | 'sum' | 'histogram';
   unit: string | null;
   value: number;
+  attributes: Record<string, unknown>;
 }
 
 export interface Batch {
