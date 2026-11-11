@@ -15,6 +15,7 @@ export const ROUTES = {
   fixes: "/fixes",
   alerts: "/alerts",
   heartbeats: "/heartbeats",
+  notifications: "/notifications",
   integrations: "/integrations",
   integrationDetail: (id: string) => `/integrations/${id}`,
   collectorDocs: (anchor?: string) => `/docs/collector${anchor ? `#${anchor}` : ""}`,

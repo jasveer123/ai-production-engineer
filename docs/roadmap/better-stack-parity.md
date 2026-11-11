@@ -20,7 +20,7 @@ Rule for every feature: build it, test it, commit it, then move to the next.
 | Monitors (uptime checks) | Not started |
 | On-call schedules | Not started |
 | Escalation policies | Not started |
-| Notifications: Slack, webhook (screens) | Backend built, screens missing |
+| Notifications: Slack, webhook (screens, history) | Built |
 | Notifications: email | Not started |
 | Notifications: SMS, call, push | Not started (needs a paid provider) |
 | Acknowledge, comments, post-mortem | Not started |
