@@ -31,7 +31,6 @@ export interface PlaceholderItem {
 }
 
 export const PLACEHOLDER_ITEMS: PlaceholderItem[] = [
-  { label: "Metrics", icon: ChartLine },
   { label: "Team", icon: Users },
   { label: "Settings", icon: Settings },
 ]
@@ -47,6 +46,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Alerts", href: ROUTES.alerts, icon: BellRing },
   { label: "Heartbeats", href: ROUTES.heartbeats, icon: HeartPulse },
   { label: "Notifications", href: ROUTES.notifications, icon: Megaphone },
+  { label: "Metrics", href: ROUTES.metrics, icon: ChartLine },
   { label: "Live tail", href: ROUTES.liveTail, icon: Radio },
   { label: "Services", href: ROUTES.services, icon: Layers },
   { label: "Integrations", href: ROUTES.integrations, icon: Blocks },

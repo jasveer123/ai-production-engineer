@@ -19,6 +19,7 @@ export const ROUTES = {
   oncall: "/oncall",
   escalation: "/escalation",
   statusPages: "/status-pages",
+  metrics: "/metrics",
   monitorDetail: (id: string) => `/monitors/${id}`,
   notifications: "/notifications",
   integrations: "/integrations",

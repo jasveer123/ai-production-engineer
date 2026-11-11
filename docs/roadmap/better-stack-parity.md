@@ -35,7 +35,7 @@ Rule for every feature: build it, test it, commit it, then move to the next.
 | Live tail with chart | Built |
 | Services page | Built |
 | Log alerts (rules on logs) | Built: level, service, text, threshold |
-| Metrics storage and dashboards | Not started |
+| Metrics storage and dashboards | Built: OTLP intake, series, dashboards |
 | Explore logs and traces | Not started |
 | Service map | Not started |
 | Schema | Not started |
