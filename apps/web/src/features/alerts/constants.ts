@@ -67,3 +67,6 @@ export const HEARTBEAT_STATE_LABEL: Record<string, string> = {
   down: "Down",
   pending: "Waiting for first ping",
 }
+
+export const LOG_LEVEL_OPTIONS = ["warn", "error", "fatal", "info", "debug"] as const
+export const LOG_ALERT_SEVERITIES = ["low", "medium", "high", "critical"] as const

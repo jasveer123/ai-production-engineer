@@ -34,7 +34,7 @@ Rule for every feature: build it, test it, commit it, then move to the next.
 | Collector, one command for Docker and Kubernetes | Built |
 | Live tail with chart | Built |
 | Services page | Built |
-| Log alerts (rules on logs) | Not started |
+| Log alerts (rules on logs) | Built: level, service, text, threshold |
 | Metrics storage and dashboards | Not started |
 | Explore logs and traces | Not started |
 | Service map | Not started |

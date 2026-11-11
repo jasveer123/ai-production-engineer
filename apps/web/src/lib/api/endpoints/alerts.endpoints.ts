@@ -8,3 +8,9 @@ export const ALERTS_ENDPOINTS = {
   ROUTE: (workspaceId: string, id: string) => `/workspaces/${workspaceId}/alert-routes/${id}`,
   ROUTE_ORDER: (workspaceId: string) => `/workspaces/${workspaceId}/alert-routes/order`,
 } as const
+
+export const LOG_ALERTS_ENDPOINTS = {
+  LIST: (workspaceId: string) => `/workspaces/${workspaceId}/log-alerts`,
+  ONE: (workspaceId: string, id: string) => `/workspaces/${workspaceId}/log-alerts/${id}`,
+  CHECK: (workspaceId: string, id: string) => `/workspaces/${workspaceId}/log-alerts/${id}/check`,
+} as const

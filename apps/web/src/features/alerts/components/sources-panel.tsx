@@ -22,7 +22,10 @@ export function SourcesPanel({ workspaceId, canManage, heartbeats }: SourcesPane
   const pending = rotate.isPending || remove.isPending
 
   const items = (sources.data ?? []).filter(
-    (item) => item.kind !== "monitor" && (item.kind === "heartbeat") === heartbeats
+    (item) =>
+      item.kind !== "monitor" &&
+      item.kind !== "log_alert" &&
+      (item.kind === "heartbeat") === heartbeats
   )
 
   return (

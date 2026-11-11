@@ -80,3 +80,31 @@ export interface RouteRequest {
   createIncident: boolean
   incidentSeverity: string | null
 }
+
+export const logAlertSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  levels: z.array(z.string()),
+  service: z.string().nullable(),
+  contains: z.string().nullable(),
+  threshold: z.number(),
+  windowMinutes: z.number(),
+  severity: z.string(),
+  paused: z.boolean(),
+  state: z.string(),
+  stateSince: z.string(),
+  lastCount: z.number().nullable(),
+  lastCheckedAt: z.string().nullable(),
+  createdAt: z.string(),
+})
+export type LogAlert = z.infer<typeof logAlertSchema>
+
+export interface LogAlertRequest {
+  name: string
+  levels: string[]
+  service?: string
+  contains?: string
+  threshold: number
+  windowMinutes: number
+  severity: string
+}
