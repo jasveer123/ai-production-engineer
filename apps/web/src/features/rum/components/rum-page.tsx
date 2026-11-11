@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { StoryBanner } from "@/components/shared"
+import { StatusStrip } from "@/components/shared"
 import { Chip, Spinner, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui"
 import { useCurrentWorkspace } from "@/features/auth"
 import { PageHeading } from "@/features/integrations"
@@ -40,7 +40,7 @@ export function RumPage() {
   return (
     <div className="grid min-w-0 gap-6">
       <PageHeading workspaceName={workspace.name} title="Real users" />
-      <StoryBanner
+      <StatusStrip
         tone={list.length === 0 ? "idle" : (data?.errors ?? 0) > 0 ? "warn" : "ok"}
         headline={
           list.length === 0

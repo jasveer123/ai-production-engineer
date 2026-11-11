@@ -1,6 +1,6 @@
 "use client"
 
-import { StoryBanner } from "@/components/shared"
+import { StatusStrip } from "@/components/shared"
 import { Spinner, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui"
 import { useCurrentWorkspace } from "@/features/auth"
 import { PageHeading } from "@/features/integrations"
@@ -39,7 +39,7 @@ export function NotificationsPage() {
   return (
     <div className="grid min-w-0 gap-6">
       <PageHeading workspaceName={workspace.name} title="Notifications" />
-      <StoryBanner
+      <StatusStrip
         tone={broken.length > 0 ? "warn" : list.length === 0 ? "idle" : "ok"}
         headline={
           broken.length > 0

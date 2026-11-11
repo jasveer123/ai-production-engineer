@@ -1,6 +1,6 @@
 "use client"
 
-import { StoryBanner, StorySteps } from "@/components/shared"
+import { StatusStrip, StorySteps } from "@/components/shared"
 import { Spinner } from "@/components/ui"
 import { useCurrentWorkspace } from "@/features/auth"
 import { PageHeading } from "@/features/integrations"
@@ -37,7 +37,7 @@ export function OncallPage() {
       <PageHeading workspaceName={workspace.name} title="Who's on call" />
       {items.length === 0 ? (
         <>
-          <StoryBanner
+          <StatusStrip
             tone="idle"
             headline="Nobody is set to answer yet"
             detail="When something breaks at 3am, a person should be reached, not a shared inbox."
@@ -63,7 +63,7 @@ export function OncallPage() {
         </>
       ) : (
         <>
-          <StoryBanner
+          <StatusStrip
             tone={gaps > 0 ? "warn" : "ok"}
             headline={
               gaps > 0

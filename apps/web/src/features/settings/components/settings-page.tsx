@@ -1,6 +1,6 @@
 "use client"
 
-import { StoryBanner } from "@/components/shared"
+import { StatusStrip } from "@/components/shared"
 import { Spinner, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui"
 import { useCurrentWorkspace } from "@/features/auth"
 import { PageHeading } from "@/features/integrations"
@@ -31,7 +31,7 @@ export function SettingsPage() {
   return (
     <div className="grid min-w-0 gap-6">
       <PageHeading workspaceName={workspace.name} title="Settings" />
-      <StoryBanner
+      <StatusStrip
         tone="ok"
         headline={`${workspace.name} has ${team.length} ${team.length === 1 ? "person" : "people"}`}
         detail="Invite teammates, issue API tokens for your tools, and review everything that changed."

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { ExternalLink, RotateCw } from "lucide-react"
-import { StoryBanner, StorySteps } from "@/components/shared"
+import { StatusStrip, StorySteps } from "@/components/shared"
 import {
   Badge,
   Button,
@@ -46,7 +46,7 @@ export function FixesPage() {
   return (
     <div className="grid min-w-0 gap-6">
       <PageHeading workspaceName={workspace.name} title="Fixes" />
-      <StoryBanner
+      <StatusStrip
         tone={
           failing.length > 0 ? "bad" : open.length > 0 ? "warn" : items.length === 0 ? "idle" : "ok"
         }

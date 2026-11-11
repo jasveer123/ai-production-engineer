@@ -1,6 +1,6 @@
 "use client"
 
-import { StoryBanner, StorySteps } from "@/components/shared"
+import { StatusStrip, StorySteps } from "@/components/shared"
 import { Spinner } from "@/components/ui"
 import { useCurrentWorkspace } from "@/features/auth"
 import { PageHeading } from "@/features/integrations"
@@ -54,7 +54,7 @@ export function MonitorsPage() {
       <PageHeading workspaceName={workspace.name} title="Monitors" />
       {items.length === 0 ? (
         <>
-          <StoryBanner tone="idle" headline={headline} detail={detail} action={create} />
+          <StatusStrip tone="idle" headline={headline} detail={detail} action={create} />
           <StorySteps
             heading="How a monitor protects you"
             steps={[
@@ -75,7 +75,7 @@ export function MonitorsPage() {
         </>
       ) : (
         <>
-          <StoryBanner
+          <StatusStrip
             tone={down.length > 0 ? "bad" : active.length === 0 ? "warn" : "ok"}
             headline={headline}
             detail={detail}

@@ -1,6 +1,6 @@
 "use client"
 
-import { StoryBanner, StorySteps } from "@/components/shared"
+import { StatusStrip, StorySteps } from "@/components/shared"
 import { Spinner } from "@/components/ui"
 import { useCurrentWorkspace } from "@/features/auth"
 import { PageHeading } from "@/features/integrations"
@@ -36,7 +36,7 @@ export function EscalationPage() {
       <PageHeading workspaceName={workspace.name} title="Escalation" />
       {items.length === 0 ? (
         <>
-          <StoryBanner
+          <StatusStrip
             tone="idle"
             headline="Nobody gets paged automatically"
             detail="An escalation policy makes sure a serious incident is never ignored."
@@ -59,7 +59,7 @@ export function EscalationPage() {
         </>
       ) : (
         <>
-          <StoryBanner
+          <StatusStrip
             tone={active.length > 0 || unanswered.length > 0 ? "warn" : "ok"}
             headline={
               active.length > 0

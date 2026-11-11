@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { LogOut } from "lucide-react"
 import { Badge, Button, Spinner } from "@/components/ui"
 import { Logo, ThemeToggle } from "@/components/shared"
+import { CommandMenu } from "./command-menu"
 import { MobileNav } from "./mobile-nav"
 import { useCurrentWorkspace, useLogout } from "@/features/auth"
 import { LiveStatus } from "@/features/integrations"
@@ -20,6 +21,7 @@ export function AppHeader() {
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-panel px-4 sm:px-6">
       <MobileNav />
       <Logo />
+      <CommandMenu />
       <div className="ml-auto flex items-center gap-4">
         <LiveStatus />
         {workspace && (

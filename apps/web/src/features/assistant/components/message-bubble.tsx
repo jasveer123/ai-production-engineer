@@ -1,47 +1,69 @@
 import Link from "next/link"
-import { Badge } from "@/components/ui"
-import { cn } from "@/lib/utils"
-import { sourceHref } from "../lib/source-href"
 import type { ChatMessage } from "../schemas"
+import { sourceHref } from "../lib/source-href"
 
 interface MessageBubbleProps {
   message: ChatMessage
 }
 
 export function MessageBubble({ message }: MessageBubbleProps) {
-  const mine = message.role === "user"
+  if (message.role === "user") {
+    return (
+      <div className="grid gap-1 border-t border-line pt-4 first:border-t-0 first:pt-0">
+        <span className="font-mono text-[0.6875rem] tracking-wider text-muted-foreground uppercase">
+          Question
+        </span>
+        <p className="text-[0.9375rem] font-medium whitespace-pre-wrap">{message.content}</p>
+      </div>
+    )
+  }
 
   return (
-    <div className={cn("flex", mine && "justify-end")}>
-      <div
-        className={cn(
-          "grid max-w-[85%] gap-2 border p-4 text-sm leading-6",
-          mine ? "border-brand bg-brand-soft" : "border-line bg-panel"
-        )}
-      >
-        <p className="whitespace-pre-wrap">{message.content}</p>
-        {message.sources.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[0.75rem] text-muted-foreground">Based on</span>
+    <div className="grid gap-3">
+      <span className="font-mono text-[0.6875rem] tracking-wider text-muted-foreground uppercase">
+        Answer
+      </span>
+      <p className="max-w-prose text-sm leading-6 whitespace-pre-wrap">{message.content}</p>
+      {message.sources.length > 0 ? (
+        <div className="grid gap-1">
+          <span className="font-mono text-[0.6875rem] tracking-wider text-muted-foreground uppercase">
+            Evidence, {message.sources.length}
+          </span>
+          <ul className="divide-y divide-line border border-line bg-panel">
             {message.sources.map((source) => {
               const href = sourceHref(source)
-              const badge = (
-                <Badge variant={href ? "ai" : "default"}>
-                  {source.kind}: {source.title.slice(0, 40)}
-                </Badge>
+              const row = (
+                <span className="flex items-center gap-3 px-3 py-2 text-[0.8125rem]">
+                  <span className="w-20 shrink-0 font-mono text-[0.6875rem] text-muted-foreground uppercase">
+                    {source.kind}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{source.title}</span>
+                  {href && <span className="text-brand-strong">Open</span>}
+                </span>
               )
 
-              return href ? (
-                <Link key={source.ref} href={href}>
-                  {badge}
-                </Link>
-              ) : (
-                <span key={source.ref}>{badge}</span>
+              return (
+                <li key={source.ref}>
+                  {href ? (
+                    <Link
+                      href={href}
+                      className="block outline-none hover:bg-panel-2 focus-visible:bg-panel-2"
+                    >
+                      {row}
+                    </Link>
+                  ) : (
+                    row
+                  )}
+                </li>
               )
             })}
-          </div>
-        )}
-      </div>
+          </ul>
+        </div>
+      ) : (
+        <p className="text-[0.8125rem] text-muted-foreground">
+          No workspace records were cited for this answer. Treat it as general guidance.
+        </p>
+      )}
     </div>
   )
 }

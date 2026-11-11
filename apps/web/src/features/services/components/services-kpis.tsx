@@ -1,4 +1,4 @@
-import { StoryBanner } from "@/components/shared"
+import { StatusStrip } from "@/components/shared"
 import type { ServiceRowData } from "../lib"
 
 interface ServicesKpisProps {
@@ -28,7 +28,7 @@ export function ServicesKpis({ rows }: ServicesKpisProps) {
           : "Every service is healthy"
 
   return (
-    <StoryBanner
+    <StatusStrip
       tone={
         withProblems.length > 0 ? "bad" : quiet > 0 ? "warn" : rows.length === 0 ? "idle" : "ok"
       }

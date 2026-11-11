@@ -1,6 +1,6 @@
 "use client"
 
-import { StoryBanner, StorySteps } from "@/components/shared"
+import { StatusStrip, StorySteps } from "@/components/shared"
 import { Spinner } from "@/components/ui"
 import { useCurrentWorkspace } from "@/features/auth"
 import { PageHeading } from "@/features/integrations"
@@ -38,7 +38,7 @@ export function StatusPagesPage() {
       <PageHeading workspaceName={workspace.name} title="Status pages" />
       {items.length === 0 ? (
         <>
-          <StoryBanner
+          <StatusStrip
             tone="idle"
             headline="Your customers have nowhere to look"
             detail="A status page answers “is it down?” before anyone files a ticket."
@@ -61,7 +61,7 @@ export function StatusPagesPage() {
         </>
       ) : (
         <>
-          <StoryBanner
+          <StatusStrip
             tone={live > 0 ? "warn" : "ok"}
             headline={
               live > 0

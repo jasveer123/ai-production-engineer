@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { StoryBanner } from "@/components/shared"
+import { StatusStrip } from "@/components/shared"
 import { Pause, Play } from "lucide-react"
 import { Button, Chip, Eyebrow, Spinner } from "@/components/ui"
 import { useCurrentWorkspace } from "@/features/auth"
@@ -58,7 +58,7 @@ export function LiveTailPage() {
           </Button>
         </div>
       </div>
-      <StoryBanner
+      <StatusStrip
         tone={!data || total === 0 ? "idle" : errors > 0 ? "warn" : "ok"}
         headline={
           !data || total === 0

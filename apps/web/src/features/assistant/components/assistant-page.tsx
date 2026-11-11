@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { Plus, Send, Trash2 } from "lucide-react"
-import { Button, Chip, Spinner, Textarea } from "@/components/ui"
+import { Button, Spinner, Textarea } from "@/components/ui"
 import { useCurrentWorkspace } from "@/features/auth"
 import { PageHeading } from "@/features/integrations"
 import { ACTOR_ROLES } from "@/lib/constants/roles"
@@ -89,21 +89,28 @@ export function AssistantPage() {
           ))}
         </aside>
         <section className="grid content-start gap-4">
-          <div className="grid min-h-64 content-start gap-3 border border-line bg-sunken p-4">
+          <div className="grid min-h-64 content-start gap-5 border border-line bg-panel p-5">
             {messages.length === 0 && !pendingQuestion ? (
-              <div className="grid gap-3">
-                <p className="text-sm text-muted-foreground">
-                  Ask about your incidents, errors, monitors, logs or who is on call. Answers come
-                  from what is happening in your workspace right now, with links to what they are
-                  based on.
+              <div className="grid gap-4">
+                <p className="max-w-prose text-sm text-muted-foreground">
+                  Ask about incidents, errors, monitors, logs or who is on call. Every answer cites
+                  the records it used so you can check it.
                 </p>
-                <div className="flex flex-wrap gap-2">
+                <ul className="divide-y divide-line border border-line">
                   {SUGGESTIONS.map((text) => (
-                    <Chip key={text} disabled={!canAsk || ask.isPending} onClick={() => send(text)}>
-                      {text}
-                    </Chip>
+                    <li key={text}>
+                      <button
+                        type="button"
+                        disabled={!canAsk || ask.isPending}
+                        onClick={() => send(text)}
+                        className="flex w-full items-center justify-between px-3 py-2 text-left text-[0.8125rem] outline-none hover:bg-panel-2 focus-visible:bg-panel-2 disabled:opacity-50"
+                      >
+                        {text}
+                        <span className="text-muted-foreground">Ask</span>
+                      </button>
+                    </li>
                   ))}
-                </div>
+                </ul>
               </div>
             ) : (
               messages.map((message) => <MessageBubble key={message.id} message={message} />)
@@ -120,7 +127,7 @@ export function AssistantPage() {
                   }}
                 />
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Spinner /> Looking at your workspace
+                  <Spinner /> Reading incidents, errors, monitors and logs
                 </p>
               </>
             )}

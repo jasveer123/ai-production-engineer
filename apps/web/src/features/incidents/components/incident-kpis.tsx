@@ -1,4 +1,4 @@
-import { StoryBanner } from "@/components/shared"
+import { StatusStrip } from "@/components/shared"
 import { CLOSED_STATUSES } from "../constants"
 import type { Incident } from "../schemas"
 
@@ -35,7 +35,7 @@ export function IncidentKpis({ incidents }: IncidentKpisProps) {
     .join(", ")
 
   return (
-    <StoryBanner
+    <StatusStrip
       tone={urgent.length > 0 ? "bad" : open.length > 0 ? "warn" : "ok"}
       headline={headline}
       detail={

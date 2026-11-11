@@ -12,7 +12,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui"
-import { StoryBanner } from "@/components/shared"
+import { StatusStrip } from "@/components/shared"
 import { useCurrentWorkspace } from "@/features/auth"
 import { PageHeading } from "@/features/integrations"
 import { ROUTES } from "@/lib/constants/routes"
@@ -56,7 +56,7 @@ export function ErrorsPage() {
           <TabsTrigger value="maps">Source maps</TabsTrigger>
         </TabsList>
         <TabsContent value="issues" className="grid gap-6 pt-5">
-          <StoryBanner
+          <StatusStrip
             tone={items.length === 0 ? "ok" : regressed > 0 ? "bad" : "warn"}
             headline={
               items.length === 0

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { StoryBanner, StorySteps } from "@/components/shared"
+import { StatusStrip, StorySteps } from "@/components/shared"
 import { Chip, CodeBlock, Spinner } from "@/components/ui"
 import { ConfirmDialog } from "@/components/shared"
 import { useCurrentWorkspace } from "@/features/auth"
@@ -43,7 +43,7 @@ export function MetricsPage() {
   return (
     <div className="grid min-w-0 gap-6">
       <PageHeading workspaceName={workspace.name} title="Metrics" />
-      <StoryBanner
+      <StatusStrip
         tone={metrics.length === 0 ? "idle" : "ok"}
         headline={
           metrics.length === 0

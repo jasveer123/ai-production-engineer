@@ -1,6 +1,6 @@
 "use client"
 
-import { StoryBanner } from "@/components/shared"
+import { StatusStrip } from "@/components/shared"
 import { Spinner } from "@/components/ui"
 import { useCurrentWorkspace } from "@/features/auth"
 import { PageHeading } from "@/features/integrations"
@@ -30,7 +30,7 @@ export function HeartbeatsPage() {
   return (
     <div className="grid min-w-0 gap-6">
       <PageHeading workspaceName={workspace.name} title="Heartbeats" />
-      <StoryBanner
+      <StatusStrip
         tone={missed.length > 0 ? "bad" : beats.length === 0 ? "idle" : "ok"}
         headline={
           missed.length > 0
