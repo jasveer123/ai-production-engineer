@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Button, Chip, Eyebrow, Field, Input, Spinner } from "@/components/ui"
 import { PR_ROLES } from "../constants"
+import { SeverityRulesPanel } from "./severity-rules-panel"
 import { useApproval, useRenameWorkspace, useSetApproval } from "../hooks"
 
 interface WorkspacePanelProps {
@@ -65,6 +66,7 @@ export function WorkspacePanel({ workspaceId, name, canManage, isOwner }: Worksp
           <p className="text-[0.75rem] text-muted-foreground">Only the owner can change this.</p>
         )}
       </section>
+      <SeverityRulesPanel workspaceId={workspaceId} canManage={canManage} />
     </div>
   )
 }

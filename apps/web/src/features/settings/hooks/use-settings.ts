@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { settingsService } from "../services"
+import type { SeverityRule } from "../schemas"
 
 const keyOf = (workspaceId: string, part: string) => ["settings", workspaceId, part]
 
@@ -99,5 +100,38 @@ export function useSetLimits(workspaceId: string) {
       maxConcurrentInvestigations: number | null
     }) => settingsService.setLimits(workspaceId, body),
     onSuccess: refresh,
+  })
+}
+
+export const useSeverityRules = (id: string | undefined) =>
+  useQueryFor(id, "severity-rules", settingsService.severityRules)
+
+export function useSetSeverityRules(workspaceId: string) {
+  const refresh = useRefresh(workspaceId, ["severity-rules"])
+  return useMutation({
+    meta: { successMessage: "Severity rules saved" },
+    mutationFn: (rules: SeverityRule[]) => settingsService.setSeverityRules(workspaceId, rules),
+    onSuccess: refresh,
+  })
+}
+
+export function useApiTokens() {
+  return useQuery({ queryKey: ["settings", "api-tokens"], queryFn: settingsService.apiTokens })
+}
+
+export function useCreateApiToken() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: settingsService.createApiToken,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["settings", "api-tokens"] }),
+  })
+}
+
+export function useRevokeApiToken() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    meta: { successMessage: "Token revoked" },
+    mutationFn: settingsService.revokeApiToken,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["settings", "api-tokens"] }),
   })
 }

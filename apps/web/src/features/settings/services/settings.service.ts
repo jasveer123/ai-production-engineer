@@ -2,12 +2,18 @@ import { z } from "zod"
 import { SETTINGS_ENDPOINTS, http } from "@/lib/api"
 import {
   approvalSchema,
+  apiTokenSchema,
+  apiTokenWithSecretSchema,
   auditEventSchema,
+  severityRuleSchema,
   invitationSchema,
   invitationWithLinkSchema,
   memberSchema,
   usageSchema,
+  type ApiToken,
+  type ApiTokenWithSecret,
   type AuditEvent,
+  type SeverityRule,
   type Invitation,
   type InvitationWithLink,
   type Member,
@@ -69,4 +75,26 @@ export const settingsService = {
       query: { limit: 50 },
       schema: z.array(auditEventSchema),
     }),
+
+  severityRules: (workspaceId: string) =>
+    http.get<SeverityRule[]>(SETTINGS_ENDPOINTS.SEVERITY_RULES(workspaceId), {
+      schema: z.array(severityRuleSchema),
+    }),
+
+  setSeverityRules: (workspaceId: string, rules: SeverityRule[]) =>
+    http.put<SeverityRule[]>(
+      SETTINGS_ENDPOINTS.SEVERITY_RULES(workspaceId),
+      { rules },
+      { schema: z.array(severityRuleSchema) }
+    ),
+
+  apiTokens: () =>
+    http.get<ApiToken[]>(SETTINGS_ENDPOINTS.API_TOKENS, { schema: z.array(apiTokenSchema) }),
+
+  createApiToken: (body: { name: string; expiresInDays: number | null }) =>
+    http.post<ApiTokenWithSecret>(SETTINGS_ENDPOINTS.API_TOKENS, body, {
+      schema: apiTokenWithSecretSchema,
+    }),
+
+  revokeApiToken: (id: string) => http.delete<void>(SETTINGS_ENDPOINTS.API_TOKEN(id)),
 }

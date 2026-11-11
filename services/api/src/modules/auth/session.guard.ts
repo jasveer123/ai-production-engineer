@@ -8,6 +8,7 @@ import { unauthorized } from '../../core/common/errors';
 import { DB } from '../../core/db/database.module';
 import type { Database } from '../../core/db/client';
 import { sessions } from '../../core/db/schema';
+import { ApiTokensService } from './application/api-tokens.service';
 import { IS_PUBLIC_KEY } from './public.decorator';
 
 export const SESSION_COOKIE = 'ape_session';
@@ -25,6 +26,7 @@ export class SessionGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly jwt: JwtService,
+    private readonly apiTokens: ApiTokensService,
     @Inject(DB) private readonly db: Database,
   ) {}
 
@@ -37,7 +39,14 @@ export class SessionGuard implements CanActivate {
 
     const req = context.switchToHttp().getRequest<Request>();
     const token = (req.cookies as Record<string, string> | undefined)?.[SESSION_COOKIE];
-    if (!token) throw unauthorized();
+    if (!token) {
+      const bearer = /^Bearer\s+(\S+)$/i.exec(req.header('authorization') ?? '')?.[1];
+      const pat = bearer ? await this.apiTokens.resolve(bearer) : null;
+      if (!pat) throw unauthorized();
+      req.auth = { userId: pat.userId, sessionId: `pat:${pat.tokenId}` };
+      trace.getActiveSpan()?.setAttribute('user_id', pat.userId);
+      return true;
+    }
 
     let payload: SessionToken;
     try {

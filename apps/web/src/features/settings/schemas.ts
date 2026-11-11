@@ -54,3 +54,23 @@ export const auditEventSchema = z.object({
   occurredAt: z.string(),
 })
 export type AuditEvent = z.infer<typeof auditEventSchema>
+
+export const severityRuleSchema = z.object({
+  environment: z.string().optional(),
+  serviceName: z.string().optional(),
+  errorType: z.string().optional(),
+  severity: z.string(),
+})
+export type SeverityRule = z.infer<typeof severityRuleSchema>
+
+export const apiTokenSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  prefix: z.string(),
+  expiresAt: z.string().nullable(),
+  lastUsedAt: z.string().nullable(),
+  createdAt: z.string(),
+})
+export type ApiToken = z.infer<typeof apiTokenSchema>
+export const apiTokenWithSecretSchema = apiTokenSchema.extend({ token: z.string() })
+export type ApiTokenWithSecret = z.infer<typeof apiTokenWithSecretSchema>

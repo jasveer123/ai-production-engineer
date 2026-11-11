@@ -123,3 +123,24 @@ export const authTokens = pgTable(
     index('auth_tokens_user_idx').on(t.userId, t.kind),
   ],
 );
+
+export const apiTokens = pgTable(
+  'api_tokens',
+  {
+    id: id(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    prefix: text('prefix').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('api_tokens_hash_idx').on(t.tokenHash),
+    index('api_tokens_user_idx').on(t.userId),
+  ],
+);

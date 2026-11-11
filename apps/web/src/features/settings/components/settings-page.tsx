@@ -3,6 +3,7 @@
 import { Spinner, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui"
 import { useCurrentWorkspace } from "@/features/auth"
 import { PageHeading } from "@/features/integrations"
+import { ApiTokensPanel } from "./api-tokens-panel"
 import { AuditPanel } from "./audit-panel"
 import { TeamPanel } from "./team-panel"
 import { UsageLimitsPanel } from "./usage-limits-panel"
@@ -30,6 +31,7 @@ export function SettingsPage() {
         <TabsList>
           <TabsTrigger value="team">Team</TabsTrigger>
           <TabsTrigger value="workspace">Workspace</TabsTrigger>
+          <TabsTrigger value="tokens">API tokens</TabsTrigger>
           {canManage && <TabsTrigger value="usage">Usage and limits</TabsTrigger>}
           {canManage && <TabsTrigger value="audit">Activity log</TabsTrigger>}
         </TabsList>
@@ -43,6 +45,9 @@ export function SettingsPage() {
             canManage={canManage}
             isOwner={isOwner}
           />
+        </TabsContent>
+        <TabsContent value="tokens" className="pt-5">
+          <ApiTokensPanel />
         </TabsContent>
         {canManage && (
           <TabsContent value="usage" className="pt-5">
