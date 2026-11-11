@@ -34,6 +34,7 @@ export async function recordErrorOccurrence(
       firstSeenAt: at,
       lastSeenAt: at,
       release,
+      firstRelease: release,
       route,
       stack,
     })

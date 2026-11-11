@@ -105,4 +105,63 @@ describe('Error tracking (e2e)', () => {
       .send({ status: 'resolved' })
       .expect(403);
   });
+
+  it('assigns an error, lists releases and symbolicates stacks with source maps', async () => {
+    await report('r1', {
+      release: '2.0.0',
+      type: 'TypeError',
+      message: 'boom',
+      stack: 'TypeError: boom\n    at a (https://cdn.test/app.min.js:1:10)',
+    });
+    const [group] = await list();
+    await owner
+      .post(`/workspaces/${ws}/invitations`)
+      .send({ email: 'eng@errors.test', role: 'engineer' })
+      .expect(201);
+    await loginAs(app, 'eng@errors.test');
+    const members = (await owner.get(`/workspaces/${ws}/members`).expect(200)).body as {
+      userId: string;
+      email: string;
+    }[];
+    const eng = members.find((m) => m.email === 'eng@errors.test')!;
+    const assigned = (
+      await owner
+        .patch(`/workspaces/${ws}/errors/${group!.id}`)
+        .send({ assigneeId: eng.userId })
+        .expect(200)
+    ).body as ErrorGroupView;
+    expect(assigned.assignee).toMatchObject({ userId: eng.userId, email: 'eng@errors.test' });
+    expect(await list({ assignee: 'none' })).toHaveLength(0);
+    await owner
+      .patch(`/workspaces/${ws}/errors/${group!.id}`)
+      .send({ assigneeId: '00000000-0000-4000-8000-000000000000' })
+      .expect(404);
+
+    const releases = (await owner.get(`/workspaces/${ws}/errors/releases`).expect(200)).body as {
+      release: string;
+      events: number;
+      newErrors: number;
+    }[];
+    expect(releases).toEqual([
+      expect.objectContaining({ release: '2.0.0', events: 1, newErrors: 1 }),
+    ]);
+
+    const map = JSON.stringify({
+      version: 3,
+      sources: ['src/price.ts'],
+      names: ['computePrice'],
+      mappings: 'AAAA,SAASA',
+    });
+    await owner
+      .post(`/workspaces/${ws}/source-maps`)
+      .send({ release: '2.0.0', file: 'https://cdn.test/app.min.js', map })
+      .expect(201);
+    await owner
+      .post(`/workspaces/${ws}/source-maps`)
+      .send({ release: '2.0.0', file: 'bad.js', map: '{"x":1}' })
+      .expect(400);
+    const detail = (await owner.get(`/workspaces/${ws}/errors/${group!.id}`).expect(200))
+      .body as ErrorGroupDetail;
+    expect(detail.symbolicated?.[0]).toBe('    at computePrice (src/price.ts:1:10)');
+  });
 });

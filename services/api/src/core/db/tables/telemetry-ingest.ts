@@ -171,6 +171,8 @@ export const errorGroups = pgTable(
     stack: jsonb('stack').$type<string[]>().notNull().default([]),
     incidentId: uuid('incident_id'),
     reopenedAt: timestamp('reopened_at', { withTimezone: true }),
+    firstRelease: text('first_release'),
+    assigneeId: uuid('assignee_id').references(() => users.id, { onDelete: 'set null' }),
   },
   (t) => [
     uniqueIndex('error_groups_fingerprint_idx').on(t.workspaceId, t.fingerprint),
@@ -198,4 +200,17 @@ export const errorOccurrences = pgTable(
       .on(t.groupId, t.externalEventId)
       .where(sql`${t.externalEventId} is not null`),
   ],
+);
+
+export const sourceMaps = pgTable(
+  'source_maps',
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    release: text('release').notNull(),
+    file: text('file').notNull(),
+    content: text('content').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('source_maps_unique_idx').on(t.workspaceId, t.release, t.file)],
 );

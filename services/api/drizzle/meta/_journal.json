@@ -169,6 +169,13 @@
       "when": 1794391561940,
       "tag": "0023_metric_attributes",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794391952470,
+      "tag": "0024_error_extras",
+      "breakpoints": true
     }
   ]
 }
