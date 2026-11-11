@@ -12,6 +12,7 @@ import {
   PhoneCall,
   Workflow,
   Activity,
+  Bug,
   GitPullRequest,
   Settings,
   Siren,
@@ -38,6 +39,7 @@ export const PLACEHOLDER_ITEMS: PlaceholderItem[] = [
 export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: ROUTES.dashboard, icon: LayoutDashboard },
   { label: "Incidents", href: ROUTES.incidents, icon: Siren },
+  { label: "Errors", href: ROUTES.errors, icon: Bug },
   { label: "Fixes", href: ROUTES.fixes, icon: GitPullRequest },
   { label: "Monitors", href: ROUTES.monitors, icon: Globe },
   { label: "On-call", href: ROUTES.oncall, icon: PhoneCall },

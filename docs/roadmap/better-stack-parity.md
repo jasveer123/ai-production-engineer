@@ -41,7 +41,7 @@ Rule for every feature: build it, test it, commit it, then move to the next.
 | Schema | Not started |
 
 ### 3. Error tracking
-Not started: applications, errors, releases.
+Built: grouped errors with counts, 24-hour history, stack traces, resolve and ignore, regression reopen. Not started: releases view.
 
 ### 4. Real user monitoring
 Not started: applications, session replay, users, events, funnels.
