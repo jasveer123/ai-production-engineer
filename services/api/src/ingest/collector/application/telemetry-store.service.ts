@@ -9,6 +9,7 @@ import {
   ingestStreams,
   integrations,
   logRecords,
+  metricPoints,
   spans,
 } from '../../../core/db/schema';
 import { redact } from '../../../modules/investigations/domain/redact';
@@ -110,8 +111,16 @@ export class TelemetryStore implements OnModuleInit, OnModuleDestroy {
         at: new Date(),
       });
 
+    await this.writePoints(workspaceId, batch);
     await this.upsertStreams(workspaceId, batch.way, tally.streams);
     return { logs: logsWritten, spans: batch.spans.length, errors: batch.errors.length };
+  }
+
+  private async writePoints(workspaceId: string, batch: Batch): Promise<void> {
+    for (let i = 0; i < batch.points.length; i += CHUNK)
+      await this.db
+        .insert(metricPoints)
+        .values(batch.points.slice(i, i + CHUNK).map((p) => ({ workspaceId, ...p })));
   }
 
   private async writeLogs(workspaceId: string, batch: Batch, tally: StreamTally): Promise<number> {
@@ -272,6 +281,7 @@ export class TelemetryStore implements OnModuleInit, OnModuleDestroy {
     try {
       await this.db.delete(logRecords).where(lt(logRecords.ts, cutoff));
       await this.db.delete(spans).where(lt(spans.startTime, cutoff));
+      await this.db.delete(metricPoints).where(lt(metricPoints.ts, cutoff));
     } catch (err) {
       this.logger.warn(`Retention cleanup failed: ${(err as Error).message}`);
     }

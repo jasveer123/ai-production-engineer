@@ -58,6 +58,16 @@ export interface ErrorInput {
   attributes: Record<string, unknown>;
 }
 
+export interface MetricPointInput {
+  ts: Date;
+  service: string;
+  environment: string;
+  name: string;
+  kind: 'gauge' | 'counter' | 'sum' | 'histogram';
+  unit: string | null;
+  value: number;
+}
+
 export interface Batch {
   way: IngestWay;
   logs: LogInput[];
@@ -65,6 +75,7 @@ export interface Batch {
   errors: ErrorInput[];
 
   metrics: { service: string; environment: string; count: number }[];
+  points: MetricPointInput[];
 }
 
 export const emptyBatch = (way: IngestWay): Batch => ({
@@ -73,6 +84,7 @@ export const emptyBatch = (way: IngestWay): Batch => ({
   spans: [],
   errors: [],
   metrics: [],
+  points: [],
 });
 
 const LEVELS: Record<string, LogLevel> = {

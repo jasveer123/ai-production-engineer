@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   bigint,
   bigserial,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -115,4 +116,36 @@ export const ingestStreams = pgTable(
     ...timestamps(),
   },
   (t) => [uniqueIndex('ingest_streams_key').on(t.workspaceId, t.way, t.serviceName, t.environment)],
+);
+
+export const metricPoints = pgTable(
+  'metric_points',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    workspaceId: workspaceRef(),
+    ts: timestamp('ts', { withTimezone: true }).notNull(),
+    service: text('service').notNull(),
+    environment: text('environment').notNull(),
+    name: text('name').notNull(),
+    kind: text('kind').notNull(),
+    unit: text('unit'),
+    value: doublePrecision('value').notNull(),
+  },
+  (t) => [
+    index('metric_points_name_ts_idx').on(t.workspaceId, t.name, t.ts),
+    index('metric_points_ts_idx').on(t.ts),
+  ],
+);
+
+export const dashboards = pgTable(
+  'dashboards',
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    name: text('name').notNull(),
+    widgets: jsonb('widgets').$type<Record<string, unknown>[]>().notNull().default([]),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    ...timestamps(),
+  },
+  (t) => [index('dashboards_workspace_idx').on(t.workspaceId)],
 );

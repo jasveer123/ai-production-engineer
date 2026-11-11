@@ -218,8 +218,51 @@ function logRecord(r: Reader): Json {
   );
 }
 
+function numberPoint(r: Reader): Json {
+  return message<Json>(
+    r,
+    {},
+    {
+      3: (r, o) => (o.timeUnixNano = r.fixed64().toString()),
+      4: (r, o) => (o.asDouble = r.double()),
+      6: (r, o) => (o.asInt = BigInt.asIntN(64, r.fixed64()).toString()),
+    },
+  );
+}
+
+function histogramPoint(r: Reader): Json {
+  return message<Json>(
+    r,
+    {},
+    {
+      3: (r, o) => (o.timeUnixNano = r.fixed64().toString()),
+      4: (r, o) => (o.count = r.fixed64().toString()),
+      5: (r, o) => (o.sum = r.double()),
+    },
+  );
+}
+
 function metric(r: Reader): Json {
-  return message<Json>(r, {}, { 1: (r, o) => (o.name = r.string()) });
+  const points = (point: (r: Reader) => Json) => (r: Reader) =>
+    message<Json>(
+      r.sub(),
+      { dataPoints: [] },
+      {
+        1: (r, o) => push(o, 'dataPoints', point(r.sub())),
+        3: (r, o) => (o.isMonotonic = r.varint() !== 0n),
+      },
+    );
+  return message<Json>(
+    r,
+    {},
+    {
+      1: (r, o) => (o.name = r.string()),
+      3: (r, o) => (o.unit = r.string()),
+      5: (r, o) => (o.gauge = points(numberPoint)(r)),
+      7: (r, o) => (o.sum = points(numberPoint)(r)),
+      9: (r, o) => (o.histogram = points(histogramPoint)(r)),
+    },
+  );
 }
 
 function resourceGroup(

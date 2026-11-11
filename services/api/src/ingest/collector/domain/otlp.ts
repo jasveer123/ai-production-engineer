@@ -335,8 +335,61 @@ function errorFromLog(input: ErrorFromLogInput): ErrorInput {
   };
 }
 
+interface OtlpPoint {
+  timeUnixNano?: string | number;
+  asDouble?: number;
+  asInt?: string | number;
+  count?: string | number;
+  sum?: number;
+}
+
+interface OtlpMetric {
+  name?: string;
+  unit?: string;
+  gauge?: { dataPoints?: OtlpPoint[] };
+  sum?: { dataPoints?: OtlpPoint[]; isMonotonic?: boolean };
+  histogram?: { dataPoints?: OtlpPoint[] };
+}
+
 interface MetricsRequest {
   resourceMetrics?: { resource?: Resource; scopeMetrics?: { metrics?: unknown[] }[] }[];
+}
+
+const MAX_POINTS = 5000;
+
+function pointsOf(m: OtlpMetric, res: ResourceInfo): Batch['points'] {
+  const name = typeof m.name === 'string' ? m.name.slice(0, 200) : '';
+  if (!name) return [];
+  const unit = m.unit ? m.unit.slice(0, 40) : null;
+  const make = (
+    kind: Batch['points'][number]['kind'],
+    points: OtlpPoint[] | undefined,
+    pick: (p: OtlpPoint) => number | null,
+  ) =>
+    (points ?? []).flatMap((p) => {
+      const value = pick(p);
+      if (value === null || !Number.isFinite(value)) return [];
+      return [
+        {
+          ts: nanosToDate(p.timeUnixNano),
+          service: res.service,
+          environment: res.environment,
+          name,
+          kind,
+          unit,
+          value,
+        },
+      ];
+    });
+  const number = (p: OtlpPoint) =>
+    p.asDouble !== undefined ? p.asDouble : p.asInt !== undefined ? Number(p.asInt) : null;
+  if (m.gauge) return make('gauge', m.gauge.dataPoints, number);
+  if (m.sum) return make(m.sum.isMonotonic ? 'counter' : 'sum', m.sum.dataPoints, number);
+  if (m.histogram)
+    return make('histogram', m.histogram.dataPoints, (p) =>
+      p.sum !== undefined && Number(p.count) > 0 ? p.sum / Number(p.count) : null,
+    );
+  return [];
 }
 
 export function metricsToBatch(req: MetricsRequest): Batch {
@@ -346,6 +399,10 @@ export function metricsToBatch(req: MetricsRequest): Batch {
     const count = (rm.scopeMetrics ?? []).reduce((n, sm) => n + (sm.metrics?.length ?? 0), 0);
     if (count > 0)
       batch.metrics.push({ service: res.service, environment: res.environment, count });
+    for (const sm of rm.scopeMetrics ?? [])
+      for (const m of sm.metrics ?? [])
+        if (batch.points.length < MAX_POINTS) batch.points.push(...pointsOf(m as OtlpMetric, res));
   }
+  batch.points.length = Math.min(batch.points.length, MAX_POINTS);
   return batch;
 }
