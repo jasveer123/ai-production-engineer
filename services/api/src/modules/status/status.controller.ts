@@ -8,14 +8,17 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
   createStatusPageSchema,
   postUpdateSchema,
+  subscribeSchema,
   updateStatusPageSchema,
   type CreateStatusPageInput,
   type PostUpdateInput,
+  type SubscribeInput,
   type PublicStatus,
   type StatusPageView,
   type UpdateStatusPageInput,
@@ -27,6 +30,7 @@ import { Public } from '../auth/public.decorator';
 import { MinRole } from '../workspaces/min-role.decorator';
 import { WorkspaceAccessGuard } from '../workspaces/workspace-access.guard';
 import { StatusService } from './application/status.service';
+import { SubscribersService } from './application/subscribers.service';
 
 @Controller('workspaces/:workspaceId/status-pages')
 @UseGuards(WorkspaceAccessGuard)
@@ -75,6 +79,16 @@ export class StatusController {
     return this.status.postUpdate(actor, id, body);
   }
 
+  @Post(':pageId/verify-domain')
+  @MinRole('admin')
+  @HttpCode(200)
+  verifyDomain(
+    @Actor() actor: ActorContext,
+    @Param('pageId', ParseUUIDPipe) id: string,
+  ): Promise<StatusPageView> {
+    return this.status.verifyDomain(actor, id);
+  }
+
   @Delete(':pageId/updates/:updateId')
   @MinRole('engineer')
   @HttpCode(204)
@@ -89,7 +103,39 @@ export class StatusController {
 
 @Controller('public/status')
 export class PublicStatusController {
-  constructor(private readonly status: StatusService) {}
+  constructor(
+    private readonly status: StatusService,
+    private readonly subscribers: SubscribersService,
+  ) {}
+
+  @Public()
+  @Get('domain/:host')
+  byDomain(@Param('host') host: string): Promise<PublicStatus> {
+    return this.status.publicByDomain(host);
+  }
+
+  @Public()
+  @Get('subscriptions/confirm')
+  confirm(@Query('token') token: string): Promise<{ page: string }> {
+    return this.subscribers.confirm(token ?? '');
+  }
+
+  @Public()
+  @Get('subscriptions/unsubscribe')
+  unsubscribe(@Query('token') token: string): Promise<{ page: string }> {
+    return this.subscribers.unsubscribe(token ?? '');
+  }
+
+  @Public()
+  @Post(':slug/subscribe')
+  @HttpCode(202)
+  async subscribe(
+    @Param('slug') slug: string,
+    @Body(new ZodValidationPipe(subscribeSchema)) body: SubscribeInput,
+  ): Promise<{ ok: true }> {
+    await this.subscribers.subscribe(slug.toLowerCase(), body.email);
+    return { ok: true };
+  }
 
   @Public()
   @Get(':slug')

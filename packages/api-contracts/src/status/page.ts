@@ -22,10 +22,21 @@ export const createStatusPageSchema = z.object({
 });
 export type CreateStatusPageInput = z.input<typeof createStatusPageSchema>;
 
+export const domainSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(253)
+  .regex(/^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/, 'Enter a domain like status.example.com');
+
+export const subscribeSchema = z.object({ email: z.string().trim().toLowerCase().email().max(254) });
+export type SubscribeInput = z.infer<typeof subscribeSchema>;
+
 export const updateStatusPageSchema = z.object({
   name: nameSchema(80).optional(),
   description: z.string().trim().max(300).nullable().optional(),
   monitorIds: z.array(uuidSchema).max(MAX_COMPONENTS).optional(),
+  customDomain: domainSchema.nullable().optional(),
 });
 export type UpdateStatusPageInput = z.infer<typeof updateStatusPageSchema>;
 
@@ -56,6 +67,7 @@ export interface StatusUpdateView {
   title: string;
   body: string;
   state: UpdateState;
+  auto: boolean;
   createdAt: IsoTimestamp;
 }
 
@@ -74,6 +86,10 @@ export interface StatusPageView {
   slug: string;
   description: string | null;
   monitorIds: Uuid[];
+  customDomain: string | null;
+  domainToken: string | null;
+  domainVerified: boolean;
+  subscribers: number;
   updates: StatusUpdateView[];
   createdAt: IsoTimestamp;
 }

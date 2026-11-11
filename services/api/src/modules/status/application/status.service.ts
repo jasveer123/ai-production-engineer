@@ -1,5 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, gte, inArray, sql } from 'drizzle-orm';
+import { randomBytes } from 'node:crypto';
+import dns from 'node:dns/promises';
+import { and, asc, desc, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm';
 import {
   HISTORY_DAYS,
   type ComponentState,
@@ -15,6 +17,7 @@ import {
 } from '@ape/api-contracts';
 import { ApiException, notFound } from '../../../core/common/errors';
 import type { ActorContext } from '../../../core/common/request-context';
+import { SubscribersService } from './subscribers.service';
 import { DB } from '../../../core/db/database.module';
 import type { Database } from '../../../core/db/client';
 import {
@@ -36,12 +39,18 @@ const toUpdate = (row: UpdateRow): StatusUpdateView => ({
   title: row.title,
   body: row.body,
   state: row.state as UpdateState,
+  auto: row.auto,
   createdAt: row.createdAt.toISOString(),
 });
 
 @Injectable()
 export class StatusService {
-  constructor(@Inject(DB) private readonly db: Database) {}
+  resolveTxt: (host: string) => Promise<string[][]> = (host) => dns.resolveTxt(host);
+
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    private readonly subscribers: SubscribersService,
+  ) {}
 
   private async monitorIds(pageId: string): Promise<string[]> {
     const rows = await this.db
@@ -65,6 +74,10 @@ export class StatusService {
       slug: row.slug,
       description: row.description,
       monitorIds: await this.monitorIds(row.id),
+      customDomain: row.customDomain,
+      domainToken: row.customDomain ? row.domainToken : null,
+      domainVerified: Boolean(row.domainVerifiedAt),
+      subscribers: await this.subscribers.count(row.id),
       updates: updates.map(toUpdate),
       createdAt: row.createdAt.toISOString(),
     };
@@ -137,12 +150,28 @@ export class StatusService {
     id: string,
     input: UpdateStatusPageInput,
   ): Promise<StatusPageView> {
-    await this.find(actor, id);
+    const current = await this.find(actor, id);
+    let domainPatch = {};
+    if (input.customDomain !== undefined && input.customDomain !== current.customDomain) {
+      if (input.customDomain) {
+        const [taken] = await this.db
+          .select({ id: statusPages.id })
+          .from(statusPages)
+          .where(eq(statusPages.customDomain, input.customDomain));
+        if (taken) throw new ApiException(409, 'domain_taken', 'That domain is already used');
+      }
+      domainPatch = {
+        customDomain: input.customDomain,
+        domainToken: input.customDomain ? randomBytes(12).toString('hex') : null,
+        domainVerifiedAt: null,
+      };
+    }
     const [row] = await this.db
       .update(statusPages)
       .set({
         ...(input.name ? { name: input.name } : {}),
         ...(input.description !== undefined ? { description: input.description || null } : {}),
+        ...domainPatch,
       })
       .where(eq(statusPages.id, id))
       .returning();
@@ -168,7 +197,51 @@ export class StatusService {
       body: input.body ?? '',
       state: input.state,
     });
+    await this.subscribers.notify(id, {
+      title: input.title,
+      body: input.body ?? '',
+      state: input.state,
+    });
     return this.toView(page);
+  }
+
+  async verifyDomain(actor: ActorContext, id: string): Promise<StatusPageView> {
+    const page = await this.find(actor, id);
+    if (!page.customDomain || !page.domainToken)
+      throw new ApiException(400, 'no_domain', 'Add a custom domain first');
+    let records: string[][] = [];
+    try {
+      records = await this.resolveTxt(`_pramaan.${page.customDomain}`);
+    } catch {
+      records = [];
+    }
+    const expected = `pramaan-verify=${page.domainToken}`;
+    if (!records.some((r) => r.join('') === expected))
+      throw new ApiException(
+        422,
+        'domain_not_verified',
+        `Add a TXT record at _pramaan.${page.customDomain} with the value ${expected}`,
+      );
+    const [row] = await this.db
+      .update(statusPages)
+      .set({ domainVerifiedAt: new Date() })
+      .where(eq(statusPages.id, id))
+      .returning();
+    return this.toView(row!);
+  }
+
+  async publicByDomain(host: string): Promise<PublicStatus> {
+    const [page] = await this.db
+      .select()
+      .from(statusPages)
+      .where(
+        and(
+          eq(statusPages.customDomain, host.toLowerCase()),
+          isNotNull(statusPages.domainVerifiedAt),
+        ),
+      );
+    if (!page) throw notFound('Status page');
+    return this.build(page);
   }
 
   async removeUpdate(actor: ActorContext, id: string, updateId: string): Promise<void> {
@@ -181,6 +254,10 @@ export class StatusService {
   async publicView(slug: string, now = new Date()): Promise<PublicStatus> {
     const [page] = await this.db.select().from(statusPages).where(eq(statusPages.slug, slug));
     if (!page) throw notFound('Status page');
+    return this.build(page, now);
+  }
+
+  private async build(page: PageRow, now = new Date()): Promise<PublicStatus> {
     const ids = await this.monitorIds(page.id);
     const monitors = ids.length
       ? await this.db.select().from(integrations).where(inArray(integrations.id, ids))
