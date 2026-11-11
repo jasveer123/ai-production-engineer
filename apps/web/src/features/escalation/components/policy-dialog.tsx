@@ -19,11 +19,12 @@ import {
 } from "@/components/ui"
 import { useSchedules, useWorkspaceMembers } from "@/features/oncall"
 import { SEVERITIES } from "../constants"
-import { useCreatePolicy } from "../hooks"
-import type { TargetRequest } from "../schemas"
+import { useCreatePolicy, useUpdatePolicy } from "../hooks"
+import type { Policy, TargetRequest } from "../schemas"
 
 interface PolicyDialogProps {
   workspaceId: string
+  policy?: Policy
 }
 
 interface DraftStep {
@@ -33,20 +34,30 @@ interface DraftStep {
 
 const EVERYONE = "everyone"
 
+const keyOfTarget = (target: Policy["steps"][number]["targets"][number]) =>
+  target.kind === "everyone" ? EVERYONE : `${target.kind}:${target.scheduleId ?? target.userId}`
+
 const toTarget = (key: string): TargetRequest => {
   if (key === EVERYONE) return { kind: "everyone" }
   const [kind, id] = key.split(":") as ["schedule" | "user", string]
   return kind === "schedule" ? { kind, scheduleId: id } : { kind, userId: id }
 }
 
-export function PolicyDialog({ workspaceId }: PolicyDialogProps) {
+export function PolicyDialog({ workspaceId, policy }: PolicyDialogProps) {
   const schedules = useSchedules(workspaceId)
   const members = useWorkspaceMembers(workspaceId)
-  const create = useCreatePolicy(workspaceId)
+  const createMutation = useCreatePolicy(workspaceId)
+  const updateMutation = useUpdatePolicy(workspaceId)
+  const pending = createMutation.isPending || updateMutation.isPending
   const [open, setOpen] = React.useState(false)
-  const [name, setName] = React.useState("")
-  const [severity, setSeverity] = React.useState<string>("high")
-  const [steps, setSteps] = React.useState<DraftStep[]>([{ waitMinutes: 0, targets: [] }])
+  const [name, setName] = React.useState(policy?.name ?? "")
+  const [severity, setSeverity] = React.useState<string>(policy?.minSeverity ?? "high")
+  const [steps, setSteps] = React.useState<DraftStep[]>(
+    policy?.steps.map((step) => ({
+      waitMinutes: step.waitMinutes,
+      targets: step.targets.map(keyOfTarget),
+    })) ?? [{ waitMinutes: 0, targets: [] }]
+  )
   const options = [
     { key: EVERYONE, label: "Everyone" },
     ...(schedules.data ?? []).map((s) => ({
@@ -70,29 +81,37 @@ export function PolicyDialog({ workspaceId }: PolicyDialogProps) {
   const onSubmit = (event: React.FormEvent) => {
     event.preventDefault()
     if (!valid) return
-    create.mutate(
-      {
-        name: name.trim(),
-        minSeverity: severity,
-        enabled: true,
-        steps: steps.map((step) => ({
-          waitMinutes: step.waitMinutes,
-          targets: step.targets.map(toTarget),
-        })),
-      },
-      { onSuccess: () => setOpen(false) }
-    )
+    const body = {
+      name: name.trim(),
+      minSeverity: severity,
+      enabled: policy?.enabled ?? true,
+      steps: steps.map((step) => ({
+        waitMinutes: step.waitMinutes,
+        targets: step.targets.map(toTarget),
+      })),
+    }
+    const done = { onSuccess: () => setOpen(false) }
+    if (policy) updateMutation.mutate({ id: policy.id, body }, done)
+    else createMutation.mutate(body, done)
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" />}>
-        <Plus /> New policy
+      <DialogTrigger
+        render={<Button size={policy ? "xs" : "sm"} variant={policy ? "outline" : "default"} />}
+      >
+        {policy ? (
+          "Edit"
+        ) : (
+          <>
+            <Plus /> New policy
+          </>
+        )}
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <form method="post" onSubmit={onSubmit} className="grid gap-4">
           <DialogHeader>
-            <DialogTitle>New escalation policy</DialogTitle>
+            <DialogTitle>{policy ? "Edit escalation policy" : "New escalation policy"}</DialogTitle>
             <DialogDescription>
               Each step emails people. If nobody acknowledges the incident, the next step runs after
               its wait.
@@ -167,8 +186,8 @@ export function PolicyDialog({ workspaceId }: PolicyDialogProps) {
             <Plus /> Add step
           </Button>
           <DialogFooter>
-            <Button type="submit" disabled={!valid || create.isPending}>
-              {create.isPending && <Spinner />} Save policy
+            <Button type="submit" disabled={!valid || pending}>
+              {pending && <Spinner />} Save policy
             </Button>
           </DialogFooter>
         </form>

@@ -260,6 +260,32 @@ export class MonitorsService {
     const patch: Record<string, unknown> = {};
     for (const key of ['intervalSeconds', 'timeoutSeconds', 'confirmations', 'paused'] as const)
       if (input[key] !== undefined) patch[key] = input[key];
+    const kind = (row.config as unknown as MonitorConfig).monitorKind;
+    const target: Array<keyof UpdateMonitorInput> =
+      kind === 'tcp'
+        ? ['host', 'port']
+        : [
+            'url',
+            ...(kind === 'status' ? (['expectedStatus'] as const) : []),
+            ...(kind === 'keyword' ? (['keyword', 'keywordMode'] as const) : []),
+          ];
+    for (const key of target) if (input[key] !== undefined) patch[key] = input[key];
+    if (patch.url !== undefined || patch.host !== undefined) {
+      const next = kind === 'tcp' ? `https://${String(patch.host)}` : String(patch.url);
+      if (patch.url !== undefined && !/^https?:\/\//i.test(next))
+        throw new ApiException(
+          HttpStatus.BAD_REQUEST,
+          'invalid_url',
+          'Use an http or https address',
+        );
+      try {
+        await checkOutboundUrl(next, this.policy);
+      } catch (err) {
+        if (err instanceof UnsafeUrlError)
+          throw new ApiException(HttpStatus.BAD_REQUEST, 'unsafe_target', err.message);
+        throw err;
+      }
+    }
     const [updated] = await this.db
       .update(integrations)
       .set({

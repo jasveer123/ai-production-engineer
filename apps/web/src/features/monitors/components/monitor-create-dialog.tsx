@@ -18,25 +18,29 @@ import {
   Spinner,
 } from "@/components/ui"
 import { CONFIRMATIONS, INTERVALS, KINDS } from "../constants"
-import { useCreateMonitor } from "../hooks"
+import { useCreateMonitor, useUpdateMonitor } from "../hooks"
+import type { Monitor } from "../schemas"
 
 interface MonitorCreateDialogProps {
   workspaceId: string
+  monitor?: Monitor
 }
 
-export function MonitorCreateDialog({ workspaceId }: MonitorCreateDialogProps) {
+export function MonitorCreateDialog({ workspaceId, monitor }: MonitorCreateDialogProps) {
   const [open, setOpen] = React.useState(false)
-  const [kind, setKind] = React.useState("http")
-  const [name, setName] = React.useState("")
-  const [url, setUrl] = React.useState("")
-  const [host, setHost] = React.useState("")
-  const [port, setPort] = React.useState("")
-  const [keyword, setKeyword] = React.useState("")
-  const [absent, setAbsent] = React.useState(false)
-  const [status, setStatus] = React.useState("200")
-  const [interval, setInterval] = React.useState<number>(180)
-  const [confirmations, setConfirmations] = React.useState<number>(2)
-  const create = useCreateMonitor(workspaceId)
+  const [kind, setKind] = React.useState(monitor?.kind ?? "http")
+  const [name, setName] = React.useState(monitor?.name ?? "")
+  const [url, setUrl] = React.useState(monitor?.url ?? "")
+  const [host, setHost] = React.useState(monitor?.host ?? "")
+  const [port, setPort] = React.useState(monitor?.port ? String(monitor.port) : "")
+  const [keyword, setKeyword] = React.useState(monitor?.keyword ?? "")
+  const [absent, setAbsent] = React.useState(monitor?.keywordMode === "absent")
+  const [status, setStatus] = React.useState(String(monitor?.expectedStatus ?? 200))
+  const [interval, setInterval] = React.useState<number>(monitor?.intervalSeconds ?? 180)
+  const [confirmations, setConfirmations] = React.useState<number>(monitor?.confirmations ?? 2)
+  const createMutation = useCreateMonitor(workspaceId)
+  const updateMutation = useUpdateMonitor(workspaceId)
+  const pending = createMutation.isPending || updateMutation.isPending
   const tcp = kind === "tcp"
   const valid =
     name.trim() &&
@@ -47,7 +51,26 @@ export function MonitorCreateDialog({ workspaceId }: MonitorCreateDialogProps) {
   const onSubmit = (event: React.FormEvent) => {
     event.preventDefault()
     if (!valid) return
-    create.mutate(
+    if (monitor) {
+      updateMutation.mutate(
+        {
+          id: monitor.id,
+          body: {
+            name: name.trim(),
+            intervalSeconds: interval,
+            confirmations,
+            ...(tcp ? { host: host.trim(), port: Number(port) } : { url: url.trim() }),
+            ...(kind === "keyword"
+              ? { keyword: keyword.trim(), keywordMode: absent ? "absent" : "present" }
+              : {}),
+            ...(kind === "status" ? { expectedStatus: Number(status) } : {}),
+          },
+        },
+        { onSuccess: () => setOpen(false) }
+      )
+      return
+    }
+    createMutation.mutate(
       {
         name: name.trim(),
         kind,
@@ -71,16 +94,22 @@ export function MonitorCreateDialog({ workspaceId }: MonitorCreateDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" />}>
-        <Plus /> New monitor
+      <DialogTrigger render={<Button size="sm" variant={monitor ? "outline" : "default"} />}>
+        {monitor ? (
+          "Edit"
+        ) : (
+          <>
+            <Plus /> New monitor
+          </>
+        )}
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <form method="post" onSubmit={onSubmit} className="grid gap-4">
           <DialogHeader>
-            <DialogTitle>New monitor</DialogTitle>
+            <DialogTitle>{monitor ? "Edit monitor" : "New monitor"}</DialogTitle>
             <DialogDescription>{KINDS.find((item) => item.value === kind)?.hint}</DialogDescription>
           </DialogHeader>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2" hidden={Boolean(monitor)}>
             {KINDS.map((item) => (
               <Chip
                 key={item.value}
@@ -191,8 +220,8 @@ export function MonitorCreateDialog({ workspaceId }: MonitorCreateDialogProps) {
             </div>
           </div>
           <DialogFooter>
-            <Button type="submit" disabled={!valid || create.isPending}>
-              {create.isPending && <Spinner />} Create monitor
+            <Button type="submit" disabled={!valid || pending}>
+              {pending && <Spinner />} {monitor ? "Save monitor" : "Create monitor"}
             </Button>
           </DialogFooter>
         </form>

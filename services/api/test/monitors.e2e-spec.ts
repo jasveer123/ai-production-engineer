@@ -177,4 +177,25 @@ describe('Uptime monitors (e2e)', () => {
       .expect(400);
     await request(app.getHttpServer()).get(`/workspaces/${ws}/monitors`).expect(401);
   });
+
+  it('edits the target and rejects a non-http address', async () => {
+    const { owner, ws } = await setup();
+    const created = (await create(owner, ws).expect(201)).body as MonitorView;
+    const edited = (
+      await owner
+        .patch(`/workspaces/${ws}/monitors/${created.id}`)
+        .send({ name: 'Renamed', url: `${url}other`, keyword: 'world', keywordMode: 'absent' })
+        .expect(200)
+    ).body as MonitorView;
+    expect(edited).toMatchObject({
+      name: 'Renamed',
+      url: `${url}other`,
+      keyword: 'world',
+      keywordMode: 'absent',
+    });
+    await owner
+      .patch(`/workspaces/${ws}/monitors/${created.id}`)
+      .send({ url: 'ftp://example.com' })
+      .expect(400);
+  });
 });

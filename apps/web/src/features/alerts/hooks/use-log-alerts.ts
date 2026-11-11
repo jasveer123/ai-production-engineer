@@ -27,6 +27,16 @@ export function useCreateLogAlert(workspaceId: string) {
   })
 }
 
+export function useUpdateLogAlert(workspaceId: string) {
+  const refresh = useRefresh(workspaceId)
+  return useMutation({
+    meta: { successMessage: "Log alert saved" },
+    mutationFn: ({ id, body }: { id: string; body: Partial<LogAlertRequest> }) =>
+      logAlertsService.update(workspaceId, id, body),
+    onSuccess: refresh,
+  })
+}
+
 export function usePauseLogAlert(workspaceId: string) {
   const refresh = useRefresh(workspaceId)
   return useMutation({

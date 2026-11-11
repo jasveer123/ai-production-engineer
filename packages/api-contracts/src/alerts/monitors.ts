@@ -43,6 +43,12 @@ export const updateMonitorSchema = z.object({
   timeoutSeconds: baseMonitor.shape.timeoutSeconds.optional(),
   confirmations: baseMonitor.shape.confirmations.optional(),
   paused: z.boolean().optional(),
+  url: baseMonitor.shape.url,
+  host: baseMonitor.shape.host,
+  port: baseMonitor.shape.port,
+  expectedStatus: baseMonitor.shape.expectedStatus,
+  keyword: baseMonitor.shape.keyword,
+  keywordMode: z.enum(KEYWORD_MODES).optional(),
 });
 export type UpdateMonitorInput = z.infer<typeof updateMonitorSchema>;
 

@@ -36,6 +36,16 @@ export function useCreatePolicy(workspaceId: string) {
   })
 }
 
+export function useUpdatePolicy(workspaceId: string) {
+  const refresh = useRefresh(workspaceId)
+  return useMutation({
+    meta: { successMessage: "Policy saved" },
+    mutationFn: ({ id, body }: { id: string; body: Partial<PolicyRequest> }) =>
+      escalationService.update(workspaceId, id, body),
+    onSuccess: refresh,
+  })
+}
+
 export function useTogglePolicy(workspaceId: string) {
   const refresh = useRefresh(workspaceId)
   return useMutation({

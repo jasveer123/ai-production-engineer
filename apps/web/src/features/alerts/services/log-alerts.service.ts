@@ -11,7 +11,11 @@ export const logAlertsService = {
   create: (workspaceId: string, body: LogAlertRequest) =>
     http.post<LogAlert>(LOG_ALERTS_ENDPOINTS.LIST(workspaceId), body, { schema: logAlertSchema }),
 
-  update: (workspaceId: string, id: string, body: { paused: boolean }) =>
+  update: (
+    workspaceId: string,
+    id: string,
+    body: Partial<LogAlertRequest> & { paused?: boolean }
+  ) =>
     http.patch<LogAlert>(LOG_ALERTS_ENDPOINTS.ONE(workspaceId, id), body, {
       schema: logAlertSchema,
     }),

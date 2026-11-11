@@ -18,6 +18,8 @@ export type CreateLogAlertInput = z.input<typeof createLogAlertSchema>;
 
 export const updateLogAlertSchema = createLogAlertSchema.partial().extend({
   paused: z.boolean().optional(),
+  service: z.string().trim().min(1).max(120).nullable().optional(),
+  contains: z.string().trim().min(1).max(200).nullable().optional(),
 });
 export type UpdateLogAlertInput = z.infer<typeof updateLogAlertSchema>;
 

@@ -2,6 +2,7 @@
 
 import { Badge, Button } from "@/components/ui"
 import { ConfirmDialog } from "@/components/shared"
+import { PolicyDialog } from "./policy-dialog"
 import { useDeletePolicy, useTogglePolicy } from "../hooks"
 import type { Policy } from "../schemas"
 
@@ -25,6 +26,7 @@ export function PolicyCard({ workspaceId, policy, canManage }: PolicyCardProps) 
         </div>
         {canManage && (
           <div className="flex gap-2">
+            <PolicyDialog workspaceId={workspaceId} policy={policy} />
             <Button
               size="xs"
               variant="outline"

@@ -102,8 +102,8 @@ export type LogAlert = z.infer<typeof logAlertSchema>
 export interface LogAlertRequest {
   name: string
   levels: string[]
-  service?: string
-  contains?: string
+  service?: string | null
+  contains?: string | null
   threshold: number
   windowMinutes: number
   severity: string

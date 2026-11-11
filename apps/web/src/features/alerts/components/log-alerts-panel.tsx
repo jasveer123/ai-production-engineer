@@ -63,6 +63,7 @@ export function LogAlertsPanel({ workspaceId, canManage }: LogAlertsPanelProps) 
                   </Button>
                   {canManage && (
                     <>
+                      <LogAlertDialog workspaceId={workspaceId} alert={item} />
                       <Button
                         size="xs"
                         variant="outline"

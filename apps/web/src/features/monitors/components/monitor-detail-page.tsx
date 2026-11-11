@@ -21,6 +21,7 @@ import { ROUTES } from "@/lib/constants/routes"
 import { formatDateTime, formatRelativeTime } from "@/lib/format/relative-time"
 import { KIND_LABEL, STATE_LABEL, STATE_VARIANT } from "../constants"
 import { useCheckNow, useDeleteMonitor, useMonitor, useUpdateMonitor } from "../hooks"
+import { MonitorCreateDialog } from "./monitor-create-dialog"
 import { MonitorTarget } from "./monitor-target"
 import { ResponseChart } from "./response-chart"
 
@@ -108,6 +109,7 @@ export function MonitorDetailPage() {
               >
                 {data.paused ? <Play /> : <Pause />} {data.paused ? "Resume" : "Pause"}
               </Button>
+              <MonitorCreateDialog workspaceId={workspace.id} monitor={data} />
               <ConfirmDialog
                 triggerLabel="Delete"
                 title={`Delete ${data.name}?`}

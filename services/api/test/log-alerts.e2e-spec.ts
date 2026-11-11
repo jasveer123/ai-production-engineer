@@ -92,4 +92,22 @@ describe('Log alerts (e2e)', () => {
     const eng = await loginAs(app, 'eng@logalerts2.test');
     await eng.post(`/workspaces/${ws}/log-alerts`).send({ name: 'x' }).expect(403);
   });
+
+  it('edits a rule and clears optional filters', async () => {
+    const owner = await loginAs(app, 'owner@logalerts3.test');
+    const ws = (await createWorkspace(owner, 'LogAlerts3')).id;
+    const alert = (
+      await owner
+        .post(`/workspaces/${ws}/log-alerts`)
+        .send({ name: 'A', service: 'checkout', contains: 'timeout' })
+        .expect(201)
+    ).body as LogAlertView;
+    const edited = (
+      await owner
+        .patch(`/workspaces/${ws}/log-alerts/${alert.id}`)
+        .send({ name: 'B', service: null, contains: null, threshold: 4 })
+        .expect(200)
+    ).body as LogAlertView;
+    expect(edited).toMatchObject({ name: 'B', service: null, contains: null, threshold: 4 });
+  });
 });

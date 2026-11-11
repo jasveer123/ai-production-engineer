@@ -18,34 +18,51 @@ import {
   Spinner,
 } from "@/components/ui"
 import { LOG_ALERT_SEVERITIES, LOG_LEVEL_OPTIONS } from "../constants"
-import { useCreateLogAlert } from "../hooks"
+import { useCreateLogAlert, useUpdateLogAlert } from "../hooks"
+import type { LogAlert } from "../schemas"
 
 interface LogAlertDialogProps {
   workspaceId: string
+  alert?: LogAlert
 }
 
-export function LogAlertDialog({ workspaceId }: LogAlertDialogProps) {
+export function LogAlertDialog({ workspaceId, alert }: LogAlertDialogProps) {
   const create = useCreateLogAlert(workspaceId)
+  const update = useUpdateLogAlert(workspaceId)
+  const pending = create.isPending || update.isPending
   const [open, setOpen] = React.useState(false)
-  const [name, setName] = React.useState("")
-  const [levels, setLevels] = React.useState<string[]>(["error", "fatal"])
-  const [service, setService] = React.useState("")
-  const [contains, setContains] = React.useState("")
-  const [threshold, setThreshold] = React.useState(10)
-  const [windowMinutes, setWindowMinutes] = React.useState(5)
-  const [severity, setSeverity] = React.useState("high")
+  const [name, setName] = React.useState(alert?.name ?? "")
+  const [levels, setLevels] = React.useState<string[]>(alert?.levels ?? ["error", "fatal"])
+  const [service, setService] = React.useState(alert?.service ?? "")
+  const [contains, setContains] = React.useState(alert?.contains ?? "")
+  const [threshold, setThreshold] = React.useState(alert?.threshold ?? 10)
+  const [windowMinutes, setWindowMinutes] = React.useState(alert?.windowMinutes ?? 5)
+  const [severity, setSeverity] = React.useState(alert?.severity ?? "high")
   const valid = name.trim() && levels.length > 0 && threshold >= 1 && windowMinutes >= 1
 
   const onSubmit = (event: React.FormEvent) => {
     event.preventDefault()
     if (!valid) return
+    const body = {
+      name: name.trim(),
+      levels,
+      threshold,
+      windowMinutes,
+      severity,
+    }
+    if (alert) {
+      update.mutate(
+        {
+          id: alert.id,
+          body: { ...body, service: service.trim() || null, contains: contains.trim() || null },
+        },
+        { onSuccess: () => setOpen(false) }
+      )
+      return
+    }
     create.mutate(
       {
-        name: name.trim(),
-        levels,
-        threshold,
-        windowMinutes,
-        severity,
+        ...body,
         ...(service.trim() ? { service: service.trim() } : {}),
         ...(contains.trim() ? { contains: contains.trim() } : {}),
       },
@@ -55,13 +72,19 @@ export function LogAlertDialog({ workspaceId }: LogAlertDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" />}>
-        <Plus /> New log alert
+      <DialogTrigger render={<Button size="sm" variant={alert ? "outline" : "default"} />}>
+        {alert ? (
+          "Edit"
+        ) : (
+          <>
+            <Plus /> New log alert
+          </>
+        )}
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <form method="post" onSubmit={onSubmit} className="grid gap-4">
           <DialogHeader>
-            <DialogTitle>New log alert</DialogTitle>
+            <DialogTitle>{alert ? "Edit log alert" : "New log alert"}</DialogTitle>
             <DialogDescription>
               Raise an alert when enough matching logs arrive in a short time. It resolves itself
               when the logs calm down.
@@ -142,8 +165,8 @@ export function LogAlertDialog({ workspaceId }: LogAlertDialogProps) {
             </div>
           </div>
           <DialogFooter>
-            <Button type="submit" disabled={!valid || create.isPending}>
-              {create.isPending && <Spinner />} Create alert
+            <Button type="submit" disabled={!valid || pending}>
+              {pending && <Spinner />} {alert ? "Save alert" : "Create alert"}
             </Button>
           </DialogFooter>
         </form>

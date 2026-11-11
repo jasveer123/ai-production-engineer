@@ -67,4 +67,10 @@ export interface UpdateMonitorRequest {
   paused?: boolean
   intervalSeconds?: number
   confirmations?: number
+  url?: string
+  host?: string
+  port?: number
+  expectedStatus?: number
+  keyword?: string
+  keywordMode?: string
 }
