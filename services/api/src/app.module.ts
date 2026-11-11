@@ -15,6 +15,7 @@ import { IncidentsModule } from './modules/incidents/incidents.module';
 import { IngestionModule } from './ingest/ingestion/ingestion.module';
 import { InvestigationsModule } from './modules/investigations/investigations.module';
 import { AssistantModule } from './modules/assistant/assistant.module';
+import { RumModule } from './modules/rum/rum.module';
 import { ErrorsModule } from './modules/errors/errors.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
 import { StatusModule } from './modules/status/status.module';
@@ -53,6 +54,7 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     StatusModule,
     MetricsModule,
     ErrorsModule,
+    RumModule,
     AssistantModule,
     RealtimeModule,
     QualityModule,

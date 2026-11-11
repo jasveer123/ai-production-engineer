@@ -59,6 +59,17 @@ export function configureApp(app: INestApplication, env: ApiEnv): void {
       },
     }),
   );
+  app.use('/v1/rum', (req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'content-type, content-encoding');
+    res.setHeader('Access-Control-Max-Age', '86400');
+    if (req.method === 'OPTIONS') {
+      res.status(204).end();
+      return;
+    }
+    next();
+  });
   app.enableCors({ origin: env.WEB_URL, credentials: true });
   app.enableShutdownHooks();
 }

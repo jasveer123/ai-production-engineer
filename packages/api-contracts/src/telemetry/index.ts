@@ -4,3 +4,4 @@ export * from './live';
 export * from './logs';
 export * from './metrics';
 export * from './errors';
+export * from './rum';
