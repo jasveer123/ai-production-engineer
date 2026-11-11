@@ -8,5 +8,6 @@ export * from './tables/ingestion';
 export * from './tables/integrations-and-services';
 export * from './tables/investigation';
 export * from './tables/notifications';
+export * from './tables/oncall';
 export * from './tables/telemetry-ingest';
 export * from './tables/types';

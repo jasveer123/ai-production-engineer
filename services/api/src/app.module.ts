@@ -15,6 +15,7 @@ import { IncidentsModule } from './modules/incidents/incidents.module';
 import { IngestionModule } from './ingest/ingestion/ingestion.module';
 import { InvestigationsModule } from './modules/investigations/investigations.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { OncallModule } from './modules/oncall/oncall.module';
 import { QualityModule } from './modules/quality/quality.module';
 import { RealtimeModule } from './core/realtime/realtime.module';
 import { SecretsModule } from './core/secrets/secrets.module';
@@ -42,6 +43,7 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     SetupModule,
     InvestigationsModule,
     NotificationsModule,
+    OncallModule,
     RealtimeModule,
     QualityModule,
     DeploymentsModule,
