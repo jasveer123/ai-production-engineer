@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Users,
   BellRing,
+  HeartPulse,
   GitPullRequest,
   Settings,
   Siren,
@@ -26,7 +27,6 @@ export interface PlaceholderItem {
 
 export const PLACEHOLDER_ITEMS: PlaceholderItem[] = [
   { label: "Metrics", icon: ChartLine },
-  { label: "Alerts", icon: BellRing },
   { label: "Team", icon: Users },
   { label: "Settings", icon: Settings },
 ]
@@ -35,6 +35,8 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: ROUTES.dashboard, icon: LayoutDashboard },
   { label: "Incidents", href: ROUTES.incidents, icon: Siren },
   { label: "Fixes", href: ROUTES.fixes, icon: GitPullRequest },
+  { label: "Alerts", href: ROUTES.alerts, icon: BellRing },
+  { label: "Heartbeats", href: ROUTES.heartbeats, icon: HeartPulse },
   { label: "Live tail", href: ROUTES.liveTail, icon: Radio },
   { label: "Services", href: ROUTES.services, icon: Layers },
   { label: "Integrations", href: ROUTES.integrations, icon: Blocks },

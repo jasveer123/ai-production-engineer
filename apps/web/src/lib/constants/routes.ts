@@ -13,6 +13,8 @@ export const ROUTES = {
   incidents: "/incidents",
   incidentDetail: (id: string) => `/incidents/${id}`,
   fixes: "/fixes",
+  alerts: "/alerts",
+  heartbeats: "/heartbeats",
   integrations: "/integrations",
   integrationDetail: (id: string) => `/integrations/${id}`,
   collectorDocs: (anchor?: string) => `/docs/collector${anchor ? `#${anchor}` : ""}`,

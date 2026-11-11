@@ -15,8 +15,8 @@ Rule for every feature: build it, test it, commit it, then move to the next.
 | AI investigation, ranked causes, evidence | Built (needs AI workers running) |
 | Fix proposals, approve, reject, redraft | Built (needs AI workers running) |
 | Verification after deploy | Built |
-| Alert sources and routes (screens) | Backend built, screens missing |
-| Heartbeats (screens) | Backend built, screens missing |
+| Alert sources, routes and alert feed (screens) | Built |
+| Heartbeats (screens) | Built |
 | Monitors (uptime checks) | Not started |
 | On-call schedules | Not started |
 | Escalation policies | Not started |
