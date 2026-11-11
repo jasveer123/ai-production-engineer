@@ -9,13 +9,16 @@ import { ACTOR_ROLES } from "@/lib/constants/roles"
 import { ROUTES } from "@/lib/constants/routes"
 import { formatDateTime, formatRelativeTime } from "@/lib/format/relative-time"
 import { STATUS_VARIANT } from "../constants"
-import { useError, useSetErrorStatus } from "../hooks"
+import { useMembers } from "@/features/settings"
+import { Chip } from "@/components/ui"
+import { useError, useUpdateError } from "../hooks"
 
 export function ErrorDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { workspace, isPending } = useCurrentWorkspace()
   const error = useError(workspace?.id, id)
-  const setStatus = useSetErrorStatus(workspace?.id ?? "", id)
+  const setStatus = useUpdateError(workspace?.id ?? "", id)
+  const members = useMembers(workspace?.id)
 
   if (isPending || (workspace && error.isPending)) {
     return (
@@ -63,7 +66,7 @@ export function ErrorDetailPage() {
             <Button
               size="sm"
               disabled={setStatus.isPending}
-              onClick={() => setStatus.mutate("resolved")}
+              onClick={() => setStatus.mutate({ status: "resolved" })}
             >
               Resolve
             </Button>
@@ -73,7 +76,7 @@ export function ErrorDetailPage() {
               size="sm"
               variant="outline"
               disabled={setStatus.isPending}
-              onClick={() => setStatus.mutate("ignored")}
+              onClick={() => setStatus.mutate({ status: "ignored" })}
             >
               Ignore
             </Button>
@@ -83,7 +86,7 @@ export function ErrorDetailPage() {
               size="sm"
               variant="outline"
               disabled={setStatus.isPending}
-              onClick={() => setStatus.mutate("unresolved")}
+              onClick={() => setStatus.mutate({ status: "unresolved" })}
             >
               Reopen
             </Button>
@@ -116,10 +119,36 @@ export function ErrorDetailPage() {
           ))}
         </div>
       </section>
+      {canAct && (
+        <section className="grid gap-2" aria-label="Assignee">
+          <Eyebrow>Assigned to</Eyebrow>
+          <div className="flex flex-wrap gap-2">
+            <Chip
+              selected={!data.assignee}
+              disabled={setStatus.isPending}
+              onClick={() => setStatus.mutate({ assigneeId: null })}
+            >
+              Nobody
+            </Chip>
+            {(members.data ?? []).map((member) => (
+              <Chip
+                key={member.userId}
+                selected={data.assignee?.userId === member.userId}
+                disabled={setStatus.isPending}
+                onClick={() => setStatus.mutate({ assigneeId: member.userId })}
+              >
+                {member.name ?? member.email}
+              </Chip>
+            ))}
+          </div>
+        </section>
+      )}
       {data.stack.length > 0 && (
         <section className="grid gap-2">
-          <Eyebrow>Stack trace</Eyebrow>
-          <CodeBlock>{data.stack.join("\n")}</CodeBlock>
+          <Eyebrow>
+            {data.symbolicated ? "Stack trace (from your source maps)" : "Stack trace"}
+          </Eyebrow>
+          <CodeBlock>{(data.symbolicated ?? data.stack).join("\n")}</CodeBlock>
         </section>
       )}
       <section className="grid gap-2">
