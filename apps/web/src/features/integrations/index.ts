@@ -1,3 +1,4 @@
 export * from "./catalog"
 export * from "./components"
 export { useIngestOverview, useOpenIncidents, useUsage } from "./hooks"
+export { useSiteOrigin } from "./hooks/use-site-origin"
