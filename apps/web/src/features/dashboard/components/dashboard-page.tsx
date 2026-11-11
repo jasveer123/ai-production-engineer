@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Spinner } from "@/components/ui"
 import { useCurrentWorkspace } from "@/features/auth"
+import { TodayStory } from "./today-story"
 import {
   INTEGRATIONS,
   OverviewHero,
@@ -39,6 +40,7 @@ export function DashboardPage() {
   return (
     <div className="grid min-w-0 gap-8">
       <PageHeading workspaceName={workspace.name} title="Dashboard" />
+      <TodayStory workspaceId={workspace.id} />
       <OverviewHero
         workspaceId={workspace.id}
         overview={overview}

@@ -1,33 +1,29 @@
 "use client"
 
 import * as React from "react"
-import { Menu } from "lucide-react"
-import {
-  Button,
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from "@/components/ui"
+import { Menu, X } from "lucide-react"
+import { Button } from "@/components/ui"
 import { NavList } from "./nav-list"
 
 export function MobileNav() {
   const [open, setOpen] = React.useState(false)
 
   return (
-    <Drawer open={open} onOpenChange={setOpen}>
-      <DrawerTrigger
-        render={<Button variant="ghost" size="icon" className="lg:hidden" aria-label="Open menu" />}
+    <div className="lg:hidden">
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={open ? "Close menu" : "Open menu"}
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
       >
-        <Menu />
-      </DrawerTrigger>
-      <DrawerContent className="right-auto left-0 max-w-72 border-r border-l-0 data-open:slide-in-from-left data-closed:slide-out-to-left">
-        <DrawerHeader>
-          <DrawerTitle>Menu</DrawerTitle>
-        </DrawerHeader>
-        <NavList onNavigate={() => setOpen(false)} />
-      </DrawerContent>
-    </Drawer>
+        {open ? <X /> : <Menu />}
+      </Button>
+      {open && (
+        <div className="fixed inset-x-0 top-14 bottom-0 z-40 overflow-y-auto bg-panel py-4">
+          <NavList onNavigate={() => setOpen(false)} />
+        </div>
+      )}
+    </div>
   )
 }
