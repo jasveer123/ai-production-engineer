@@ -2,7 +2,7 @@
 
 import { Button, Spinner } from "@/components/ui"
 import { MANUAL_TRANSITION_LABEL, TRANSITIONS } from "../constants"
-import { useIncidentAction, useTransition } from "../hooks"
+import { useAcknowledge, useIncidentAction, useTransition } from "../hooks"
 import type { Incident } from "../schemas"
 
 interface IncidentActionsProps {
@@ -11,11 +11,13 @@ interface IncidentActionsProps {
   canAct: boolean
 }
 
+const CLOSED = ["resolved", "closed_without_fix", "verified"]
 const CAN_INVESTIGATE = ["detected", "needs_attention", "validation_failed"]
 
 export function IncidentActions({ workspaceId, incident, canAct }: IncidentActionsProps) {
   const transition = useTransition(workspaceId, incident.id)
   const action = useIncidentAction(workspaceId, incident.id)
+  const acknowledge = useAcknowledge(workspaceId, incident.id)
   const manual = (TRANSITIONS[incident.status] ?? []).filter((to) => to in MANUAL_TRANSITION_LABEL)
   const busy = transition.isPending || action.isPending
 
@@ -23,6 +25,16 @@ export function IncidentActions({ workspaceId, incident, canAct }: IncidentActio
 
   return (
     <div className="flex flex-wrap gap-2">
+      {!incident.acknowledgedAt && !CLOSED.includes(incident.status) && (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={acknowledge.isPending}
+          onClick={() => acknowledge.mutate()}
+        >
+          {acknowledge.isPending && <Spinner />} Acknowledge
+        </Button>
+      )}
       {CAN_INVESTIGATE.includes(incident.status) && (
         <Button size="sm" disabled={busy} onClick={() => action.mutate({ action: "investigate" })}>
           {action.isPending && <Spinner />} Investigate now

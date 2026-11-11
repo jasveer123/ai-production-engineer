@@ -15,6 +15,7 @@ export const incidentSchema = z.object({
   firstSeenAt: z.string(),
   lastSeenAt: z.string(),
   version: z.number(),
+  acknowledgedAt: z.string().nullable(),
   createdAt: z.string(),
 })
 export type Incident = z.infer<typeof incidentSchema>

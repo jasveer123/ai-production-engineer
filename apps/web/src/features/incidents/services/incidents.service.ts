@@ -41,6 +41,13 @@ export const incidentsService = {
       schema: z.array(timelineEntrySchema),
     }),
 
+  acknowledge: (workspaceId: string, id: string) =>
+    http.post<Incident>(
+      INCIDENTS_ENDPOINTS.ACKNOWLEDGE(workspaceId, id),
+      {},
+      { schema: incidentSchema }
+    ),
+
   transition: (workspaceId: string, id: string, body: TransitionRequest) =>
     http.post<Incident>(INCIDENTS_ENDPOINTS.TRANSITION(workspaceId, id), body, {
       schema: incidentSchema,

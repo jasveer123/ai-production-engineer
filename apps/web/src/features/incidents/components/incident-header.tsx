@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui"
 import { formatRelativeTime } from "@/lib/format/relative-time"
 import type { Incident } from "../schemas"
 import { IncidentActions } from "./incident-actions"
@@ -28,6 +29,9 @@ export function IncidentHeader({ workspaceId, incident, canAct }: IncidentHeader
           <div className="flex flex-wrap items-center gap-2">
             <SeverityBadge severity={incident.severity} />
             <IncidentStatusBadge status={incident.status} />
+            {incident.acknowledgedAt && (
+              <Badge>acknowledged {formatRelativeTime(incident.acknowledgedAt)}</Badge>
+            )}
             <span className="font-mono text-[0.75rem] text-muted-foreground">
               {incident.source}
             </span>

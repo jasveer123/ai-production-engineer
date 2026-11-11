@@ -1,5 +1,6 @@
 export * from "./alerts.endpoints"
 export * from "./auth.endpoints"
+export * from "./escalation.endpoints"
 export * from "./incidents.endpoints"
 export * from "./ingest.endpoints"
 export * from "./monitors.endpoints"

@@ -3,6 +3,8 @@ export const INCIDENTS_ENDPOINTS = {
   ONE: (workspaceId: string, id: string) => `/workspaces/${workspaceId}/incidents/${id}`,
   TIMELINE: (workspaceId: string, id: string) =>
     `/workspaces/${workspaceId}/incidents/${id}/timeline`,
+  ACKNOWLEDGE: (workspaceId: string, id: string) =>
+    `/workspaces/${workspaceId}/incidents/${id}/acknowledge`,
   TRANSITION: (workspaceId: string, id: string) =>
     `/workspaces/${workspaceId}/incidents/${id}/transitions`,
   INVESTIGATION: (workspaceId: string, id: string) =>

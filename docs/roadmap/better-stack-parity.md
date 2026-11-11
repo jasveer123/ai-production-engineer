@@ -19,7 +19,7 @@ Rule for every feature: build it, test it, commit it, then move to the next.
 | Heartbeats (screens) | Built |
 | Monitors (uptime checks): website, keyword, status code, port | Built |
 | On-call schedules: rotations, overrides, who is on call | Built |
-| Escalation policies | Not started |
+| Escalation policies | Built: steps, email, acknowledge |
 | Notifications: Slack, webhook (screens, history) | Built |
 | Notifications: email | Not started |
 | Notifications: SMS, call, push | Not started (needs a paid provider) |

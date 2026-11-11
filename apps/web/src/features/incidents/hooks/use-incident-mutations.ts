@@ -22,6 +22,15 @@ export function useTransition(workspaceId: string, id: string) {
   })
 }
 
+export function useAcknowledge(workspaceId: string, id: string) {
+  const refresh = useRefresh(workspaceId)
+  return useMutation({
+    meta: { successMessage: "Acknowledged" },
+    mutationFn: () => incidentsService.acknowledge(workspaceId, id),
+    onSuccess: refresh,
+  })
+}
+
 export function useIncidentAction(workspaceId: string, id: string) {
   const refresh = useRefresh(workspaceId)
   return useMutation({
