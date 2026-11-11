@@ -325,6 +325,24 @@ function parseHeartbeat(payload: unknown, now: Date): ParsedAlert[] {
   ];
 }
 
+function parseMonitor(payload: unknown, now: Date): ParsedAlert[] {
+  const p = payload as { status?: string; name?: string; target?: string; reason?: string };
+  const name = text(p?.name, 200) ?? 'monitor';
+  const firing = p?.status !== 'resolved';
+  return [
+    {
+      dedupKey: 'monitor',
+      status: firing ? 'firing' : 'resolved',
+      title: `Monitor "${name}" is ${firing ? 'down' : 'back up'}`,
+      description: text(p?.reason, 500),
+      severity: 'high',
+      labels: { monitor: name, ...(p?.target ? { target: text(p.target, 300) ?? '' } : {}) },
+      sourceUrl: null,
+      occurredAt: now,
+    },
+  ];
+}
+
 export function parseAlerts(kind: string, payload: unknown, now = new Date()): ParsedAlert[] {
   switch (kind) {
     case 'http':
@@ -344,6 +362,8 @@ export function parseAlerts(kind: string, payload: unknown, now = new Date()): P
       return parseElasticsearch(payload, now);
     case 'heartbeat':
       return parseHeartbeat(payload, now);
+    case 'monitor':
+      return parseMonitor(payload, now);
     default:
       throw new PermanentIngestError('unknown_source', `No alert parser for "${kind}"`);
   }

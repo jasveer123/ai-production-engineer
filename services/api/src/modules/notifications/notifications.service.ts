@@ -21,7 +21,7 @@ import { SecretStore } from '../../core/secrets/secret-store.service';
 import { maskTarget } from './domain/messages';
 import { NotificationDispatcher } from './application/notification-dispatcher.service';
 import type { ChannelRow } from './infrastructure/notification-sender.service';
-import { checkOutboundUrl, UnsafeUrlError } from './infrastructure/outbound-url';
+import { checkOutboundUrl, UnsafeUrlError } from '../../core/common/outbound-url';
 
 const MAX_CHANNELS = 20;
 

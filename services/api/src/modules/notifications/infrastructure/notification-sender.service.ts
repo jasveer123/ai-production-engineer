@@ -9,7 +9,7 @@ import {
 } from '../../../ingest/ingestion/domain/webhook-signature';
 import { SecretStore } from '../../../core/secrets/secret-store.service';
 import { slackMessage, webhookPayload, type Notification } from '../domain/messages';
-import { checkOutboundUrl, UnsafeUrlError } from './outbound-url';
+import { checkOutboundUrl, UnsafeUrlError } from '../../../core/common/outbound-url';
 
 export type ChannelRow = typeof notificationChannels.$inferSelect;
 

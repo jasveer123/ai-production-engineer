@@ -38,6 +38,7 @@ export function isPrivateAddress(ip: string): boolean {
 
 export interface OutboundPolicy {
   allowPrivate: boolean;
+  allowHttp?: boolean;
   resolve?: (host: string) => Promise<string[]>;
 }
 
@@ -53,8 +54,11 @@ export async function checkOutboundUrl(raw: string, policy: OutboundPolicy): Pro
   }
   if (url.username || url.password)
     throw new UnsafeUrlError('Credentials in the URL are not allowed');
-  if (url.protocol !== 'https:' && !(policy.allowPrivate && url.protocol === 'http:')) {
-    throw new UnsafeUrlError('Webhook URLs must use https');
+  if (
+    url.protocol !== 'https:' &&
+    !((policy.allowPrivate || policy.allowHttp) && url.protocol === 'http:')
+  ) {
+    throw new UnsafeUrlError('URLs must use https');
   }
   if (policy.allowPrivate) return url;
 

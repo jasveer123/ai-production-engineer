@@ -18,7 +18,7 @@ export const WEBHOOK_ALERT_KINDS = [
   'cloudwatch',
   'elasticsearch',
 ] as const;
-export const ALERT_SOURCE_KINDS = [...WEBHOOK_ALERT_KINDS, 'heartbeat'] as const;
+export const ALERT_SOURCE_KINDS = [...WEBHOOK_ALERT_KINDS, 'heartbeat', 'monitor'] as const;
 export type AlertSourceKind = ValueOf<typeof ALERT_SOURCE_KINDS>;
 
 export const ALERT_SOURCE_LABELS: Record<AlertSourceKind, string> = {
@@ -31,6 +31,7 @@ export const ALERT_SOURCE_LABELS: Record<AlertSourceKind, string> = {
   cloudwatch: 'Amazon CloudWatch (SNS)',
   elasticsearch: 'Elasticsearch / Kibana',
   heartbeat: 'Heartbeat monitor',
+  monitor: 'Uptime monitor',
 };
 
 const DAY_SECONDS = 24 * 3600;

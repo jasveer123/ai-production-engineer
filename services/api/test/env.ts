@@ -14,6 +14,7 @@ Object.assign(process.env, {
   OTEL_ENABLED: 'false',
   SECRETS_ENCRYPTION_KEY: 'a'.repeat(64),
   INGEST_WORKER_ENABLED: 'false',
+  MONITOR_RUNNER_ENABLED: 'false',
   JAEGER_QUERY_URL: 'http://jaeger.test',
   TEMPORAL_NAMESPACE: 'ape-test',
   AUTO_INVESTIGATE: 'true',
