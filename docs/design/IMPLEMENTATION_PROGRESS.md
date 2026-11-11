@@ -12,8 +12,8 @@
 
 | Item | Result | Verified |
 |---|---|---|
-| StatusStrip replaces tinted banner | one-line status, inline figures, no tint | tsc, lint. Not yet seen in a browser |
-| CommandMenu (Cmd/Ctrl+K) | pages plus open incidents, arrow keys, Enter | tsc, lint. Not yet exercised in a browser |
-| Ask AI | question, answer, evidence list, no bubbles | tsc, lint, route returns 200. Not yet seen in a browser |
+| StatusStrip replaces tinted banner | one-line status, inline figures, no tint | tsc, lint, browser (monitors page) |
+| CommandMenu (Cmd/Ctrl+K) | pages plus open incidents, arrow keys, Enter | tsc, lint, browser (search, Enter navigates to /heartbeats) |
+| Ask AI | question, answer, evidence list, no bubbles | tsc, lint, browser (existing conversation renders question, answer, evidence) |
 
 Open: browser QA of the three items above, sortable tables, URL-persisted filters, shared chart component, status page admin split.
