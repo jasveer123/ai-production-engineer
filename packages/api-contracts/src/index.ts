@@ -1,6 +1,7 @@
 export * from './alerts';
 export * from './auth';
 export * from './common';
+export * from './escalation';
 export * from './incidents';
 export * from './integrations';
 export * from './oncall';

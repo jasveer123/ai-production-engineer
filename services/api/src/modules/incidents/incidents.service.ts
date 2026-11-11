@@ -1,6 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, gte, lt, lte, ne, notInArray, inArray, type SQL } from 'drizzle-orm';
+import {
+  and,
+  desc,
+  eq,
+  gte,
+  isNull,
+  lt,
+  lte,
+  ne,
+  notInArray,
+  inArray,
+  type SQL,
+} from 'drizzle-orm';
 import {
   CLOSED_STATUSES,
   type ApprovalPolicyInput,
@@ -48,6 +60,7 @@ const toDto = (r: IncidentRow, repositoryFullName: string | null): Incident => (
   firstSeenAt: r.firstSeenAt.toISOString(),
   lastSeenAt: r.lastSeenAt.toISOString(),
   version: r.version,
+  acknowledgedAt: r.acknowledgedAt?.toISOString() ?? null,
   createdAt: r.createdAt.toISOString(),
 });
 
@@ -218,6 +231,53 @@ export class IncidentsService {
       return r!;
     });
     return toDto(row, service?.repositoryFullName ?? null);
+  }
+
+  async acknowledge(actor: ActorContext, id: string): Promise<Incident> {
+    const current = await this.get(actor, id);
+    if (current.acknowledgedAt) return current;
+    if ((CLOSED_STATUSES as readonly string[]).includes(current.status))
+      throw new ApiException(
+        HttpStatus.CONFLICT,
+        'already_closed',
+        'This incident is already closed',
+      );
+    const now = new Date();
+    await this.db.transaction(async (tx) => {
+      const updated = await tx
+        .update(incidents)
+        .set({ acknowledgedAt: now, acknowledgedBy: actor.userId })
+        .where(
+          and(
+            eq(incidents.id, id),
+            eq(incidents.workspaceId, actor.workspaceId),
+            isNull(incidents.acknowledgedAt),
+          ),
+        )
+        .returning({ id: incidents.id });
+      if (updated.length === 0) return;
+      await tx.insert(incidentEvents).values({
+        workspaceId: actor.workspaceId,
+        incidentId: id,
+        kind: 'status_change',
+        source: 'user',
+        occurredAt: now,
+        actorId: actor.userId,
+        summary: 'Acknowledged',
+        attributes: { acknowledged: true },
+      });
+    });
+    await this.audit.record({
+      workspaceId: actor.workspaceId,
+      actorId: actor.userId,
+      action: 'incident.acknowledged',
+      resourceType: 'incident',
+      resourceId: id,
+      outcome: 'success',
+      correlationId: actor.correlationId,
+      metadata: {},
+    });
+    return this.get(actor, id);
   }
 
   async transition(

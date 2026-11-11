@@ -23,17 +23,17 @@ start({ service: 'checkout-api' });
 
 No code change at all: `NODE_OPTIONS="--require @ape/agent/register" node server.js`.
 
-| Setting | Env var | Default |
-|---|---|---|
-| `token` | `APE_TOKEN` | required |
-| `endpoint` | `APE_ENDPOINT` | `http://localhost:4000` |
-| `service` | `APE_SERVICE`, `OTEL_SERVICE_NAME` | package name |
-| `environment` | `APE_ENVIRONMENT`, `NODE_ENV` | `production` |
-| `release` | `APE_RELEASE` | none |
-| `captureConsole` | | `true` |
-| `captureUncaught` | | `true` |
-| `tracing` | | `true` when the OpenTelemetry SDK is installed |
-| `minLevel` | | `info` |
+| Setting           | Env var                            | Default                                        |
+| ----------------- | ---------------------------------- | ---------------------------------------------- |
+| `token`           | `APE_TOKEN`                        | required                                       |
+| `endpoint`        | `APE_ENDPOINT`                     | `http://localhost:4000`                        |
+| `service`         | `APE_SERVICE`, `OTEL_SERVICE_NAME` | package name                                   |
+| `environment`     | `APE_ENVIRONMENT`, `NODE_ENV`      | `production`                                   |
+| `release`         | `APE_RELEASE`                      | none                                           |
+| `captureConsole`  |                                    | `true`                                         |
+| `captureUncaught` |                                    | `true`                                         |
+| `tracing`         |                                    | `true` when the OpenTelemetry SDK is installed |
+| `minLevel`        |                                    | `info`                                         |
 
 ## What it sends
 

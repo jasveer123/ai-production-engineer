@@ -33,6 +33,8 @@ export const incidents = pgTable(
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull(),
     version: integer('version').notNull().default(1),
+    acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
+    acknowledgedBy: uuid('acknowledged_by').references(() => users.id, { onDelete: 'set null' }),
     ...timestamps(),
   },
   (t) => [

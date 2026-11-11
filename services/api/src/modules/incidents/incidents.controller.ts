@@ -69,6 +69,16 @@ export class IncidentsController {
     return this.svc.timeline(actor, id);
   }
 
+  @Post('incidents/:incidentId/acknowledge')
+  @MinRole('engineer')
+  @HttpCode(200)
+  acknowledge(
+    @Actor() actor: ActorContext,
+    @Param('incidentId', ParseUUIDPipe) id: string,
+  ): Promise<Incident> {
+    return this.svc.acknowledge(actor, id);
+  }
+
   @Post('incidents/:incidentId/transitions')
   @MinRole('engineer')
   @HttpCode(200)

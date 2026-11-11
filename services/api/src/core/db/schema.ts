@@ -1,6 +1,7 @@
 export * from './tables/alerts';
 export * from './tables/audit-usage-outbox';
 export * from './tables/enums';
+export * from './tables/escalation';
 export * from './tables/fixes';
 export * from './tables/identity-and-tenancy';
 export * from './tables/incidents';

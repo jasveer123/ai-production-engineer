@@ -12,16 +12,16 @@ import ape_agent
 ape_agent.start(service="checkout-api")   # first thing in your app; reads APE_TOKEN and APE_ENDPOINT
 ```
 
-| Argument | Env var | Default |
-|---|---|---|
-| `token` | `APE_TOKEN` | required |
-| `endpoint` | `APE_ENDPOINT` | `http://localhost:4000` |
-| `service` | `APE_SERVICE`, `OTEL_SERVICE_NAME` | script name |
-| `environment` | `APE_ENVIRONMENT`, `ENVIRONMENT` | `production` |
-| `release` | `APE_RELEASE` | none |
-| `capture_logging` | | `True`: a handler on the root logger |
-| `capture_uncaught` | | `True`: `sys.excepthook` and `threading.excepthook` |
-| `tracing` | | `True` when `opentelemetry-sdk` is installed |
+| Argument           | Env var                            | Default                                             |
+| ------------------ | ---------------------------------- | --------------------------------------------------- |
+| `token`            | `APE_TOKEN`                        | required                                            |
+| `endpoint`         | `APE_ENDPOINT`                     | `http://localhost:4000`                             |
+| `service`          | `APE_SERVICE`, `OTEL_SERVICE_NAME` | script name                                         |
+| `environment`      | `APE_ENVIRONMENT`, `ENVIRONMENT`   | `production`                                        |
+| `release`          | `APE_RELEASE`                      | none                                                |
+| `capture_logging`  |                                    | `True`: a handler on the root logger                |
+| `capture_uncaught` |                                    | `True`: `sys.excepthook` and `threading.excepthook` |
+| `tracing`          |                                    | `True` when `opentelemetry-sdk` is installed        |
 
 ## Frameworks
 

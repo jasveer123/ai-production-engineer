@@ -26,6 +26,7 @@ export interface Incident {
   firstSeenAt: IsoTimestamp;
   lastSeenAt: IsoTimestamp;
   version: number;
+  acknowledgedAt: IsoTimestamp | null;
   createdAt: IsoTimestamp;
 }
 

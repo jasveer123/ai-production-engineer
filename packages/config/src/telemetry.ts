@@ -17,6 +17,8 @@ export const telemetryEnv = {
   INGEST_WORKER_ENABLED: booleanFlag.default('true'),
   MONITOR_RUNNER_ENABLED: booleanFlag.default('true'),
   MONITOR_TICK_MS: boundedInt(1000, 60_000, 10_000),
+  ESCALATION_RUNNER_ENABLED: booleanFlag.default('true'),
+  ESCALATION_TICK_MS: boundedInt(1000, 60_000, 10_000),
   INGEST_POLL_INTERVAL_MS: positiveInt(1000),
   SYSLOG_ENABLED: booleanFlag.default('true'),
   SYSLOG_PORT: positiveInt(6514),

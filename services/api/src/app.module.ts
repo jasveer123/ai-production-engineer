@@ -14,6 +14,7 @@ import { HealthModule } from './core/health/health.module';
 import { IncidentsModule } from './modules/incidents/incidents.module';
 import { IngestionModule } from './ingest/ingestion/ingestion.module';
 import { InvestigationsModule } from './modules/investigations/investigations.module';
+import { EscalationModule } from './modules/escalation/escalation.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { OncallModule } from './modules/oncall/oncall.module';
 import { QualityModule } from './modules/quality/quality.module';
@@ -44,6 +45,7 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     InvestigationsModule,
     NotificationsModule,
     OncallModule,
+    EscalationModule,
     RealtimeModule,
     QualityModule,
     DeploymentsModule,
