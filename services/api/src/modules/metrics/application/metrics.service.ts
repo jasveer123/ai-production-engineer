@@ -112,7 +112,7 @@ export class MetricsService {
       .values({
         workspaceId: actor.workspaceId,
         name: input.name,
-        widgets: (input.widgets ?? []) as unknown as Record<string, unknown>[],
+        widgets: input.widgets ?? [],
         createdBy: actor.userId,
       })
       .returning();
@@ -128,9 +128,7 @@ export class MetricsService {
       .update(dashboards)
       .set({
         ...(input.name ? { name: input.name } : {}),
-        ...(input.widgets
-          ? { widgets: input.widgets as unknown as Record<string, unknown>[] }
-          : {}),
+        ...(input.widgets ? { widgets: input.widgets } : {}),
       })
       .where(and(eq(dashboards.id, id), eq(dashboards.workspaceId, actor.workspaceId)))
       .returning();
