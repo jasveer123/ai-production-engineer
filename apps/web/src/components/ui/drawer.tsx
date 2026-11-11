@@ -101,7 +101,6 @@ function DrawerContent({ className, children }: React.ComponentProps<"div">) {
   }, [open, setOpen])
 
   if (!open) return null
-  const slot = document.getElementById(COMPOSER_SLOT_ID)
   const body = (
     <section
       ref={ref}
@@ -124,7 +123,22 @@ function DrawerContent({ className, children }: React.ComponentProps<"div">) {
     </section>
   )
 
-  return slot ? createPortal(body, slot) : body
+  return <ComposerPortal>{body}</ComposerPortal>
+}
+
+function ComposerPortal({ children }: { children: React.ReactNode }) {
+  const [host] = React.useState(() => document.createElement("div"))
+
+  React.useLayoutEffect(() => {
+    let anchor: Element | null = document.querySelector("main h1")
+    while (anchor && !anchor.nextElementSibling) anchor = anchor.parentElement
+    const fallback = document.getElementById(COMPOSER_SLOT_ID)
+    if (anchor && anchor.tagName !== "MAIN") anchor.after(host)
+    else fallback?.append(host)
+    return () => host.remove()
+  }, [host])
+
+  return createPortal(children, host)
 }
 
 function DrawerHeader({ className, ...props }: React.ComponentProps<"div">) {
