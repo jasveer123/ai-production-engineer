@@ -94,4 +94,22 @@ describe('Members, invitations and sessions (e2e)', () => {
     await owner.post(`/workspaces/${ws.id}/services`).send(body).expect(201);
     await owner.post(`/workspaces/${ws.id}/services`).send(body).expect(409);
   });
+
+  it('lets admins rename the workspace, audited, and refuses engineers', async () => {
+    const owner = await loginAs(app, 'owner@x.test');
+    const ws = await createWorkspace(owner, 'Team X');
+    await owner
+      .post(`/workspaces/${ws.id}/invitations`)
+      .send({ email: 'eng@x.test', role: 'engineer' })
+      .expect(201);
+    const eng = await loginAs(app, 'eng@x.test');
+    await eng.patch(`/workspaces/${ws.id}`).send({ name: 'Nope' }).expect(403);
+    await owner.patch(`/workspaces/${ws.id}`).send({ name: 'x' }).expect(400);
+    const renamed = await owner.patch(`/workspaces/${ws.id}`).send({ name: 'Team Y' }).expect(200);
+    expect(renamed.body).toMatchObject({ name: 'Team Y', role: 'owner' });
+    const audit = await owner.get(`/workspaces/${ws.id}/audit-events`).expect(200);
+    expect((audit.body as { action: string }[]).map((e) => e.action)).toContain(
+      'workspace.renamed',
+    );
+  });
 });

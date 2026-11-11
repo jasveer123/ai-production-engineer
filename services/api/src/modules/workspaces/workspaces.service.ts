@@ -36,6 +36,21 @@ export class WorkspacesService {
     });
   }
 
+  async rename(actor: ActorContext, name: string): Promise<Workspace> {
+    await this.db.update(workspaces).set({ name }).where(eq(workspaces.id, actor.workspaceId));
+    await this.audit.record({
+      workspaceId: actor.workspaceId,
+      actorId: actor.userId,
+      action: 'workspace.renamed',
+      resourceType: 'workspace',
+      resourceId: actor.workspaceId,
+      outcome: 'success',
+      correlationId: actor.correlationId,
+      metadata: { name },
+    });
+    return this.get(actor);
+  }
+
   async get(actor: ActorContext): Promise<Workspace> {
     const [ws] = await this.db
       .select()
