@@ -100,6 +100,9 @@ export function webhookPayload(n: Notification) {
   };
 }
 
+export const maskPhone = (phone: string) =>
+  phone.length > 6 ? `${phone.slice(0, 3)}••••${phone.slice(-3)}` : '—';
+
 export function maskTarget(kind: string, url: string): string {
   try {
     const u = new URL(url);

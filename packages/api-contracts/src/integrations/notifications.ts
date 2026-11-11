@@ -26,6 +26,8 @@ export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
   'verification.inconclusive': 'Recovery could not be verified',
 };
 
+export const PHONE_PATTERN = /^\+[1-9]\d{7,14}$/;
+
 export const SLACK_WEBHOOK_PATTERN = /^https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9/_-]+$/;
 
 const channelName = nameSchema(80);
@@ -42,6 +44,20 @@ export const createNotificationChannelSchema = z.discriminatedUnion('kind', [
         SLACK_WEBHOOK_PATTERN,
         'Use a Slack incoming webhook URL (https://hooks.slack.com/services/…)',
       ),
+    events: channelEvents,
+    minSeverity,
+  }),
+  z.object({
+    kind: z.enum(['sms', 'phone']),
+    name: channelName,
+    phone: z.string().trim().regex(PHONE_PATTERN, 'Use the international format, like +14155550123'),
+    events: channelEvents,
+    minSeverity,
+  }),
+  z.object({
+    kind: z.literal('push'),
+    name: channelName,
+    url: boundedUrlSchema,
     events: channelEvents,
     minSeverity,
   }),
@@ -65,7 +81,7 @@ export type UpdateNotificationChannelInput = z.infer<typeof updateNotificationCh
 
 export interface NotificationChannel {
   id: Uuid;
-  kind: 'slack' | 'webhook';
+  kind: 'slack' | 'webhook' | 'sms' | 'phone' | 'push';
   name: string;
   target: string;
   events: NotificationEvent[];

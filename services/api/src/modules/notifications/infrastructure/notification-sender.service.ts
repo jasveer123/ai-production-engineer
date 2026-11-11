@@ -8,7 +8,7 @@ import {
   TIMESTAMP_HEADER,
 } from '../../../ingest/ingestion/domain/webhook-signature';
 import { SecretStore } from '../../../core/secrets/secret-store.service';
-import { slackMessage, webhookPayload, type Notification } from '../domain/messages';
+import { headline, slackMessage, webhookPayload, type Notification } from '../domain/messages';
 import { checkOutboundUrl, UnsafeUrlError } from '../../../core/common/outbound-url';
 
 export type ChannelRow = typeof notificationChannels.$inferSelect;
@@ -23,6 +23,11 @@ export interface SendResult {
 
 const TIMEOUT_MS = 5000;
 export const EVENT_HEADER = 'x-ape-event';
+
+const plainText = (n: Notification) => `${headline(n)}: ${n.incident.title}`.slice(0, 300);
+const ascii = (s: string) => s.replace(/[^\x20-\x7e]/g, '').slice(0, 200);
+const xml = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 const fail = (error: string, permanent: boolean, status: number | null = null): SendResult => ({
   ok: false,
@@ -44,6 +49,19 @@ function requestFor(
   n: Notification,
   secret: string | undefined,
 ): { body: string; headers: Record<string, string> } | SendResult {
+  if (channel.kind === 'push') {
+    const urgent = n.incident.severity === 'critical' || n.incident.severity === 'high';
+    return {
+      body: plainText(n),
+      headers: {
+        'user-agent': 'ai-production-engineer-notifications',
+        Title: ascii(headline(n)),
+        Priority: urgent ? '4' : '3',
+        Click: n.url,
+        Tags: urgent ? 'rotating_light' : 'warning',
+      },
+    };
+  }
   const body = JSON.stringify(channel.kind === 'slack' ? slackMessage(n) : webhookPayload(n));
   const headers: Record<string, string> = {
     'content-type': 'application/json',
@@ -76,7 +94,35 @@ export class NotificationSender {
     private readonly secrets: SecretStore,
   ) {}
 
+  private async sendTwilio(channel: ChannelRow, n: Notification): Promise<SendResult> {
+    const { TWILIO_ACCOUNT_SID: sid, TWILIO_AUTH_TOKEN: token, TWILIO_FROM: from } = this.env;
+    if (!sid || !token || !from)
+      return fail('SMS and phone alerts are not set up on this deployment', true);
+    const call = channel.kind === 'phone';
+    const form = new URLSearchParams({ To: channel.url ?? '', From: from });
+    if (call) form.set('Twiml', `<Response><Say>${xml(plainText(n))}</Say></Response>`);
+    else form.set('Body', plainText(n));
+    let res: Response;
+    try {
+      res = await fetch(
+        `${this.env.TWILIO_API_URL}/2010-04-01/Accounts/${sid}/${call ? 'Calls' : 'Messages'}.json`,
+        {
+          method: 'POST',
+          body: form,
+          headers: { authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString('base64')}` },
+          redirect: 'manual',
+          signal: AbortSignal.timeout(TIMEOUT_MS),
+        },
+      );
+    } catch (err) {
+      return fail((err as Error).message, false);
+    }
+    await res.body?.cancel().catch(() => undefined);
+    return resultOf(res.status);
+  }
+
   async send(channel: ChannelRow, n: Notification): Promise<SendResult> {
+    if (channel.kind === 'sms' || channel.kind === 'phone') return this.sendTwilio(channel, n);
     const secret = channel.secretReference
       ? await this.secrets.get(channel.workspaceId, channel.secretReference)
       : undefined;

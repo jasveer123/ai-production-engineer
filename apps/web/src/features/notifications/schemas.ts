@@ -44,6 +44,7 @@ export interface CreateChannelRequest {
   name: string
   webhookUrl?: string
   url?: string
+  phone?: string
   events: string[]
   minSeverity: string
 }

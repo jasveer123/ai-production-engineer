@@ -18,7 +18,7 @@ import {
   Input,
   Spinner,
 } from "@/components/ui"
-import { CHANNEL_KINDS, EVENTS, MIN_SEVERITIES } from "../constants"
+import { CHANNEL_KINDS, TARGET_COPY, EVENTS, MIN_SEVERITIES } from "../constants"
 import { useCreateChannel } from "../hooks"
 import type { ChannelWithSecret } from "../schemas"
 
@@ -44,7 +44,11 @@ export function ChannelCreateDialog({ workspaceId, onCreated }: ChannelCreateDia
       {
         kind,
         name: name.trim(),
-        ...(kind === "slack" ? { webhookUrl: target.trim() } : { url: target.trim() }),
+        ...(kind === "slack"
+          ? { webhookUrl: target.trim() }
+          : kind === "sms" || kind === "phone"
+            ? { phone: target.trim() }
+            : { url: target.trim() }),
         events,
         minSeverity,
       },
@@ -94,21 +98,15 @@ export function ChannelCreateDialog({ workspaceId, onCreated }: ChannelCreateDia
             />
           </Field>
           <Field
-            label={kind === "slack" ? "Slack incoming webhook URL" : "Webhook URL"}
+            label={TARGET_COPY[kind]!.label}
             htmlFor="channel-target"
-            help={
-              kind === "slack"
-                ? "It starts with https://hooks.slack.com/services/"
-                : "Pramaan sends a signed JSON POST."
-            }
+            help={TARGET_COPY[kind]!.help}
           >
             <Input
               id="channel-target"
               value={target}
               onChange={(e) => setTarget(e.target.value)}
-              placeholder={
-                kind === "slack" ? "https://hooks.slack.com/services/…" : "https://example.com/hook"
-              }
+              placeholder={TARGET_COPY[kind]!.placeholder}
             />
           </Field>
           <div className="grid gap-2">

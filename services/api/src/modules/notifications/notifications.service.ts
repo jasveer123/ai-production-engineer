@@ -18,7 +18,7 @@ import { DB } from '../../core/db/database.module';
 import type { Database } from '../../core/db/client';
 import { notificationChannels, notificationDeliveries } from '../../core/db/schema';
 import { SecretStore } from '../../core/secrets/secret-store.service';
-import { maskTarget } from './domain/messages';
+import { maskPhone, maskTarget } from './domain/messages';
 import { NotificationDispatcher } from './application/notification-dispatcher.service';
 import type { ChannelRow } from './infrastructure/notification-sender.service';
 import { checkOutboundUrl, UnsafeUrlError } from '../../core/common/outbound-url';
@@ -45,7 +45,9 @@ export class NotificationsService {
           ? slackUrl
             ? maskTarget('slack', slackUrl)
             : 'hooks.slack.com/services/…'
-          : maskTarget('webhook', r.url ?? ''),
+          : r.kind === 'sms' || r.kind === 'phone'
+            ? maskPhone(r.url ?? '')
+            : maskTarget('webhook', r.url ?? ''),
       events: r.events as NotificationEvent[],
       minSeverity: r.minSeverity,
       enabled: r.enabled,
@@ -115,30 +117,32 @@ export class NotificationsService {
         `A workspace can have at most ${MAX_CHANNELS} notification channels`,
       );
     }
-    const target = input.kind === 'slack' ? input.webhookUrl : input.url;
-    try {
-      await checkOutboundUrl(target, { allowPrivate: this.env.NODE_ENV !== 'production' });
-    } catch (err) {
-      if (err instanceof UnsafeUrlError)
-        throw new ApiException(HttpStatus.BAD_REQUEST, 'unsafe_url', err.message);
-      throw err;
+    const phone = 'phone' in input ? input.phone : null;
+    const target =
+      input.kind === 'slack' ? input.webhookUrl : phone ? null : (input as { url: string }).url;
+    if (target) {
+      try {
+        await checkOutboundUrl(target, { allowPrivate: this.env.NODE_ENV !== 'production' });
+      } catch (err) {
+        if (err instanceof UnsafeUrlError)
+          throw new ApiException(HttpStatus.BAD_REQUEST, 'unsafe_url', err.message);
+        throw err;
+      }
     }
 
     const signingSecret =
       input.kind === 'webhook' ? `whsec_${randomBytes(32).toString('hex')}` : null;
     const row = await this.db.transaction(async (tx) => {
-      const secretReference = await this.secrets.put(
-        actor.workspaceId,
-        input.kind === 'slack' ? input.webhookUrl : signingSecret!,
-        tx,
-      );
+      const secret =
+        input.kind === 'slack' ? input.webhookUrl : input.kind === 'webhook' ? signingSecret : null;
+      const secretReference = secret ? await this.secrets.put(actor.workspaceId, secret, tx) : null;
       const [r] = await tx
         .insert(notificationChannels)
         .values({
           workspaceId: actor.workspaceId,
           kind: input.kind,
           name: input.name,
-          url: input.kind === 'webhook' ? input.url : null,
+          url: phone ?? (input.kind === 'slack' ? null : (input as { url: string }).url),
           secretReference,
           events: [...new Set(input.events)],
           minSeverity: input.minSeverity ?? 'low',

@@ -6,6 +6,7 @@ import {
   optionalUrl,
   positiveInt,
   text,
+  urlWithDefault,
 } from './helpers';
 
 export const authEnv = {
@@ -21,6 +22,10 @@ export const authEnv = {
   MAIL_FROM: z.string().min(3).default('AI Production Engineer <no-reply@localhost>'),
   RESEND_API_KEY: optionalText,
   SMTP_URL: optionalText,
+  TWILIO_ACCOUNT_SID: optionalText,
+  TWILIO_AUTH_TOKEN: optionalText,
+  TWILIO_FROM: optionalText,
+  TWILIO_API_URL: urlWithDefault('https://api.twilio.com'),
   TRUST_PROXY: nonNegativeInt(0),
   OAUTH_CALLBACK_BASE_URL: optionalUrl,
 };
