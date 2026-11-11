@@ -5,6 +5,7 @@ export * from './escalation';
 export * from './incidents';
 export * from './integrations';
 export * from './oncall';
+export * from './status';
 export * from './services';
 export * from './telemetry';
 export * from './workspaces';

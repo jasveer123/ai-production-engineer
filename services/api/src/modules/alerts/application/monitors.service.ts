@@ -49,7 +49,7 @@ interface MonitorConfig {
 const HISTORY_HOURS = 24;
 const HISTORY_BUCKETS = 48;
 const RECENT_CHECKS = 20;
-const RETENTION_DAYS = 7;
+const RETENTION_DAYS = 90;
 const MAX_PARALLEL = 20;
 const isMonitor = sql`${integrations.config}->>'kind' = 'monitor'`;
 

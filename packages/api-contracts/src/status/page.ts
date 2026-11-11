@@ -1,0 +1,79 @@
+import { z } from 'zod';
+import { nameSchema, uuidSchema, type IsoTimestamp, type Uuid } from '../common';
+
+export const MAX_COMPONENTS = 30;
+export const HISTORY_DAYS = 90;
+export const UPDATE_STATES = ['investigating', 'identified', 'monitoring', 'resolved'] as const;
+export type UpdateState = (typeof UPDATE_STATES)[number];
+
+export const slugSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(3)
+  .max(40)
+  .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Use lowercase letters, numbers and single dashes');
+
+export const createStatusPageSchema = z.object({
+  name: nameSchema(80),
+  slug: slugSchema,
+  description: z.string().trim().max(300).optional(),
+  monitorIds: z.array(uuidSchema).max(MAX_COMPONENTS).default([]),
+});
+export type CreateStatusPageInput = z.input<typeof createStatusPageSchema>;
+
+export const updateStatusPageSchema = z.object({
+  name: nameSchema(80).optional(),
+  description: z.string().trim().max(300).nullable().optional(),
+  monitorIds: z.array(uuidSchema).max(MAX_COMPONENTS).optional(),
+});
+export type UpdateStatusPageInput = z.infer<typeof updateStatusPageSchema>;
+
+export const postUpdateSchema = z.object({
+  title: nameSchema(120),
+  body: z.string().trim().max(2000).default(''),
+  state: z.enum(UPDATE_STATES),
+});
+export type PostUpdateInput = z.input<typeof postUpdateSchema>;
+
+export type OverallStatus = 'operational' | 'degraded' | 'outage';
+export type ComponentState = 'up' | 'down' | 'pending';
+
+export interface StatusDay {
+  date: string;
+  uptime: number | null;
+}
+
+export interface StatusComponent {
+  name: string;
+  state: ComponentState;
+  uptime: number | null;
+  days: StatusDay[];
+}
+
+export interface StatusUpdateView {
+  id: Uuid;
+  title: string;
+  body: string;
+  state: UpdateState;
+  createdAt: IsoTimestamp;
+}
+
+export interface PublicStatus {
+  name: string;
+  description: string | null;
+  overall: OverallStatus;
+  components: StatusComponent[];
+  updates: StatusUpdateView[];
+  generatedAt: IsoTimestamp;
+}
+
+export interface StatusPageView {
+  id: Uuid;
+  name: string;
+  slug: string;
+  description: string | null;
+  monitorIds: Uuid[];
+  updates: StatusUpdateView[];
+  createdAt: IsoTimestamp;
+}
