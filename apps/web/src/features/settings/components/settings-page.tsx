@@ -1,16 +1,19 @@
 "use client"
 
+import { StoryBanner } from "@/components/shared"
 import { Spinner, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui"
 import { useCurrentWorkspace } from "@/features/auth"
 import { PageHeading } from "@/features/integrations"
 import { ApiTokensPanel } from "./api-tokens-panel"
 import { AuditPanel } from "./audit-panel"
+import { useMembers } from "../hooks"
 import { TeamPanel } from "./team-panel"
 import { UsageLimitsPanel } from "./usage-limits-panel"
 import { WorkspacePanel } from "./workspace-panel"
 
 export function SettingsPage() {
   const { workspace, canManage, isPending } = useCurrentWorkspace()
+  const members = useMembers(workspace?.id)
 
   if (isPending) {
     return (
@@ -23,10 +26,24 @@ export function SettingsPage() {
   if (!workspace) return null
 
   const isOwner = workspace.role === "owner"
+  const team = members.data ?? []
 
   return (
     <div className="grid min-w-0 gap-6">
       <PageHeading workspaceName={workspace.name} title="Settings" />
+      <StoryBanner
+        tone="ok"
+        headline={`${workspace.name} has ${team.length} ${team.length === 1 ? "person" : "people"}`}
+        detail="Invite teammates, issue API tokens for your tools, and review everything that changed."
+        stats={[
+          { label: "Members", value: team.length },
+          {
+            label: "Owners and admins",
+            value: team.filter((m) => m.role === "owner" || m.role === "admin").length,
+          },
+          { label: "Your role", value: workspace.role },
+        ]}
+      />
       <Tabs defaultValue="team">
         <TabsList>
           <TabsTrigger value="team">Team</TabsTrigger>

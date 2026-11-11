@@ -1,12 +1,13 @@
 "use client"
 
 import * as React from "react"
+import { StoryBanner } from "@/components/shared"
 import { Chip, Spinner, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui"
 import { useCurrentWorkspace } from "@/features/auth"
 import { PageHeading } from "@/features/integrations"
 import { ACTOR_ROLES } from "@/lib/constants/roles"
 import { RANGES } from "../constants"
-import { useRumApps } from "../hooks"
+import { useRumApps, useRumOverview } from "../hooks"
 import { EventsPanel } from "./events-panel"
 import { FunnelsPanel } from "./funnels-panel"
 import { OverviewPanel } from "./overview-panel"
@@ -21,6 +22,7 @@ export function RumPage() {
   const [appId, setAppId] = React.useState("")
   const [tab, setTab] = React.useState("overview")
   const [userId, setUserId] = React.useState<string | undefined>()
+  const overview = useRumOverview(workspace?.id, appId, minutes)
 
   if (isPending) {
     return (
@@ -33,10 +35,34 @@ export function RumPage() {
   if (!workspace) return null
   const ws = workspace.id
   const list = apps.data ?? []
+  const data = overview.data
 
   return (
     <div className="grid min-w-0 gap-6">
       <PageHeading workspaceName={workspace.name} title="Real users" />
+      <StoryBanner
+        tone={list.length === 0 ? "idle" : (data?.errors ?? 0) > 0 ? "warn" : "ok"}
+        headline={
+          list.length === 0
+            ? "You cannot see what your users see yet"
+            : !data || data.sessions === 0
+              ? "Waiting for the first visitor"
+              : data.errors > 0
+                ? `${data.errors} error${data.errors === 1 ? "" : "s"} hit real users`
+                : "Your users are having a smooth time"
+        }
+        detail={
+          list.length === 0
+            ? "Add one script tag to your site. Pramaan then shows sessions, page speed, errors and replays."
+            : "Open a session to replay exactly what a user did before something broke."
+        }
+        stats={[
+          { label: "Sessions", value: data?.sessions ?? 0 },
+          { label: "Users", value: data?.users ?? 0 },
+          { label: "Page views", value: data?.pageViews ?? 0 },
+          { label: "Errors", value: data?.errors ?? 0 },
+        ]}
+      />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
           {list.length > 1 && (

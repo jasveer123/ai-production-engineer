@@ -2,10 +2,10 @@
 
 import Link from "next/link"
 import { ExternalLink, RotateCw } from "lucide-react"
+import { StoryBanner, StorySteps } from "@/components/shared"
 import {
   Badge,
   Button,
-  Eyebrow,
   Spinner,
   Table,
   TableBody,
@@ -43,42 +43,49 @@ export function FixesPage() {
   const failing = open.filter((item) => item.checksStatus === "failing")
   const canAct = ACTOR_ROLES.includes(workspace.role)
 
-  const kpis = [
-    { label: "Fixes opened", value: items.length, note: "pull requests Pramaan created" },
-    { label: "Open", value: open.length, note: "waiting to be merged", hot: false },
-    {
-      label: "Checks failing",
-      value: failing.length,
-      note: "need a look",
-      hot: failing.length > 0,
-    },
-    { label: "Merged", value: merged.length, note: "shipped to your code" },
-  ]
-
   return (
     <div className="grid min-w-0 gap-6">
       <PageHeading workspaceName={workspace.name} title="Fixes" />
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {kpis.map((item) => (
-          <div
-            key={item.label}
-            className="grid content-start gap-1 border border-line bg-panel p-4"
-          >
-            <Eyebrow>{item.label}</Eyebrow>
-            <span
-              className={`font-heading text-2xl font-semibold ${item.hot ? "text-danger" : ""}`}
-            >
-              {item.value}
-            </span>
-            <span className="text-[0.75rem] text-muted-foreground">{item.note}</span>
-          </div>
-        ))}
-      </div>
+      <StoryBanner
+        tone={
+          failing.length > 0 ? "bad" : open.length > 0 ? "warn" : items.length === 0 ? "idle" : "ok"
+        }
+        headline={
+          items.length === 0
+            ? "No fix has shipped yet"
+            : failing.length > 0
+              ? `${failing.length} fix${failing.length === 1 ? " has" : "es have"} failing checks`
+              : open.length > 0
+                ? `${open.length} fix${open.length === 1 ? " is" : "es are"} waiting to be merged`
+                : "Every fix is merged"
+        }
+        detail={
+          items.length === 0
+            ? "When you approve a drafted fix on an incident, its pull request is opened and tracked here."
+            : "Pramaan drafts the change, you approve it, your own pipeline checks it."
+        }
+        stats={[
+          { label: "Fixes opened", value: items.length },
+          { label: "Open", value: open.length },
+          { label: "Checks failing", value: failing.length },
+          { label: "Merged", value: merged.length },
+        ]}
+      />
       {items.length === 0 ? (
-        <p className="border border-dashed border-line p-8 text-center text-sm text-muted-foreground">
-          No fix has been approved yet. When you approve a drafted fix on an incident, its pull
-          request shows up here.
-        </p>
+        <StorySteps
+          heading="How a fix gets to your code"
+          steps={[
+            {
+              title: "Pramaan drafts it",
+              text: "From the root cause, on the incident's The fix chapter.",
+            },
+            { title: "You approve it", text: "Nothing changes until you say yes." },
+            {
+              title: "A pull request opens",
+              text: "Your checks run. Merge it and Pramaan verifies the problem is gone.",
+            },
+          ]}
+        />
       ) : (
         <Table>
           <TableHeader>

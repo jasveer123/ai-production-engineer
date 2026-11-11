@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { StoryBanner, StorySteps } from "@/components/shared"
 import { Chip, CodeBlock, Spinner } from "@/components/ui"
 import { ConfirmDialog } from "@/components/shared"
 import { useCurrentWorkspace } from "@/features/auth"
@@ -42,14 +43,46 @@ export function MetricsPage() {
   return (
     <div className="grid min-w-0 gap-6">
       <PageHeading workspaceName={workspace.name} title="Metrics" />
+      <StoryBanner
+        tone={metrics.length === 0 ? "idle" : "ok"}
+        headline={
+          metrics.length === 0
+            ? "No numbers are flowing in yet"
+            : `${metrics.length} metric${metrics.length === 1 ? " is" : "s are"} being tracked`
+        }
+        detail={
+          metrics.length === 0
+            ? "Point any OpenTelemetry SDK or collector at your workspace. CPU, queue depth and request counts appear here."
+            : "Chart them on a dashboard, then alert when a number crosses a line."
+        }
+        stats={[
+          { label: "Metrics", value: metrics.length },
+          { label: "Dashboards", value: (dashboards.data ?? []).length },
+          { label: "Charts on this board", value: selected?.widgets.length ?? 0 },
+          { label: "Window", value: WINDOWS.find((w) => w.minutes === minutes)?.label ?? "-" },
+        ]}
+      />
       {metrics.length === 0 && (
-        <section className="grid gap-2 border border-dashed border-line p-5">
-          <p className="text-sm">
-            No metrics yet. Point any OpenTelemetry SDK or collector at your workspace and numbers
-            such as CPU, queue depth or request counts appear here.
-          </p>
+        <>
+          <StorySteps
+            heading="Get your first metric in"
+            steps={[
+              {
+                title: "Copy two settings",
+                text: "An endpoint and your ingest token, shown below.",
+              },
+              {
+                title: "Restart your app",
+                text: "Any OpenTelemetry SDK or collector will start sending.",
+              },
+              {
+                title: "Chart it",
+                text: "Names appear here within a minute. Add them to a dashboard.",
+              },
+            ]}
+          />
           <CodeBlock>{OTLP_HINT}</CodeBlock>
-        </section>
+        </>
       )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">

@@ -26,9 +26,9 @@ export function EscalationPage() {
 
   const items = policies.data ?? []
 
-  const active = (runs.data ?? []).filter(
-    (run) => run.state === "active" || run.state === "running"
-  )
+  const all = runs.data ?? []
+  const active = all.filter((run) => run.state === "running")
+  const unanswered = all.filter((run) => run.state === "completed")
   const create = canManage ? <PolicyDialog workspaceId={workspace.id} /> : null
 
   return (
@@ -60,23 +60,27 @@ export function EscalationPage() {
       ) : (
         <>
           <StoryBanner
-            tone={active.length > 0 ? "warn" : "ok"}
+            tone={active.length > 0 || unanswered.length > 0 ? "warn" : "ok"}
             headline={
               active.length > 0
                 ? `${active.length} escalation${active.length === 1 ? " is" : "s are"} running now`
-                : "Serious incidents will reach a person"
+                : unanswered.length > 0
+                  ? `${unanswered.length} escalation${unanswered.length === 1 ? " ended" : "s ended"} with nobody answering`
+                  : "Serious incidents will reach a person"
             }
             detail={
               active.length > 0
                 ? "People are being notified step by step until someone acknowledges."
-                : "Policies are ready. Nothing is escalating right now."
+                : unanswered.length > 0
+                  ? "Everyone on the policy was notified and nobody acknowledged. Check the people and steps below."
+                  : "Policies are ready. Nothing is escalating right now."
             }
             action={create}
             stats={[
               { label: "Policies", value: items.length },
               { label: "Enabled", value: items.filter((p) => p.enabled).length },
               { label: "Steps, total", value: items.reduce((n, p) => n + p.steps.length, 0) },
-              { label: "Recent runs", value: (runs.data ?? []).length },
+              { label: "Unanswered", value: unanswered.length },
             ]}
           />
           <div className="grid gap-5">

@@ -1,4 +1,4 @@
-import { Eyebrow } from "@/components/ui"
+import { StoryBanner } from "@/components/shared"
 import type { ServiceRowData } from "../lib"
 
 interface ServicesKpisProps {
@@ -18,41 +18,34 @@ export function ServicesKpis({ rows }: ServicesKpisProps) {
   const impact = valued.reduce((sum, row) => sum + (row.impact ?? 0), 0)
   const currency = valued[0]?.currency ?? "USD"
 
-  const items = [
-    {
-      label: "Services connected",
-      value: String(rows.length),
-      note: "sent logs in the last 24 hours",
-    },
-    { label: "Receiving now", value: String(receiving), note: "sent logs in the last 15 min" },
-    { label: "Quiet", value: String(quiet), note: "nothing for 15 min or more" },
-    {
-      label: "With a problem",
-      value: String(withProblems.length),
-      note: withProblems.length ? withProblems.map((row) => row.name).join(", ") : "none open",
-      hot: withProblems.length > 0,
-    },
-    {
-      label: "Impact, 7 days",
-      value: valued.length ? money(impact, currency) : "-",
-      note: valued.length ? "failed requests times your value" : "set a value on a service",
-      hot: impact > 0,
-    },
-  ]
+  const headline =
+    rows.length === 0
+      ? "No service is reporting yet"
+      : withProblems.length > 0
+        ? `${withProblems.length} service${withProblems.length === 1 ? " has" : "s have"} a problem`
+        : quiet > 0
+          ? `${quiet} service${quiet === 1 ? " has" : "s have"} gone quiet`
+          : "Every service is healthy"
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-      {items.map((item) => (
-        <div key={item.label} className="grid content-start gap-1 border border-line bg-panel p-4">
-          <Eyebrow>{item.label}</Eyebrow>
-          <span className={`font-heading text-2xl font-semibold ${item.hot ? "text-danger" : ""}`}>
-            {item.value}
-          </span>
-          <span className="truncate text-[0.75rem] text-muted-foreground" title={item.note}>
-            {item.note}
-          </span>
-        </div>
-      ))}
-    </div>
+    <StoryBanner
+      tone={
+        withProblems.length > 0 ? "bad" : quiet > 0 ? "warn" : rows.length === 0 ? "idle" : "ok"
+      }
+      headline={headline}
+      detail={
+        rows.length === 0
+          ? "Connect an integration. Each app that sends logs shows up here with its health and business impact."
+          : withProblems.length > 0
+            ? withProblems.map((row) => row.name).join(", ")
+            : "Services appear when they send logs and are marked quiet after 15 minutes of silence."
+      }
+      stats={[
+        { label: "Connected", value: rows.length },
+        { label: "Receiving now", value: receiving },
+        { label: "Quiet", value: quiet },
+        { label: "Impact, 7 days", value: valued.length ? money(impact, currency) : "-" },
+      ]}
+    />
   )
 }

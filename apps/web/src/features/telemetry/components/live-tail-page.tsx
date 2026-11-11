@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { StoryBanner } from "@/components/shared"
 import { Pause, Play } from "lucide-react"
 import { Button, Chip, Eyebrow, Spinner } from "@/components/ui"
 import { useCurrentWorkspace } from "@/features/auth"
@@ -57,6 +58,27 @@ export function LiveTailPage() {
           </Button>
         </div>
       </div>
+      <StoryBanner
+        tone={!data || total === 0 ? "idle" : errors > 0 ? "warn" : "ok"}
+        headline={
+          !data || total === 0
+            ? "Waiting for logs"
+            : errors > 0
+              ? `${errors.toLocaleString()} error${errors === 1 ? "" : "s"} in the logs`
+              : "Logs are flowing, no errors"
+        }
+        detail={
+          !data || total === 0
+            ? "New logs appear here the moment your apps send them."
+            : "Filter by service or severity, or click a line to see everything around it."
+        }
+        stats={[
+          { label: "Logs", value: total.toLocaleString() },
+          { label: "Errors", value: errors.toLocaleString() },
+          { label: "Services", value: (data?.services ?? []).length },
+          { label: "State", value: paused ? "Paused" : "Live" },
+        ]}
+      />
       <LogFilters value={filters} services={data?.services ?? []} onChange={setFilters} />
       <div className="grid gap-3 border border-line bg-panel p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
