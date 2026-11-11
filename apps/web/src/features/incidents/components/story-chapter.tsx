@@ -23,7 +23,8 @@ export function StoryChapter({ index, title, summary, state, last, children }: S
           className={cn(
             "z-10 grid size-9 shrink-0 place-items-center border font-mono text-sm",
             state === "done" && "border-ok bg-ok/15 text-ok",
-            state === "active" && "border-brand bg-brand-soft text-brand-strong shadow-[0_0_1rem_var(--glow)]",
+            state === "active" &&
+              "border-brand bg-brand-soft text-brand-strong shadow-[0_0_1rem_var(--glow)]",
             state === "pending" && "border-line bg-panel text-muted-foreground"
           )}
         >

@@ -1,4 +1,4 @@
-import { Eyebrow } from "@/components/ui"
+import { StoryBanner } from "@/components/shared"
 import { CLOSED_STATUSES } from "../constants"
 import type { Incident } from "../schemas"
 
@@ -13,40 +13,28 @@ export function IncidentKpis({ incidents }: IncidentKpisProps) {
   const watching = open.filter((item) => item.status === "monitoring")
   const resolved = incidents.filter((item) => item.status === "resolved")
 
-  const items = [
-    { label: "Open", value: open.length, note: "not resolved or closed", hot: false },
-    {
-      label: "Waiting for you",
-      value: waiting.length,
-      note: "a fix needs your review",
-      hot: waiting.length > 0,
-    },
-    {
-      label: "Critical or high",
-      value: urgent.length,
-      note: "open and urgent",
-      hot: urgent.length > 0,
-    },
-    {
-      label: "Watching production",
-      value: watching.length,
-      note: "fix shipped, checking it worked",
-      hot: false,
-    },
-    { label: "Resolved", value: resolved.length, note: "confirmed fixed", hot: false },
-  ]
+  const headline =
+    open.length === 0
+      ? "No open incidents"
+      : waiting.length > 0
+        ? `${waiting.length} fix${waiting.length === 1 ? " is" : "es are"} waiting for your review`
+        : `${open.length} incident${open.length === 1 ? " is" : "s are"} being handled`
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-      {items.map((item) => (
-        <div key={item.label} className="grid content-start gap-1 border border-line bg-panel p-4">
-          <Eyebrow>{item.label}</Eyebrow>
-          <span className={`font-heading text-2xl font-semibold ${item.hot ? "text-danger" : ""}`}>
-            {item.value}
-          </span>
-          <span className="text-[0.75rem] text-muted-foreground">{item.note}</span>
-        </div>
-      ))}
-    </div>
+    <StoryBanner
+      tone={urgent.length > 0 ? "bad" : open.length > 0 ? "warn" : "ok"}
+      headline={headline}
+      detail={
+        open.length === 0
+          ? "When logs show a new problem, Pramaan opens an incident and starts investigating."
+          : "Open one to follow it from what happened to proof it is fixed."
+      }
+      stats={[
+        { label: "Open", value: open.length },
+        { label: "Critical or high", value: urgent.length },
+        { label: "Watching production", value: watching.length },
+        { label: "Resolved", value: resolved.length },
+      ]}
+    />
   )
 }

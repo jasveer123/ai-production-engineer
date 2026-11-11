@@ -16,7 +16,9 @@ interface IncidentStoryProps {
 const FIX_STATUSES = ["fix_proposed", "validation", "awaiting_review", "validation_failed"]
 const PROOF_STATUSES = ["monitoring", "verification_inconclusive", "resolved"]
 
-export function chapterStates(status: string): [ChapterState, ChapterState, ChapterState, ChapterState] {
+export function chapterStates(
+  status: string
+): [ChapterState, ChapterState, ChapterState, ChapterState] {
   const fixStarted = FIX_STATUSES.includes(status) || PROOF_STATUSES.includes(status)
   const proofStarted = PROOF_STATUSES.includes(status)
   return [

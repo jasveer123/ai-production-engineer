@@ -12,6 +12,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui"
+import { StoryBanner } from "@/components/shared"
 import { useCurrentWorkspace } from "@/features/auth"
 import { PageHeading } from "@/features/integrations"
 import { ROUTES } from "@/lib/constants/routes"
@@ -40,6 +41,10 @@ export function ErrorsPage() {
   if (!workspace) return null
 
   const items = errors.data ?? []
+  const events = items.reduce((n, item) => n + item.count, 0)
+  const regressed = items.filter((item) => item.reopenedAt && item.status === "unresolved").length
+  const unassigned = items.filter((item) => !item.assignee).length
+  const lastSeen = items[0]?.lastSeenAt
 
   return (
     <div className="grid min-w-0 gap-6">
@@ -51,6 +56,27 @@ export function ErrorsPage() {
           <TabsTrigger value="maps">Source maps</TabsTrigger>
         </TabsList>
         <TabsContent value="issues" className="grid gap-6 pt-5">
+          <StoryBanner
+            tone={items.length === 0 ? "ok" : regressed > 0 ? "bad" : "warn"}
+            headline={
+              items.length === 0
+                ? "No errors in this view"
+                : `${items.length} ${items.length === 1 ? "problem is" : "problems are"} hurting your app`
+            }
+            detail={
+              items.length === 0
+                ? "Errors from your apps are grouped automatically the moment they are reported."
+                : regressed > 0
+                  ? `${regressed} came back after being fixed. Open one to see the AI explanation.`
+                  : "Open one to see where it happens, who it affects and the AI explanation."
+            }
+            stats={[
+              { label: "Issues", value: items.length },
+              { label: "Events", value: events.toLocaleString() },
+              { label: "Unassigned", value: unassigned },
+              { label: "Last seen", value: lastSeen ? formatRelativeTime(lastSeen) : "-" },
+            ]}
+          />
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap gap-2">
               {STATUS_FILTERS.map((item) => (
