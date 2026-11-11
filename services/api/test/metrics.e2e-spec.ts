@@ -220,7 +220,8 @@ describe('Metrics and dashboards (e2e)', () => {
     const labels = (
       await owner.get(`/workspaces/${ws}/metrics/labels`).query({ name: 'queue.depth' }).expect(200)
     ).body as { key: string; values: string[] }[];
-    expect(labels).toEqual([{ key: 'region', values: expect.arrayContaining(['eu', 'us']) }]);
+    expect(labels.map((l) => l.key)).toEqual(['region']);
+    expect([...labels[0]!.values].sort()).toEqual(['eu', 'us']);
   });
 
   it('accepts Prometheus remote write', async () => {
