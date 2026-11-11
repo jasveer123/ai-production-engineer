@@ -4,7 +4,6 @@ import {
   ChartLine,
   Radio,
   LayoutDashboard,
-  Users,
   BellRing,
   HeartPulse,
   Globe,
@@ -32,10 +31,7 @@ export interface PlaceholderItem {
   icon: LucideIcon
 }
 
-export const PLACEHOLDER_ITEMS: PlaceholderItem[] = [
-  { label: "Team", icon: Users },
-  { label: "Settings", icon: Settings },
-]
+export const PLACEHOLDER_ITEMS: PlaceholderItem[] = []
 
 export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: ROUTES.dashboard, icon: LayoutDashboard },
@@ -54,4 +50,5 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Live tail", href: ROUTES.liveTail, icon: Radio },
   { label: "Services", href: ROUTES.services, icon: Layers },
   { label: "Integrations", href: ROUTES.integrations, icon: Blocks },
+  { label: "Settings", href: ROUTES.settings, icon: Settings },
 ]

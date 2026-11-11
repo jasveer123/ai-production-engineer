@@ -50,7 +50,7 @@ Not started: applications, session replay, users, events, funnels.
 Investigation is built inside incidents. Chat is built: answers from live incidents, errors, monitors, log alerts, logs and on-call, with cited sources. Read-only; it takes no actions.
 
 ### 6. Settings
-Members and invitations backend exists, screens are missing. Usage, API tokens, single sign-on: not started.
+Built: team (roles, invitations), workspace name, fix approval rule, usage and AI limits, activity log. Ingest tokens live under Integrations. Not started: single sign-on, personal API tokens, billing.
 
 ## Order
 1. Alerts and heartbeats screens
