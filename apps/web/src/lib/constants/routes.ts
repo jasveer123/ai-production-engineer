@@ -18,6 +18,7 @@ export const ROUTES = {
   monitors: "/monitors",
   oncall: "/oncall",
   escalation: "/escalation",
+  statusPages: "/status-pages",
   monitorDetail: (id: string) => `/monitors/${id}`,
   notifications: "/notifications",
   integrations: "/integrations",

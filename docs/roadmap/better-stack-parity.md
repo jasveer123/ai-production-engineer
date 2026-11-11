@@ -24,7 +24,7 @@ Rule for every feature: build it, test it, commit it, then move to the next.
 | Notifications: email | Not started |
 | Notifications: SMS, call, push | Not started (needs a paid provider) |
 | Acknowledge, comments, post-mortem | Not started |
-| Status pages | Not started |
+| Status pages | Built: public page, 90-day uptime, updates |
 | Reporting | Not started |
 
 ### 2. Telemetry
