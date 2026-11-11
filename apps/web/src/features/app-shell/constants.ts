@@ -13,6 +13,7 @@ import {
   Workflow,
   Activity,
   Bug,
+  Sparkles,
   GitPullRequest,
   Settings,
   Siren,
@@ -38,6 +39,7 @@ export const PLACEHOLDER_ITEMS: PlaceholderItem[] = [
 
 export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: ROUTES.dashboard, icon: LayoutDashboard },
+  { label: "Ask AI", href: ROUTES.assistant, icon: Sparkles },
   { label: "Incidents", href: ROUTES.incidents, icon: Siren },
   { label: "Errors", href: ROUTES.errors, icon: Bug },
   { label: "Fixes", href: ROUTES.fixes, icon: GitPullRequest },

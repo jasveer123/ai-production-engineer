@@ -47,7 +47,7 @@ Built: grouped errors with counts, 24-hour history, stack traces, resolve and ig
 Not started: applications, session replay, users, events, funnels.
 
 ### 5. AI SRE
-Investigation is built inside incidents. A chat page is not started.
+Investigation is built inside incidents. Chat is built: answers from live incidents, errors, monitors, log alerts, logs and on-call, with cited sources. Read-only; it takes no actions.
 
 ### 6. Settings
 Members and invitations backend exists, screens are missing. Usage, API tokens, single sign-on: not started.

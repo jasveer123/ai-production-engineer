@@ -1,4 +1,5 @@
 export * from "./alerts.endpoints"
+export * from "./assistant.endpoints"
 export * from "./auth.endpoints"
 export * from "./errors.endpoints"
 export * from "./escalation.endpoints"

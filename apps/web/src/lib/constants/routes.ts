@@ -21,6 +21,7 @@ export const ROUTES = {
   statusPages: "/status-pages",
   metrics: "/metrics",
   errors: "/errors",
+  assistant: "/assistant",
   monitorDetail: (id: string) => `/monitors/${id}`,
   errorDetail: (id: string) => `/errors/${id}`,
   notifications: "/notifications",
