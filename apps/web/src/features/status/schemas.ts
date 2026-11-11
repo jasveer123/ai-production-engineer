@@ -5,6 +5,7 @@ export const updateSchema = z.object({
   title: z.string(),
   body: z.string(),
   state: z.string(),
+  auto: z.boolean(),
   createdAt: z.string(),
 })
 export type StatusUpdate = z.infer<typeof updateSchema>
@@ -15,12 +16,17 @@ export const pageSchema = z.object({
   slug: z.string(),
   description: z.string().nullable(),
   monitorIds: z.array(z.string()),
+  customDomain: z.string().nullable(),
+  domainToken: z.string().nullable(),
+  domainVerified: z.boolean(),
+  subscribers: z.number(),
   updates: z.array(updateSchema),
   createdAt: z.string(),
 })
 export type StatusPage = z.infer<typeof pageSchema>
 
 export const publicSchema = z.object({
+  slug: z.string(),
   name: z.string(),
   description: z.string().nullable(),
   overall: z.string(),

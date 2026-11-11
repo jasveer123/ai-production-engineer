@@ -310,6 +310,7 @@ export class StatusService {
       .orderBy(desc(statusUpdates.createdAt))
       .limit(PUBLIC_UPDATES);
     return {
+      slug: page.slug,
       name: page.name,
       description: page.description,
       overall,

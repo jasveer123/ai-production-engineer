@@ -5,6 +5,8 @@ import { Badge, Spinner } from "@/components/ui"
 import { formatRelativeTime } from "@/lib/format/relative-time"
 import { COMPONENT_LABEL, OVERALL_LABEL, OVERALL_TONE } from "../constants"
 import { usePublicStatus } from "../hooks"
+import type { PublicStatus } from "../schemas"
+import { SubscribeForm } from "./subscribe-form"
 import { UptimeBars } from "./uptime-bars"
 
 interface PublicStatusPageProps {
@@ -32,8 +34,10 @@ export function PublicStatusPage({ params }: PublicStatusPageProps) {
     )
   }
 
-  const data = status.data
+  return <PublicStatusView data={status.data} />
+}
 
+export function PublicStatusView({ data }: { data: PublicStatus }) {
   return (
     <main className="mx-auto grid max-w-3xl gap-6 px-6 py-12">
       <header className="grid gap-1">
@@ -64,6 +68,7 @@ export function PublicStatusPage({ params }: PublicStatusPageProps) {
           </article>
         ))}
       </section>
+      <SubscribeForm slug={data.slug} />
       {data.updates.length > 0 && (
         <section className="grid gap-3" aria-label="Updates">
           <h2 className="font-heading text-lg font-semibold">Updates</h2>
@@ -72,6 +77,9 @@ export function PublicStatusPage({ params }: PublicStatusPageProps) {
               <div className="flex items-center gap-2">
                 <Badge>{update.state}</Badge>
                 <span className="font-semibold">{update.title}</span>
+                {update.auto && (
+                  <span className="text-[0.75rem] text-muted-foreground">automatic</span>
+                )}
               </div>
               {update.body && <p className="text-sm leading-6">{update.body}</p>}
               <p className="text-[0.75rem] text-muted-foreground">

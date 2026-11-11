@@ -7,6 +7,7 @@ import { useMonitors } from "@/features/monitors"
 import { formatRelativeTime } from "@/lib/format/relative-time"
 import { useDeletePage, useRemoveUpdate, useSetMonitors } from "../hooks"
 import type { StatusPage } from "../schemas"
+import { DomainPanel } from "./domain-panel"
 import { UpdateForm } from "./update-form"
 
 interface PageCardProps {
@@ -42,6 +43,9 @@ export function PageCard({ workspaceId, page, canManage, canPost }: PageCardProp
           >
             /status/{page.slug}
           </a>
+          <span className="text-[0.75rem] text-muted-foreground">
+            {page.subscribers} email subscriber{page.subscribers === 1 ? "" : "s"}
+          </span>
         </div>
         {canManage && (
           <ConfirmDialog
@@ -72,6 +76,7 @@ export function PageCard({ workspaceId, page, canManage, canPost }: PageCardProp
           )}
         </div>
       </div>
+      {canManage && <DomainPanel workspaceId={workspaceId} page={page} />}
       {canPost && <UpdateForm workspaceId={workspaceId} pageId={page.id} />}
       {page.updates.length > 0 && (
         <ul className="grid gap-2">
@@ -81,6 +86,7 @@ export function PageCard({ workspaceId, page, canManage, canPost }: PageCardProp
                 <span className="flex items-center gap-2">
                   <Badge>{update.state}</Badge>
                   <span className="font-semibold">{update.title}</span>
+                  {update.auto && <Badge variant="info">automatic</Badge>}
                 </span>
                 <span className="text-[0.75rem] text-muted-foreground">
                   {formatRelativeTime(update.createdAt)}

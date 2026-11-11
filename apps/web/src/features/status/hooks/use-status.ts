@@ -70,3 +70,46 @@ export function useRemoveUpdate(workspaceId: string, id: string) {
     onSuccess: refresh,
   })
 }
+
+export function usePublicStatusByDomain(host: string) {
+  return useQuery({
+    queryKey: ["status", "public-domain", host],
+    queryFn: () => statusService.publicByDomain(host),
+    refetchInterval: STATUS_POLL_MS,
+    retry: false,
+  })
+}
+
+export function useSetDomain(workspaceId: string, id: string) {
+  const refresh = useRefresh(workspaceId)
+  return useMutation({
+    meta: { successMessage: "Domain saved" },
+    mutationFn: (domain: string | null) => statusService.setDomain(workspaceId, id, domain),
+    onSuccess: refresh,
+  })
+}
+
+export function useVerifyDomain(workspaceId: string, id: string) {
+  const refresh = useRefresh(workspaceId)
+  return useMutation({
+    meta: { successMessage: "Domain verified" },
+    mutationFn: () => statusService.verifyDomain(workspaceId, id),
+    onSuccess: refresh,
+  })
+}
+
+export function useSubscribe(slug: string) {
+  return useMutation({
+    mutationFn: (email: string) => statusService.subscribe(slug, email),
+  })
+}
+
+export function useSubscription(action: "confirm" | "unsubscribe", token: string) {
+  return useQuery({
+    queryKey: ["status", "subscription", action, token],
+    queryFn: () => statusService.subscription(action, token),
+    enabled: Boolean(token),
+    retry: false,
+    staleTime: Infinity,
+  })
+}

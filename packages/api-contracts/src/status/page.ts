@@ -72,6 +72,7 @@ export interface StatusUpdateView {
 }
 
 export interface PublicStatus {
+  slug: string;
   name: string;
   description: string | null;
   overall: OverallStatus;

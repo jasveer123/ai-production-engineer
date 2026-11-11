@@ -28,6 +28,28 @@ export const statusService = {
   removeUpdate: (workspaceId: string, id: string, updateId: string) =>
     http.delete<void>(STATUS_ENDPOINTS.UPDATE(workspaceId, id, updateId)),
 
+  setDomain: (workspaceId: string, id: string, customDomain: string | null) =>
+    http.patch<StatusPage>(
+      STATUS_ENDPOINTS.PAGE(workspaceId, id),
+      { customDomain },
+      { schema: pageSchema }
+    ),
+
+  verifyDomain: (workspaceId: string, id: string) =>
+    http.post<StatusPage>(STATUS_ENDPOINTS.VERIFY(workspaceId, id), {}, { schema: pageSchema }),
+
+  subscribe: (slug: string, email: string) =>
+    http.post<unknown>(STATUS_ENDPOINTS.SUBSCRIBE(slug), { email }),
+
+  subscription: (action: "confirm" | "unsubscribe", token: string) =>
+    http.get<{ page: string }>(
+      action === "confirm" ? STATUS_ENDPOINTS.CONFIRM : STATUS_ENDPOINTS.UNSUBSCRIBE,
+      { query: { token }, schema: z.object({ page: z.string() }) }
+    ),
+
+  publicByDomain: (host: string) =>
+    http.get<PublicStatus>(STATUS_ENDPOINTS.BY_DOMAIN(host), { schema: publicSchema }),
+
   publicView: (slug: string) =>
     http.get<PublicStatus>(STATUS_ENDPOINTS.PUBLIC(slug), { schema: publicSchema }),
 }
