@@ -1,22 +1,22 @@
 import {
-  Blocks,
-  Layers,
-  ChartLine,
-  Radio,
-  LayoutDashboard,
-  BellRing,
-  HeartPulse,
-  Globe,
-  Megaphone,
-  PhoneCall,
-  Workflow,
   Activity,
+  BellRing,
+  Blocks,
   Bug,
-  Sparkles,
-  MousePointerClick,
+  Globe,
   GitPullRequest,
+  HeartPulse,
+  Layers,
+  LayoutDashboard,
+  Megaphone,
+  MousePointerClick,
+  PhoneCall,
+  Radio,
+  ChartLine,
   Settings,
   Siren,
+  Sparkles,
+  Workflow,
   type LucideIcon,
 } from "lucide-react"
 import { ROUTES } from "@/lib/constants/routes"
@@ -27,30 +27,53 @@ export interface NavItem {
   icon: LucideIcon
 }
 
-export interface PlaceholderItem {
+export interface NavGroup {
   label: string
-  icon: LucideIcon
+  items: NavItem[]
 }
 
-export const PLACEHOLDER_ITEMS: PlaceholderItem[] = []
-
-export const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard", href: ROUTES.dashboard, icon: LayoutDashboard },
-  { label: "Ask AI", href: ROUTES.assistant, icon: Sparkles },
-  { label: "Incidents", href: ROUTES.incidents, icon: Siren },
-  { label: "Errors", href: ROUTES.errors, icon: Bug },
-  { label: "Real users", href: ROUTES.rum, icon: MousePointerClick },
-  { label: "Fixes", href: ROUTES.fixes, icon: GitPullRequest },
-  { label: "Monitors", href: ROUTES.monitors, icon: Globe },
-  { label: "On-call", href: ROUTES.oncall, icon: PhoneCall },
-  { label: "Escalation", href: ROUTES.escalation, icon: Workflow },
-  { label: "Status pages", href: ROUTES.statusPages, icon: Activity },
-  { label: "Alerts", href: ROUTES.alerts, icon: BellRing },
-  { label: "Heartbeats", href: ROUTES.heartbeats, icon: HeartPulse },
-  { label: "Notifications", href: ROUTES.notifications, icon: Megaphone },
-  { label: "Metrics", href: ROUTES.metrics, icon: ChartLine },
-  { label: "Live tail", href: ROUTES.liveTail, icon: Radio },
-  { label: "Services", href: ROUTES.services, icon: Layers },
-  { label: "Integrations", href: ROUTES.integrations, icon: Blocks },
-  { label: "Settings", href: ROUTES.settings, icon: Settings },
+export const NAV_GROUPS: NavGroup[] = [
+  {
+    label: "Overview",
+    items: [
+      { label: "Dashboard", href: ROUTES.dashboard, icon: LayoutDashboard },
+      { label: "Ask AI", href: ROUTES.assistant, icon: Sparkles },
+    ],
+  },
+  {
+    label: "Respond",
+    items: [
+      { label: "Incidents", href: ROUTES.incidents, icon: Siren },
+      { label: "Fixes", href: ROUTES.fixes, icon: GitPullRequest },
+      { label: "On-call", href: ROUTES.oncall, icon: PhoneCall },
+      { label: "Escalation", href: ROUTES.escalation, icon: Workflow },
+      { label: "Alerts", href: ROUTES.alerts, icon: BellRing },
+    ],
+  },
+  {
+    label: "Uptime",
+    items: [
+      { label: "Monitors", href: ROUTES.monitors, icon: Globe },
+      { label: "Heartbeats", href: ROUTES.heartbeats, icon: HeartPulse },
+      { label: "Status pages", href: ROUTES.statusPages, icon: Activity },
+      { label: "Services", href: ROUTES.services, icon: Layers },
+    ],
+  },
+  {
+    label: "Observe",
+    items: [
+      { label: "Live tail", href: ROUTES.liveTail, icon: Radio },
+      { label: "Metrics", href: ROUTES.metrics, icon: ChartLine },
+      { label: "Errors", href: ROUTES.errors, icon: Bug },
+      { label: "Real users", href: ROUTES.rum, icon: MousePointerClick },
+    ],
+  },
+  {
+    label: "Workspace",
+    items: [
+      { label: "Integrations", href: ROUTES.integrations, icon: Blocks },
+      { label: "Notifications", href: ROUTES.notifications, icon: Megaphone },
+      { label: "Settings", href: ROUTES.settings, icon: Settings },
+    ],
+  },
 ]

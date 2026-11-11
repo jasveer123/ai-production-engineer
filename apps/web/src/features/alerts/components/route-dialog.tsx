@@ -6,13 +6,13 @@ import {
   Button,
   Checkbox,
   Chip,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
   Eyebrow,
   Field,
   Input,
@@ -71,8 +71,8 @@ export function RouteDialog({ workspaceId, route, sources }: RouteDialogProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
+    <Drawer open={open} onOpenChange={setOpen}>
+      <DrawerTrigger
         render={<Button size={route ? "xs" : "sm"} variant={route ? "outline" : "default"} />}
       >
         {route ? (
@@ -82,16 +82,16 @@ export function RouteDialog({ workspaceId, route, sources }: RouteDialogProps) {
             <Plus /> New route
           </>
         )}
-      </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      </DrawerTrigger>
+      <DrawerContent className="max-h-[90vh] overflow-y-auto">
         <form method="post" onSubmit={onSubmit} className="grid gap-4">
-          <DialogHeader>
-            <DialogTitle>{route ? "Edit route" : "New route"}</DialogTitle>
-            <DialogDescription>
+          <DrawerHeader>
+            <DrawerTitle>{route ? "Edit route" : "New route"}</DrawerTitle>
+            <DrawerDescription>
               Routes are checked from the top. The first one that matches decides what happens to an
               alert.
-            </DialogDescription>
-          </DialogHeader>
+            </DrawerDescription>
+          </DrawerHeader>
           <Field label="Name" htmlFor="route-name">
             <Input
               id="route-name"
@@ -233,13 +233,13 @@ export function RouteDialog({ workspaceId, route, sources }: RouteDialogProps) {
               </div>
             </div>
           )}
-          <DialogFooter>
+          <DrawerFooter>
             <Button type="submit" disabled={!name.trim() || save.isPending}>
               {save.isPending && <Spinner />} Save route
             </Button>
-          </DialogFooter>
+          </DrawerFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   )
 }

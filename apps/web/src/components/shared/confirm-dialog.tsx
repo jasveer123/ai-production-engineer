@@ -1,16 +1,7 @@
 "use client"
 
 import * as React from "react"
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui"
+import { Button } from "@/components/ui"
 
 interface ConfirmDialogProps {
   triggerLabel: string
@@ -29,30 +20,40 @@ export function ConfirmDialog({
   pending,
   onConfirm,
 }: ConfirmDialogProps) {
-  const [open, setOpen] = React.useState(false)
+  const [asking, setAsking] = React.useState(false)
+
+  if (!asking) {
+    return (
+      <Button variant="destructive" size="xs" disabled={pending} onClick={() => setAsking(true)}>
+        {triggerLabel}
+      </Button>
+    )
+  }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="destructive" size="xs" disabled={pending} />}>
-        {triggerLabel}
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button
-            variant="destructive"
-            onClick={() => {
-              onConfirm()
-              setOpen(false)
-            }}
-          >
-            {confirmLabel}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <span
+      role="group"
+      aria-label={title}
+      title={description}
+      className="inline-flex flex-wrap items-center gap-2 border border-danger/40 bg-danger-soft px-2 py-1"
+    >
+      <span className="text-[0.75rem] text-danger">{title}</span>
+      <span className="sr-only">{description}</span>
+      <Button
+        variant="destructive"
+        size="xs"
+        autoFocus
+        disabled={pending}
+        onClick={() => {
+          onConfirm()
+          setAsking(false)
+        }}
+      >
+        {confirmLabel}
+      </Button>
+      <Button variant="ghost" size="xs" onClick={() => setAsking(false)}>
+        Cancel
+      </Button>
+    </span>
   )
 }

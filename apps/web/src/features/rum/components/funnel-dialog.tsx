@@ -5,13 +5,13 @@ import { Plus, X } from "lucide-react"
 import {
   Button,
   Chip,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
   Eyebrow,
   Field,
   Input,
@@ -41,11 +41,11 @@ export function FunnelDialog({ workspaceId }: FunnelDialogProps) {
     setSteps((list) => list.map((s, i) => (i === index ? { ...s, ...change } : s)))
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" />}>
+    <Drawer open={open} onOpenChange={setOpen}>
+      <DrawerTrigger render={<Button size="sm" />}>
         <Plus /> New funnel
-      </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      </DrawerTrigger>
+      <DrawerContent className="max-h-[90vh] overflow-y-auto">
         <form
           method="post"
           className="grid gap-4"
@@ -62,12 +62,12 @@ export function FunnelDialog({ workspaceId }: FunnelDialogProps) {
             )
           }}
         >
-          <DialogHeader>
-            <DialogTitle>New funnel</DialogTitle>
-            <DialogDescription>
+          <DrawerHeader>
+            <DrawerTitle>New funnel</DrawerTitle>
+            <DrawerDescription>
               See how many sessions get from the first step to the last, in order.
-            </DialogDescription>
-          </DialogHeader>
+            </DrawerDescription>
+          </DrawerHeader>
           <Field label="Name" htmlFor="funnel-name">
             <Input
               id="funnel-name"
@@ -134,13 +134,13 @@ export function FunnelDialog({ workspaceId }: FunnelDialogProps) {
               <Plus /> Add step
             </Button>
           )}
-          <DialogFooter>
+          <DrawerFooter>
             <Button type="submit" disabled={!valid || create.isPending}>
               {create.isPending && <Spinner />} Create funnel
             </Button>
-          </DialogFooter>
+          </DrawerFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   )
 }

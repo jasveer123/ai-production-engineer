@@ -4,13 +4,13 @@ import * as React from "react"
 import {
   Button,
   Chip,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
   Eyebrow,
   Field,
   Input,
@@ -48,16 +48,16 @@ export function OverrideDialog({ workspaceId, scheduleId }: OverrideDialogProps)
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="xs" variant="outline" />}>Swap a shift</DialogTrigger>
-      <DialogContent>
+    <Drawer open={open} onOpenChange={setOpen}>
+      <DrawerTrigger render={<Button size="xs" variant="outline" />}>Swap a shift</DrawerTrigger>
+      <DrawerContent>
         <form method="post" onSubmit={onSubmit} className="grid gap-4">
-          <DialogHeader>
-            <DialogTitle>Swap a shift</DialogTitle>
-            <DialogDescription>
+          <DrawerHeader>
+            <DrawerTitle>Swap a shift</DrawerTitle>
+            <DrawerDescription>
               Someone else covers for a while. The normal rotation carries on after it.
-            </DialogDescription>
-          </DialogHeader>
+            </DrawerDescription>
+          </DrawerHeader>
           <div className="grid gap-2">
             <Eyebrow>Who covers</Eyebrow>
             <div className="flex flex-wrap gap-2">
@@ -91,13 +91,13 @@ export function OverrideDialog({ workspaceId, scheduleId }: OverrideDialogProps)
               />
             </Field>
           </div>
-          <DialogFooter>
+          <DrawerFooter>
             <Button type="submit" disabled={!valid || add.isPending}>
               {add.isPending && <Spinner />} Save swap
             </Button>
-          </DialogFooter>
+          </DrawerFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   )
 }

@@ -5,13 +5,13 @@ import { Plus } from "lucide-react"
 import {
   Button,
   Chip,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
   Eyebrow,
   Field,
   Input,
@@ -52,18 +52,18 @@ export function PageDialog({ workspaceId }: PageDialogProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" />}>
+    <Drawer open={open} onOpenChange={setOpen}>
+      <DrawerTrigger render={<Button size="sm" />}>
         <Plus /> New status page
-      </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      </DrawerTrigger>
+      <DrawerContent className="max-h-[90vh] overflow-y-auto">
         <form method="post" onSubmit={onSubmit} className="grid gap-4">
-          <DialogHeader>
-            <DialogTitle>New status page</DialogTitle>
-            <DialogDescription>
+          <DrawerHeader>
+            <DrawerTitle>New status page</DrawerTitle>
+            <DrawerDescription>
               A public page anyone can open without signing in. It shows the monitors you pick.
-            </DialogDescription>
-          </DialogHeader>
+            </DrawerDescription>
+          </DrawerHeader>
           <Field label="Name" htmlFor="page-name">
             <Input
               id="page-name"
@@ -121,13 +121,13 @@ export function PageDialog({ workspaceId }: PageDialogProps) {
               </div>
             )}
           </div>
-          <DialogFooter>
+          <DrawerFooter>
             <Button type="submit" disabled={!valid || create.isPending}>
               {create.isPending && <Spinner />} Create page
             </Button>
-          </DialogFooter>
+          </DrawerFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   )
 }

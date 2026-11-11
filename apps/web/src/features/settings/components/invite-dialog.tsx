@@ -6,13 +6,13 @@ import {
   Button,
   Chip,
   CodeBlock,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
   Eyebrow,
   Field,
   Input,
@@ -50,31 +50,31 @@ export function InviteDialog({ workspaceId }: InviteDialogProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger render={<Button size="sm" />}>
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerTrigger render={<Button size="sm" />}>
         <UserPlus /> Invite
-      </DialogTrigger>
-      <DialogContent>
+      </DrawerTrigger>
+      <DrawerContent>
         {link ? (
           <div className="grid gap-4">
-            <DialogHeader>
-              <DialogTitle>Invitation created</DialogTitle>
-              <DialogDescription>
+            <DrawerHeader>
+              <DrawerTitle>Invitation created</DrawerTitle>
+              <DrawerDescription>
                 Send this link to {email}. It is shown only now, and works when they sign in with
                 that email.
-              </DialogDescription>
-            </DialogHeader>
+              </DrawerDescription>
+            </DrawerHeader>
             <CodeBlock>{link}</CodeBlock>
-            <DialogFooter>
+            <DrawerFooter>
               <Button onClick={() => onOpenChange(false)}>Done</Button>
-            </DialogFooter>
+            </DrawerFooter>
           </div>
         ) : (
           <form method="post" onSubmit={onSubmit} className="grid gap-4">
-            <DialogHeader>
-              <DialogTitle>Invite a teammate</DialogTitle>
-              <DialogDescription>They join with the role you choose.</DialogDescription>
-            </DialogHeader>
+            <DrawerHeader>
+              <DrawerTitle>Invite a teammate</DrawerTitle>
+              <DrawerDescription>They join with the role you choose.</DrawerDescription>
+            </DrawerHeader>
             <Field label="Email" htmlFor="invite-email">
               <Input
                 id="invite-email"
@@ -95,14 +95,14 @@ export function InviteDialog({ workspaceId }: InviteDialogProps) {
               </div>
               <p className="text-[0.8125rem] text-muted-foreground">{ROLE_HELP[role]}</p>
             </div>
-            <DialogFooter>
+            <DrawerFooter>
               <Button type="submit" disabled={!email.trim() || invite.isPending}>
                 {invite.isPending && <Spinner />} Create invitation
               </Button>
-            </DialogFooter>
+            </DrawerFooter>
           </form>
         )}
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   )
 }

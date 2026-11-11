@@ -5,13 +5,13 @@ import { Plus, X } from "lucide-react"
 import {
   Button,
   Chip,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
   Eyebrow,
   Field,
   Input,
@@ -96,8 +96,8 @@ export function PolicyDialog({ workspaceId, policy }: PolicyDialogProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
+    <Drawer open={open} onOpenChange={setOpen}>
+      <DrawerTrigger
         render={<Button size={policy ? "xs" : "sm"} variant={policy ? "outline" : "default"} />}
       >
         {policy ? (
@@ -107,16 +107,16 @@ export function PolicyDialog({ workspaceId, policy }: PolicyDialogProps) {
             <Plus /> New policy
           </>
         )}
-      </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      </DrawerTrigger>
+      <DrawerContent className="max-h-[90vh] overflow-y-auto">
         <form method="post" onSubmit={onSubmit} className="grid gap-4">
-          <DialogHeader>
-            <DialogTitle>{policy ? "Edit escalation policy" : "New escalation policy"}</DialogTitle>
-            <DialogDescription>
+          <DrawerHeader>
+            <DrawerTitle>{policy ? "Edit escalation policy" : "New escalation policy"}</DrawerTitle>
+            <DrawerDescription>
               Each step emails people. If nobody acknowledges the incident, the next step runs after
               its wait.
-            </DialogDescription>
-          </DialogHeader>
+            </DrawerDescription>
+          </DrawerHeader>
           <Field label="Name" htmlFor="policy-name">
             <Input
               id="policy-name"
@@ -185,13 +185,13 @@ export function PolicyDialog({ workspaceId, policy }: PolicyDialogProps) {
           >
             <Plus /> Add step
           </Button>
-          <DialogFooter>
+          <DrawerFooter>
             <Button type="submit" disabled={!valid || pending}>
               {pending && <Spinner />} Save policy
             </Button>
-          </DialogFooter>
+          </DrawerFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   )
 }

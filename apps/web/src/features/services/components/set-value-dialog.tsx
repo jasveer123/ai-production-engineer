@@ -3,13 +3,13 @@
 import * as React from "react"
 import {
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
   Field,
   Input,
   Spinner,
@@ -47,19 +47,19 @@ export function SetValueDialog({ workspaceId, row }: SetValueDialogProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="ghost" size="xs" className="text-brand" />}>
+    <Drawer open={open} onOpenChange={setOpen}>
+      <DrawerTrigger render={<Button variant="ghost" size="xs" className="text-brand" />}>
         {row.valuePerRequest === null ? "Set value" : "Edit"}
-      </DialogTrigger>
-      <DialogContent>
+      </DrawerTrigger>
+      <DrawerContent>
         <form method="post" onSubmit={onSubmit} className="grid gap-4">
-          <DialogHeader>
-            <DialogTitle>Business value of {row.name}</DialogTitle>
-            <DialogDescription>
+          <DrawerHeader>
+            <DrawerTitle>Business value of {row.name}</DrawerTitle>
+            <DrawerDescription>
               What one successful request is worth to you. Pramaan multiplies it by the failed
               requests to show what a problem costs.
-            </DialogDescription>
-          </DialogHeader>
+            </DrawerDescription>
+          </DrawerHeader>
           <div className="grid grid-cols-[1fr_6rem] gap-3">
             <Field label="Value per request" htmlFor="service-value">
               <Input
@@ -79,13 +79,13 @@ export function SetValueDialog({ workspaceId, row }: SetValueDialogProps) {
               />
             </Field>
           </div>
-          <DialogFooter>
+          <DrawerFooter>
             <Button type="submit" disabled={!valid || save.isPending}>
               {save.isPending && <Spinner />} Save value
             </Button>
-          </DialogFooter>
+          </DrawerFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   )
 }

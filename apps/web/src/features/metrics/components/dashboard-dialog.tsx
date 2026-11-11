@@ -4,13 +4,13 @@ import * as React from "react"
 import { Plus } from "lucide-react"
 import {
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
   Field,
   Input,
   Spinner,
@@ -40,18 +40,18 @@ export function DashboardDialog({ workspaceId, onCreated }: DashboardDialogProps
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" variant="outline" />}>
+    <Drawer open={open} onOpenChange={setOpen}>
+      <DrawerTrigger render={<Button size="sm" variant="outline" />}>
         <Plus /> New dashboard
-      </DialogTrigger>
-      <DialogContent>
+      </DrawerTrigger>
+      <DrawerContent>
         <form method="post" onSubmit={onSubmit} className="grid gap-4">
-          <DialogHeader>
-            <DialogTitle>New dashboard</DialogTitle>
-            <DialogDescription>
+          <DrawerHeader>
+            <DrawerTitle>New dashboard</DrawerTitle>
+            <DrawerDescription>
               A dashboard is a set of charts you want to watch together.
-            </DialogDescription>
-          </DialogHeader>
+            </DrawerDescription>
+          </DrawerHeader>
           <Field label="Name" htmlFor="dashboard-name">
             <Input
               id="dashboard-name"
@@ -61,13 +61,13 @@ export function DashboardDialog({ workspaceId, onCreated }: DashboardDialogProps
               placeholder="Production overview"
             />
           </Field>
-          <DialogFooter>
+          <DrawerFooter>
             <Button type="submit" disabled={!name.trim() || create.isPending}>
               {create.isPending && <Spinner />} Create dashboard
             </Button>
-          </DialogFooter>
+          </DrawerFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   )
 }

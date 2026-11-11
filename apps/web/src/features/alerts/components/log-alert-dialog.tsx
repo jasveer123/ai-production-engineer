@@ -5,13 +5,13 @@ import { Plus } from "lucide-react"
 import {
   Button,
   Chip,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
   Eyebrow,
   Field,
   Input,
@@ -71,8 +71,8 @@ export function LogAlertDialog({ workspaceId, alert }: LogAlertDialogProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" variant={alert ? "outline" : "default"} />}>
+    <Drawer open={open} onOpenChange={setOpen}>
+      <DrawerTrigger render={<Button size="sm" variant={alert ? "outline" : "default"} />}>
         {alert ? (
           "Edit"
         ) : (
@@ -80,16 +80,16 @@ export function LogAlertDialog({ workspaceId, alert }: LogAlertDialogProps) {
             <Plus /> New log alert
           </>
         )}
-      </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      </DrawerTrigger>
+      <DrawerContent className="max-h-[90vh] overflow-y-auto">
         <form method="post" onSubmit={onSubmit} className="grid gap-4">
-          <DialogHeader>
-            <DialogTitle>{alert ? "Edit log alert" : "New log alert"}</DialogTitle>
-            <DialogDescription>
+          <DrawerHeader>
+            <DrawerTitle>{alert ? "Edit log alert" : "New log alert"}</DrawerTitle>
+            <DrawerDescription>
               Raise an alert when enough matching logs arrive in a short time. It resolves itself
               when the logs calm down.
-            </DialogDescription>
-          </DialogHeader>
+            </DrawerDescription>
+          </DrawerHeader>
           <Field label="Name" htmlFor="log-alert-name">
             <Input
               id="log-alert-name"
@@ -164,13 +164,13 @@ export function LogAlertDialog({ workspaceId, alert }: LogAlertDialogProps) {
               ))}
             </div>
           </div>
-          <DialogFooter>
+          <DrawerFooter>
             <Button type="submit" disabled={!valid || pending}>
               {pending && <Spinner />} {alert ? "Save alert" : "Create alert"}
             </Button>
-          </DialogFooter>
+          </DrawerFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   )
 }

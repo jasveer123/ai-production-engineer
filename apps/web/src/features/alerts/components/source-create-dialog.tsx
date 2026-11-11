@@ -5,13 +5,13 @@ import { Plus } from "lucide-react"
 import {
   Button,
   Chip,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
   Eyebrow,
   Field,
   Input,
@@ -66,20 +66,20 @@ export function SourceCreateDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" />}>
+    <Drawer open={open} onOpenChange={setOpen}>
+      <DrawerTrigger render={<Button size="sm" />}>
         <Plus /> {triggerLabel}
-      </DialogTrigger>
-      <DialogContent>
+      </DrawerTrigger>
+      <DrawerContent>
         <form method="post" onSubmit={onSubmit} className="grid gap-4">
-          <DialogHeader>
-            <DialogTitle>{kind === "heartbeat" ? "New heartbeat" : "New alert source"}</DialogTitle>
-            <DialogDescription>
+          <DrawerHeader>
+            <DrawerTitle>{kind === "heartbeat" ? "New heartbeat" : "New alert source"}</DrawerTitle>
+            <DrawerDescription>
               {kind === "heartbeat"
                 ? "Your job calls a URL on a schedule. If a call is missing, Pramaan opens an alert."
                 : "Pick the tool that will send alerts. You get a URL and a token to paste into it."}
-            </DialogDescription>
-          </DialogHeader>
+            </DrawerDescription>
+          </DrawerHeader>
           {!fixedKind && (
             <div className="grid gap-2">
               <Eyebrow>Tool</Eyebrow>
@@ -140,13 +140,13 @@ export function SourceCreateDialog({
               </div>
             </>
           )}
-          <DialogFooter>
+          <DrawerFooter>
             <Button type="submit" disabled={!name.trim() || create.isPending}>
               {create.isPending && <Spinner />} Create
             </Button>
-          </DialogFooter>
+          </DrawerFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   )
 }

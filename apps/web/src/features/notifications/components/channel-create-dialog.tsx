@@ -6,13 +6,13 @@ import {
   Button,
   Checkbox,
   Chip,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
   Eyebrow,
   Field,
   Input,
@@ -64,18 +64,18 @@ export function ChannelCreateDialog({ workspaceId, onCreated }: ChannelCreateDia
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" />}>
+    <Drawer open={open} onOpenChange={setOpen}>
+      <DrawerTrigger render={<Button size="sm" />}>
         <Plus /> New channel
-      </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      </DrawerTrigger>
+      <DrawerContent className="max-h-[90vh] overflow-y-auto">
         <form method="post" onSubmit={onSubmit} className="grid gap-4">
-          <DialogHeader>
-            <DialogTitle>New channel</DialogTitle>
-            <DialogDescription>
+          <DrawerHeader>
+            <DrawerTitle>New channel</DrawerTitle>
+            <DrawerDescription>
               Choose where Pramaan tells your team about incidents.
-            </DialogDescription>
-          </DialogHeader>
+            </DrawerDescription>
+          </DrawerHeader>
           <div className="flex flex-wrap gap-2">
             {CHANNEL_KINDS.map((item) => (
               <Chip
@@ -140,13 +140,13 @@ export function ChannelCreateDialog({ workspaceId, onCreated }: ChannelCreateDia
               ))}
             </div>
           </div>
-          <DialogFooter>
+          <DrawerFooter>
             <Button type="submit" disabled={!valid || create.isPending}>
               {create.isPending && <Spinner />} Create channel
             </Button>
-          </DialogFooter>
+          </DrawerFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   )
 }

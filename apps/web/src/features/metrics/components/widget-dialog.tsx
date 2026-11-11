@@ -5,13 +5,13 @@ import { Plus } from "lucide-react"
 import {
   Button,
   Chip,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
   Eyebrow,
   Field,
   Input,
@@ -60,16 +60,16 @@ export function WidgetDialog({ workspaceId, metrics, onAdd, pending }: WidgetDia
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" disabled={pending} />}>
+    <Drawer open={open} onOpenChange={setOpen}>
+      <DrawerTrigger render={<Button size="sm" disabled={pending} />}>
         <Plus /> Add chart
-      </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      </DrawerTrigger>
+      <DrawerContent className="max-h-[90vh] overflow-y-auto">
         <form method="post" onSubmit={onSubmit} className="grid gap-4">
-          <DialogHeader>
-            <DialogTitle>Add a chart</DialogTitle>
-            <DialogDescription>Pick a metric and how to summarise it over time.</DialogDescription>
-          </DialogHeader>
+          <DrawerHeader>
+            <DrawerTitle>Add a chart</DrawerTitle>
+            <DrawerDescription>Pick a metric and how to summarise it over time.</DrawerDescription>
+          </DrawerHeader>
           <div className="grid gap-2">
             <Eyebrow>Metric</Eyebrow>
             <div className="flex flex-wrap gap-2">
@@ -167,13 +167,13 @@ export function WidgetDialog({ workspaceId, metrics, onAdd, pending }: WidgetDia
               placeholder={chosen?.name ?? "CPU usage"}
             />
           </Field>
-          <DialogFooter>
+          <DrawerFooter>
             <Button type="submit" disabled={!valid}>
               Add chart
             </Button>
-          </DialogFooter>
+          </DrawerFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   )
 }

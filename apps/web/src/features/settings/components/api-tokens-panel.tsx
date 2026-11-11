@@ -6,13 +6,13 @@ import {
   Button,
   Chip,
   CodeBlock,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
   Eyebrow,
   Field,
   Input,
@@ -52,23 +52,23 @@ export function ApiTokensPanel() {
           Personal tokens let your scripts call the API as you, with your role in each workspace.
           Send one as <span className="font-mono">Authorization: Bearer &lt;token&gt;</span>.
         </p>
-        <Dialog open={open} onOpenChange={onOpenChange}>
-          <DialogTrigger render={<Button size="sm" />}>
+        <Drawer open={open} onOpenChange={onOpenChange}>
+          <DrawerTrigger render={<Button size="sm" />}>
             <Plus /> New token
-          </DialogTrigger>
-          <DialogContent>
+          </DrawerTrigger>
+          <DrawerContent>
             {secret ? (
               <div className="grid gap-4">
-                <DialogHeader>
-                  <DialogTitle>Copy your token now</DialogTitle>
-                  <DialogDescription>
+                <DrawerHeader>
+                  <DrawerTitle>Copy your token now</DrawerTitle>
+                  <DrawerDescription>
                     It is shown only once. Store it somewhere safe.
-                  </DialogDescription>
-                </DialogHeader>
+                  </DrawerDescription>
+                </DrawerHeader>
                 <CodeBlock>{secret}</CodeBlock>
-                <DialogFooter>
+                <DrawerFooter>
                   <Button onClick={() => onOpenChange(false)}>Done</Button>
-                </DialogFooter>
+                </DrawerFooter>
               </div>
             ) : (
               <form
@@ -83,10 +83,10 @@ export function ApiTokensPanel() {
                     )
                 }}
               >
-                <DialogHeader>
-                  <DialogTitle>New API token</DialogTitle>
-                  <DialogDescription>Name it after the script that will use it.</DialogDescription>
-                </DialogHeader>
+                <DrawerHeader>
+                  <DrawerTitle>New API token</DrawerTitle>
+                  <DrawerDescription>Name it after the script that will use it.</DrawerDescription>
+                </DrawerHeader>
                 <Field label="Name" htmlFor="token-name">
                   <Input
                     id="token-name"
@@ -110,15 +110,15 @@ export function ApiTokensPanel() {
                     ))}
                   </div>
                 </div>
-                <DialogFooter>
+                <DrawerFooter>
                   <Button type="submit" disabled={!name.trim() || create.isPending}>
                     {create.isPending && <Spinner />} Create token
                   </Button>
-                </DialogFooter>
+                </DrawerFooter>
               </form>
             )}
-          </DialogContent>
-        </Dialog>
+          </DrawerContent>
+        </Drawer>
       </div>
       <ul className="grid gap-2">
         {(tokens.data ?? []).map((item) => (

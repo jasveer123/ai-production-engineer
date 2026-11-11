@@ -5,13 +5,13 @@ import { Plus } from "lucide-react"
 import {
   Button,
   Chip,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
   Eyebrow,
   Field,
   Input,
@@ -93,8 +93,8 @@ export function MonitorCreateDialog({ workspaceId, monitor }: MonitorCreateDialo
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" variant={monitor ? "outline" : "default"} />}>
+    <Drawer open={open} onOpenChange={setOpen}>
+      <DrawerTrigger render={<Button size="sm" variant={monitor ? "outline" : "default"} />}>
         {monitor ? (
           "Edit"
         ) : (
@@ -102,13 +102,13 @@ export function MonitorCreateDialog({ workspaceId, monitor }: MonitorCreateDialo
             <Plus /> New monitor
           </>
         )}
-      </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      </DrawerTrigger>
+      <DrawerContent className="max-h-[90vh] overflow-y-auto">
         <form method="post" onSubmit={onSubmit} className="grid gap-4">
-          <DialogHeader>
-            <DialogTitle>{monitor ? "Edit monitor" : "New monitor"}</DialogTitle>
-            <DialogDescription>{KINDS.find((item) => item.value === kind)?.hint}</DialogDescription>
-          </DialogHeader>
+          <DrawerHeader>
+            <DrawerTitle>{monitor ? "Edit monitor" : "New monitor"}</DrawerTitle>
+            <DrawerDescription>{KINDS.find((item) => item.value === kind)?.hint}</DrawerDescription>
+          </DrawerHeader>
           <div className="flex flex-wrap gap-2" hidden={Boolean(monitor)}>
             {KINDS.map((item) => (
               <Chip
@@ -219,13 +219,13 @@ export function MonitorCreateDialog({ workspaceId, monitor }: MonitorCreateDialo
               ))}
             </div>
           </div>
-          <DialogFooter>
+          <DrawerFooter>
             <Button type="submit" disabled={!valid || pending}>
               {pending && <Spinner />} {monitor ? "Save monitor" : "Create monitor"}
             </Button>
-          </DialogFooter>
+          </DrawerFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   )
 }

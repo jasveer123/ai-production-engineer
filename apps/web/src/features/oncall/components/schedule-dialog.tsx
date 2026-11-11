@@ -6,13 +6,13 @@ import {
   Button,
   Checkbox,
   Chip,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
   Eyebrow,
   Field,
   Input,
@@ -76,8 +76,8 @@ export function ScheduleDialog({ workspaceId, schedule }: ScheduleDialogProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
+    <Drawer open={open} onOpenChange={setOpen}>
+      <DrawerTrigger
         render={<Button size={schedule ? "xs" : "sm"} variant={schedule ? "outline" : "default"} />}
       >
         {schedule ? (
@@ -87,16 +87,16 @@ export function ScheduleDialog({ workspaceId, schedule }: ScheduleDialogProps) {
             <Plus /> New schedule
           </>
         )}
-      </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      </DrawerTrigger>
+      <DrawerContent className="max-h-[90vh] overflow-y-auto">
         <form method="post" onSubmit={onSubmit} className="grid gap-4">
-          <DialogHeader>
-            <DialogTitle>{schedule ? "Edit schedule" : "New schedule"}</DialogTitle>
-            <DialogDescription>
+          <DrawerHeader>
+            <DrawerTitle>{schedule ? "Edit schedule" : "New schedule"}</DrawerTitle>
+            <DrawerDescription>
               People take turns being on call, in the order below. The first turn starts at the
               start time.
-            </DialogDescription>
-          </DialogHeader>
+            </DrawerDescription>
+          </DrawerHeader>
           <Field label="Name" htmlFor="schedule-name">
             <Input
               id="schedule-name"
@@ -188,13 +188,13 @@ export function ScheduleDialog({ workspaceId, schedule }: ScheduleDialogProps) {
               </ol>
             </div>
           )}
-          <DialogFooter>
+          <DrawerFooter>
             <Button type="submit" disabled={!valid || save.isPending}>
               {save.isPending && <Spinner />} Save schedule
             </Button>
-          </DialogFooter>
+          </DrawerFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   )
 }
