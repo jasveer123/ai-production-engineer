@@ -18,7 +18,7 @@ Rule for every feature: build it, test it, commit it, then move to the next.
 | Alert sources, routes and alert feed (screens) | Built |
 | Heartbeats (screens) | Built |
 | Monitors (uptime checks): website, keyword, status code, port | Built |
-| On-call schedules: rotations, overrides, who is on call | API built, page in progress |
+| On-call schedules: rotations, overrides, who is on call | Built |
 | Escalation policies | Not started |
 | Notifications: Slack, webhook (screens, history) | Built |
 | Notifications: email | Not started |
