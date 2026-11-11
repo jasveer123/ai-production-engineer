@@ -21,7 +21,9 @@ export function SourcesPanel({ workspaceId, canManage, heartbeats }: SourcesPane
   const [secret, setSecret] = React.useState<AlertSourceWithToken | null>(null)
   const pending = rotate.isPending || remove.isPending
 
-  const items = (sources.data ?? []).filter((item) => (item.kind === "heartbeat") === heartbeats)
+  const items = (sources.data ?? []).filter(
+    (item) => item.kind !== "monitor" && (item.kind === "heartbeat") === heartbeats
+  )
 
   return (
     <div className="grid gap-4">

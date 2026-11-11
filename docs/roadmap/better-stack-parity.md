@@ -17,7 +17,7 @@ Rule for every feature: build it, test it, commit it, then move to the next.
 | Verification after deploy | Built |
 | Alert sources, routes and alert feed (screens) | Built |
 | Heartbeats (screens) | Built |
-| Monitors (uptime checks) | Not started |
+| Monitors (uptime checks): website, keyword, status code, port | Built |
 | On-call schedules | Not started |
 | Escalation policies | Not started |
 | Notifications: Slack, webhook (screens, history) | Built |
