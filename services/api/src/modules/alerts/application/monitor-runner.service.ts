@@ -6,6 +6,7 @@ import {
   type OnApplicationShutdown,
 } from '@nestjs/common';
 import { ENV, type ApiEnv } from '../../../core/config/config.module';
+import { LogAlertsService } from './log-alerts.service';
 import { MonitorsService } from './monitors.service';
 
 const PURGE_EVERY_MS = 60 * 60 * 1000;
@@ -19,6 +20,7 @@ export class MonitorRunner implements OnApplicationBootstrap, OnApplicationShutd
   constructor(
     @Inject(ENV) private readonly env: ApiEnv,
     private readonly monitors: MonitorsService,
+    private readonly logAlerts: LogAlertsService,
   ) {}
 
   onApplicationBootstrap() {
@@ -42,6 +44,7 @@ export class MonitorRunner implements OnApplicationBootstrap, OnApplicationShutd
     this.running = true;
     try {
       await this.monitors.runDue();
+      await this.logAlerts.runDue();
     } catch (err) {
       this.logger.error(err);
     } finally {

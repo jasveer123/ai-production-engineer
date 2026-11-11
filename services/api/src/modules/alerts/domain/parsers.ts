@@ -343,6 +343,33 @@ function parseMonitor(payload: unknown, now: Date): ParsedAlert[] {
   ];
 }
 
+function parseLogAlert(payload: unknown, now: Date): ParsedAlert[] {
+  const p = payload as {
+    status?: string;
+    name?: string;
+    reason?: string;
+    severity?: string;
+    service?: string;
+  };
+  const name = text(p?.name, 200) ?? 'log alert';
+  const firing = p?.status !== 'resolved';
+  const severity = ['low', 'medium', 'high', 'critical'].includes(p?.severity ?? '')
+    ? (p.severity as ParsedAlert['severity'])
+    : 'high';
+  return [
+    {
+      dedupKey: 'log_alert',
+      status: firing ? 'firing' : 'resolved',
+      title: `Log alert "${name}" ${firing ? 'is firing' : 'recovered'}`,
+      description: text(p?.reason, 500),
+      severity,
+      labels: { alert: name, ...(p?.service ? { service: text(p.service, 120) ?? '' } : {}) },
+      sourceUrl: null,
+      occurredAt: now,
+    },
+  ];
+}
+
 export function parseAlerts(kind: string, payload: unknown, now = new Date()): ParsedAlert[] {
   switch (kind) {
     case 'http':
@@ -364,6 +391,8 @@ export function parseAlerts(kind: string, payload: unknown, now = new Date()): P
       return parseHeartbeat(payload, now);
     case 'monitor':
       return parseMonitor(payload, now);
+    case 'log_alert':
+      return parseLogAlert(payload, now);
     default:
       throw new PermanentIngestError('unknown_source', `No alert parser for "${kind}"`);
   }
