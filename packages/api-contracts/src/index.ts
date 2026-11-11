@@ -9,3 +9,4 @@ export * from './status';
 export * from './services';
 export * from './telemetry';
 export * from './workspaces';
+export * from './assistant';

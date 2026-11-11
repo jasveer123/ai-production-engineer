@@ -26,6 +26,8 @@ export const telemetryEnv = {
   SYSLOG_TLS_CERT_PATH: optionalText,
   SYSLOG_TLS_KEY_PATH: optionalText,
   JAEGER_QUERY_URL: urlWithDefault('http://localhost:16686'),
+  AI_WORKER_URL: urlWithDefault('http://localhost:8000'),
+  AI_CHAT_TIMEOUT_MS: boundedInt(1000, 300_000, 90_000),
   JAEGER_UI_URL: urlWithDefault('http://localhost:16686'),
   JAEGER_POLL_INTERVAL_MS: positiveInt(15_000),
 };

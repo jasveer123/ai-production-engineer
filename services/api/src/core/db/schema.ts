@@ -11,5 +11,6 @@ export * from './tables/investigation';
 export * from './tables/notifications';
 export * from './tables/oncall';
 export * from './tables/status';
+export * from './tables/assistant';
 export * from './tables/telemetry-ingest';
 export * from './tables/types';
