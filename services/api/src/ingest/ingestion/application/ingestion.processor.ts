@@ -7,6 +7,7 @@ import { DB } from '../../../core/db/database.module';
 import type { Database, Tx } from '../../../core/db/client';
 import {
   deployments,
+  errorGroups,
   inboundEvents,
   incidentEvents,
   incidents,
@@ -16,6 +17,7 @@ import {
   workspaces,
 } from '../../../core/db/schema';
 import { severityFor } from '../../../modules/incidents/domain/lifecycle';
+import { recordErrorOccurrence } from '../domain/error-groups';
 import { normalize, PermanentIngestError, type NormalizedEvent } from '../domain/normalize';
 import { openIncident } from '../infrastructure/open-incident';
 import {
@@ -175,7 +177,10 @@ export class IngestionProcessor {
       return;
     }
     if (await this.endedAsClientError(tx, row, event)) return;
-    await this.correlateError(tx, row, event, service?.id ?? null);
+    const group = await recordErrorOccurrence(tx, row.workspaceId, row.externalEventId, event);
+    if (group.ignored) return;
+    const incidentId = await this.correlateError(tx, row, event, service?.id ?? null);
+    await tx.update(errorGroups).set({ incidentId }).where(eq(errorGroups.id, group.groupId));
   }
 
   private async endedAsClientError(
@@ -210,7 +215,7 @@ export class IngestionProcessor {
     row: InboundRow,
     event: Extract<NormalizedEvent, { kind: 'error' }>,
     serviceId: string | null,
-  ): Promise<void> {
+  ): Promise<string> {
     const [open] = await tx
       .select({ id: incidents.id })
       .from(incidents)
@@ -278,6 +283,7 @@ export class IngestionProcessor {
         })
         .where(eq(incidents.id, incidentId));
     }
+    return incidentId;
   }
 
   async replay(workspaceId: string, ids: string[]): Promise<number> {

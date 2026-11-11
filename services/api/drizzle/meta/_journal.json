@@ -148,6 +148,13 @@
       "when": 1794389857337,
       "tag": "0020_metrics",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1794390105413,
+      "tag": "0021_error_groups",
+      "breakpoints": true
     }
   ]
 }

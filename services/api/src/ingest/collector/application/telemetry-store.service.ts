@@ -9,6 +9,7 @@ import {
   ingestStreams,
   integrations,
   logRecords,
+  errorOccurrences,
   metricPoints,
   spans,
 } from '../../../core/db/schema';
@@ -281,6 +282,7 @@ export class TelemetryStore implements OnModuleInit, OnModuleDestroy {
     try {
       await this.db.delete(logRecords).where(lt(logRecords.ts, cutoff));
       await this.db.delete(spans).where(lt(spans.startTime, cutoff));
+      await this.db.delete(errorOccurrences).where(lt(errorOccurrences.occurredAt, cutoff));
       await this.db.delete(metricPoints).where(lt(metricPoints.ts, cutoff));
     } catch (err) {
       this.logger.warn(`Retention cleanup failed: ${(err as Error).message}`);

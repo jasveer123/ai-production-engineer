@@ -149,3 +149,52 @@ export const dashboards = pgTable(
   },
   (t) => [index('dashboards_workspace_idx').on(t.workspaceId)],
 );
+
+export const errorGroups = pgTable(
+  'error_groups',
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    fingerprint: text('fingerprint').notNull(),
+    title: text('title').notNull(),
+    errorType: text('error_type').notNull(),
+    message: text('message').notNull(),
+    service: text('service').notNull(),
+    environment: text('environment').notNull(),
+    status: text('status').notNull().default('unresolved'),
+    count: integer('count').notNull().default(0),
+    firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull(),
+    release: text('release'),
+    route: text('route'),
+    stack: jsonb('stack').$type<string[]>().notNull().default([]),
+    incidentId: uuid('incident_id'),
+    reopenedAt: timestamp('reopened_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('error_groups_fingerprint_idx').on(t.workspaceId, t.fingerprint),
+    index('error_groups_last_seen_idx').on(t.workspaceId, t.lastSeenAt),
+  ],
+);
+
+export const errorOccurrences = pgTable(
+  'error_occurrences',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    workspaceId: workspaceRef(),
+    groupId: uuid('group_id')
+      .notNull()
+      .references(() => errorGroups.id, { onDelete: 'cascade' }),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    traceId: text('trace_id'),
+    release: text('release'),
+    message: text('message').notNull(),
+    externalEventId: text('external_event_id'),
+  },
+  (t) => [
+    index('error_occurrences_group_idx').on(t.groupId, t.occurredAt),
+    uniqueIndex('error_occurrences_event_idx')
+      .on(t.groupId, t.externalEventId)
+      .where(sql`${t.externalEventId} is not null`),
+  ],
+);

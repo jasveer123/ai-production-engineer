@@ -14,6 +14,7 @@ import { HealthModule } from './core/health/health.module';
 import { IncidentsModule } from './modules/incidents/incidents.module';
 import { IngestionModule } from './ingest/ingestion/ingestion.module';
 import { InvestigationsModule } from './modules/investigations/investigations.module';
+import { ErrorsModule } from './modules/errors/errors.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
 import { StatusModule } from './modules/status/status.module';
 import { EscalationModule } from './modules/escalation/escalation.module';
@@ -50,6 +51,7 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     EscalationModule,
     StatusModule,
     MetricsModule,
+    ErrorsModule,
     RealtimeModule,
     QualityModule,
     DeploymentsModule,
