@@ -7,6 +7,8 @@ paths = [
   '''services/api/src/modules/investigations/domain/redact\.spec\.ts''',
   '''services/api/src/investigations/redact\.spec\.ts''',
   '''services/api/test/auth\.e2e-spec\.ts''',
+  '''services/api/src/modules/incidents/domain/response\.spec\.ts''',
+  '''services/api/test/rum\.e2e-spec\.ts''',
 ]
 regexTarget = "line"
 regexes = ['''secretAccessKey: env\.S3_SECRET_KEY''']
