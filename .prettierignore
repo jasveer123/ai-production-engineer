@@ -9,3 +9,6 @@ services/api/drizzle
 .dependency-cruiser-known-violations.json
 packages/collector/chart/templates
 apps/web/next-env.d.ts
+apps/site/public/vendor
+apps/site/out
+apps/site/next-env.d.ts

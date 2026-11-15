@@ -1,11 +1,21 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
-    ".": { "entry": ["scripts/*.{js,mjs,ts}"] },
-    "apps/web": { "entry": ["src/app/**/{page,layout,route,loading,error,not-found}.tsx"] },
-    "services/api": { "entry": ["src/main.ts", "src/worker.ts", "test/**/*.ts"] },
+    ".": {
+      "entry": ["scripts/*.{js,mjs,ts}"]
+    },
+    "apps/web": {
+      "entry": ["src/app/**/{page,layout,route,loading,error,not-found}.tsx"]
+    },
+    "services/api": {
+      "entry": ["src/main.ts", "src/worker.ts", "test/**/*.ts"]
+    },
     "services/sandbox-manager": {},
-    "packages/*": {}
+    "packages/*": {},
+    "apps/site": {
+      "entry": ["app/**/{page,layout,not-found}.tsx"],
+      "ignore": ["public/**"]
+    }
   },
   "ignoreWorkspaces": ["packages/sdk-python"]
 }

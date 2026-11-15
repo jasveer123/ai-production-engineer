@@ -1,0 +1,971 @@
+[
+  {
+    "id": "opentelemetry",
+    "name": "OpenTelemetry",
+    "tagline": "Collector or any app SDK",
+    "description": "The open standard for logs, traces and metrics. Run the Collector next to your apps, or point an OpenTelemetry exporter straight at us.",
+    "group": "collect",
+    "way": "otlp",
+    "codeChange": false,
+    "facts": {
+      "access": "Read access to any log files you list. Network access from the Collector or your app to our intake address.",
+      "limits": "Up to 10 MB per request (gzip is accepted). Logs are kept 7 days by default. Supported OTLP metric points are stored for querying; retention follows your deployment settings."
+    },
+    "collects": [
+      "Logs from OTLP and from log files you list",
+      "Traces, stored so the AI can read a whole request",
+      "Supported OTLP metric points, stored for querying"
+    ],
+    "docsUrl": "https://opentelemetry.io/docs/collector/",
+    "related": ["javascript", "python"],
+    "methods": [
+      {
+        "id": "docker",
+        "label": "Collector in Docker",
+        "summary": "Run the Collector as a container next to your apps.",
+        "troubleshoot": [
+          "Run docker logs pramaan-otel and look for lines saying Exporting failed.",
+          "If the container cannot reach us, change host.docker.internal to an address it can reach.",
+          "Your app must send to the Collector's address (port 4318), not straight to us, in this method."
+        ],
+        "steps": [
+          {
+            "title": "Save this Collector config",
+            "description": "It reads files and OTLP from your apps, then sends everything to us.",
+            "code": {
+              "filename": "otel-collector.yaml",
+              "content": "receivers:\n  otlp:\n    protocols:\n      grpc:\n        endpoint: 0.0.0.0:4317\n      http:\n        endpoint: 0.0.0.0:4318\n  filelog:\n    include:\n      - /var/log/app/*.log\nprocessors:\n  resource:\n    attributes:\n      - key: service.name\n        value: my-app\n        action: insert\n      - key: deployment.environment\n        value: production\n        action: insert\nexporters:\n  otlphttp:\n    logs_endpoint: https://YOUR_INGEST_URL/v1/logs?way=otlp\n    traces_endpoint: https://YOUR_INGEST_URL/v1/traces?way=otlp\n    metrics_endpoint: https://YOUR_INGEST_URL/v1/metrics?way=otlp\n    headers:\n      x-ape-token: YOUR_TOKEN\nservice:\n  pipelines:\n    logs:\n      receivers: [otlp, filelog]\n      processors: [resource]\n      exporters: [otlphttp]\n    traces:\n      receivers: [otlp]\n      processors: [resource]\n      exporters: [otlphttp]\n    metrics:\n      receivers: [otlp]\n      processors: [resource]\n      exporters: [otlphttp]"
+            }
+          },
+          {
+            "title": "Run the Collector",
+            "description": "Use the contrib build, which includes the file reader.",
+            "code": {
+              "filename": "terminal",
+              "content": "docker run -d --name pramaan-otel \\\n  -p 4317:4317 -p 4318:4318 \\\n  -v $PWD/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro \\\n  -v /var/log/app:/var/log/app:ro \\\n  otel/opentelemetry-collector-contrib:latest"
+            }
+          },
+          {
+            "title": "Point your apps at the Collector",
+            "description": "Any OpenTelemetry SDK can use these settings.",
+            "code": {
+              "filename": "terminal",
+              "content": "export OTEL_EXPORTER_OTLP_ENDPOINT=\"http://localhost:4318\"\nexport OTEL_SERVICE_NAME=\"my-app\""
+            }
+          }
+        ]
+      },
+      {
+        "id": "existing",
+        "label": "Collector you already run",
+        "summary": "Add an exporter and three pipelines to your own config.",
+        "troubleshoot": [
+          "Restart the Collector after you edit its config.",
+          "Check the Collector's own log output for lines saying Exporting failed.",
+          "Make sure your existing receivers are named in the receivers lists below."
+        ],
+        "steps": [
+          {
+            "title": "Add this to your Collector config",
+            "description": "Keep everything you already have. Change the receivers lists if yours are named differently.",
+            "code": {
+              "filename": "config.yaml",
+              "content": "exporters:\n  otlphttp/pramaan:\n    logs_endpoint: https://YOUR_INGEST_URL/v1/logs?way=otlp\n    traces_endpoint: https://YOUR_INGEST_URL/v1/traces?way=otlp\n    metrics_endpoint: https://YOUR_INGEST_URL/v1/metrics?way=otlp\n    headers:\n      x-ape-token: YOUR_TOKEN\nprocessors:\n  batch:\nservice:\n  pipelines:\n    logs/pramaan:\n      receivers: [otlp]\n      processors: [batch]\n      exporters: [otlphttp/pramaan]\n    traces/pramaan:\n      receivers: [otlp]\n      processors: [batch]\n      exporters: [otlphttp/pramaan]\n    metrics/pramaan:\n      receivers: [otlp]\n      processors: [batch]\n      exporters: [otlphttp/pramaan]"
+            }
+          },
+          {
+            "title": "Restart the Collector",
+            "description": "For a systemd install. In Docker, restart the container instead.",
+            "code": {
+              "filename": "terminal",
+              "content": "sudo systemctl restart otelcol-contrib"
+            }
+          }
+        ]
+      },
+      {
+        "id": "sdk",
+        "label": "Straight from your app",
+        "summary": "No Collector. Your app's OpenTelemetry SDK sends to us.",
+        "troubleshoot": [
+          "Check the header name is exactly x-ape-token and the token has no extra spaces.",
+          "Spans are sent in batches. Shut the tracer provider down before a script exits.",
+          "OTLP over HTTP is supported. gRPC is not."
+        ],
+        "steps": [
+          {
+            "title": "Set the three standard settings",
+            "description": "Most OpenTelemetry SDKs read these from the environment.",
+            "code": {
+              "filename": "terminal",
+              "content": "export OTEL_EXPORTER_OTLP_ENDPOINT=\"https://YOUR_INGEST_URL\"\nexport OTEL_EXPORTER_OTLP_HEADERS=\"x-ape-token=YOUR_TOKEN\"\nexport OTEL_SERVICE_NAME=\"my-app\""
+            }
+          },
+          {
+            "title": "Python example",
+            "description": "Install the SDK and the HTTP exporter, then run this.",
+            "code": {
+              "filename": "otel_example.py",
+              "content": "from opentelemetry import trace\nfrom opentelemetry.sdk.resources import Resource\nfrom opentelemetry.sdk.trace import TracerProvider\nfrom opentelemetry.sdk.trace.export import BatchSpanProcessor\nfrom opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter\n\nprovider = TracerProvider(resource=Resource.create({'service.name': 'my-app'}))\nprovider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(\n    endpoint='https://YOUR_INGEST_URL/v1/traces',\n    headers={'x-ape-token': 'YOUR_TOKEN'},\n)))\ntrace.set_tracer_provider(provider)\n\nwith trace.get_tracer('my-app').start_as_current_span('checkout'):\n    print('working')\nprovider.shutdown()"
+            }
+          },
+          {
+            "title": "Install the Python packages",
+            "code": {
+              "filename": "terminal",
+              "content": "pip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-http"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "docker",
+    "name": "Docker",
+    "tagline": "Every container on a host",
+    "description": "One extra container reads the output of all your other containers. Your apps and images stay exactly as they are.",
+    "group": "collect",
+    "way": "agent",
+    "codeChange": false,
+    "facts": {
+      "access": "Read access to the Docker socket (/var/run/docker.sock) so the collector can see your containers.",
+      "limits": "Up to 10 MB per request, and logs are kept 7 days by default."
+    },
+    "collects": [
+      "Everything every container writes to its output",
+      "The container name, used as the service name",
+      "Structured JSON lines, with their level and message"
+    ],
+    "docsUrl": "https://vector.dev/docs/reference/configuration/sources/docker_logs/",
+    "related": ["vector", "fluent-bit"],
+    "methods": [
+      {
+        "id": "one-command",
+        "label": "One command",
+        "summary": "Run one command on your server. Every container is collected.",
+        "troubleshoot": [
+          "Run docker logs ape-agent and look for errors.",
+          "Unauthorized means the token is wrong or was revoked. Run the command again with a new token.",
+          "Logs written to a file inside a container are not collected. Make the app print to the console."
+        ],
+        "steps": [
+          {
+            "title": "Run this on your Linux server",
+            "description": "It needs Docker and root access. Run it once on each server you want to collect.",
+            "code": {
+              "filename": "terminal",
+              "content": "curl -fsSL https://YOUR_PRAMAAN_URL/api/install/agent.sh | sudo APE_TOKEN=YOUR_TOKEN APE_MODE=docker sh"
+            }
+          }
+        ]
+      },
+      {
+        "id": "vector",
+        "label": "Vector container",
+        "summary": "One container reads every other container's output.",
+        "troubleshoot": [
+          "Run docker logs pramaan-docker-logs and look for errors.",
+          "If Docker cannot find host.docker.internal, replace it with your machine's address.",
+          "The collector needs the Docker socket mounted. Check the -v /var/run/docker.sock line."
+        ],
+        "steps": [
+          {
+            "title": "Save this config",
+            "description": "It labels each log with the container's name.",
+            "code": {
+              "filename": "vector.yaml",
+              "content": "sources:\n  containers:\n    type: docker_logs\n    exclude_containers:\n      - pramaan-docker-logs\ntransforms:\n  label:\n    type: remap\n    inputs:\n      - containers\n    source: |\n      .service = .container_name\nsinks:\n  pramaan:\n    type: http\n    inputs:\n      - label\n    uri: https://YOUR_INGEST_URL/v1/logs?env=production\n    encoding:\n      codec: json\n    auth:\n      strategy: bearer\n      token: YOUR_TOKEN"
+            }
+          },
+          {
+            "title": "Start the collector container",
+            "code": {
+              "filename": "terminal",
+              "content": "docker run -d --name pramaan-docker-logs \\\n  -v /var/run/docker.sock:/var/run/docker.sock \\\n  -v $PWD/vector.yaml:/etc/vector/vector.yaml:ro \\\n  timberio/vector:latest-alpine"
+            }
+          }
+        ]
+      },
+      {
+        "id": "compose",
+        "label": "Docker Compose",
+        "summary": "Add the collector to a compose file you already use.",
+        "troubleshoot": [
+          "The container_name must stay pramaan-docker-logs, or the collector reads its own logs.",
+          "Run docker compose logs pramaan-logs and look for errors.",
+          "Run docker compose up -d again after you change vector.yaml."
+        ],
+        "steps": [
+          {
+            "title": "Save the collector config",
+            "code": {
+              "filename": "vector.yaml",
+              "content": "sources:\n  containers:\n    type: docker_logs\n    exclude_containers:\n      - pramaan-docker-logs\ntransforms:\n  label:\n    type: remap\n    inputs:\n      - containers\n    source: |\n      .service = .container_name\nsinks:\n  pramaan:\n    type: http\n    inputs:\n      - label\n    uri: https://YOUR_INGEST_URL/v1/logs?env=production\n    encoding:\n      codec: json\n    auth:\n      strategy: bearer\n      token: YOUR_TOKEN"
+            }
+          },
+          {
+            "title": "Add this service to your compose file",
+            "code": {
+              "filename": "compose.yaml",
+              "content": "services:\n  pramaan-logs:\n    image: timberio/vector:latest-alpine\n    container_name: pramaan-docker-logs\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - ./vector.yaml:/etc/vector/vector.yaml:ro"
+            }
+          },
+          {
+            "title": "Start it",
+            "code": {
+              "filename": "terminal",
+              "content": "docker compose up -d pramaan-logs"
+            }
+          }
+        ]
+      },
+      {
+        "id": "logging-driver",
+        "label": "Docker logging driver",
+        "summary": "Docker sends each container's logs to Fluent Bit for you.",
+        "troubleshoot": [
+          "Start the Fluent Bit container before the containers that use the fluentd driver.",
+          "Run docker logs pramaan-fluent-bit and look for errors.",
+          "Containers started before you set the driver keep their old driver. Recreate them."
+        ],
+        "steps": [
+          {
+            "title": "Save this Fluent Bit config",
+            "description": "It listens for Docker's logs on port 24224 and forwards them to us.",
+            "code": {
+              "filename": "fluent-bit.conf",
+              "content": "[INPUT]\n    Name   forward\n    Listen 0.0.0.0\n    Port   24224\n\n[FILTER]\n    Name   modify\n    Match  *\n    Rename container_name service\n    Rename log message\n\n[OUTPUT]\n    Name   http\n    Match  *\n    Host   your_ingest_url\n    Port   80\n    URI    /v1/logs?env=production\n    Format json\n    Json_date_key timestamp\n    Json_date_format iso8601\n    Header Authorization Bearer YOUR_TOKEN"
+            }
+          },
+          {
+            "title": "Start Fluent Bit",
+            "code": {
+              "filename": "terminal",
+              "content": "docker run -d --name pramaan-fluent-bit -p 24224:24224 \\\n  -v $PWD/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro \\\n  fluent/fluent-bit:latest"
+            }
+          },
+          {
+            "title": "Start your containers with the fluentd driver",
+            "description": "Add these two options to every container you want to collect.",
+            "code": {
+              "filename": "terminal",
+              "content": "docker run -d --name my-app \\\n  --log-driver=fluentd \\\n  --log-opt fluentd-address=localhost:24224 \\\n  my-image"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "kubernetes",
+    "name": "Kubernetes",
+    "tagline": "Every pod in a cluster",
+    "description": "Run one command to put a log reader on every node. It collects all your pods' logs and labels them with the app name.",
+    "group": "collect",
+    "way": "agent",
+    "codeChange": false,
+    "facts": {
+      "access": "Permission to create a ClusterRole, a ClusterRoleBinding and a DaemonSet. The Helm chart creates them for you.",
+      "limits": "Up to 10 MB per request, and logs are kept 7 days by default."
+    },
+    "collects": [
+      "Output of every container in every pod, on every node",
+      "The app name, taken from the pod's app.kubernetes.io/name label",
+      "Pod, namespace and container details"
+    ],
+    "docsUrl": "https://vector.dev/docs/setup/installation/platforms/kubernetes/",
+    "related": ["vector", "fluent-bit"],
+    "methods": [
+      {
+        "id": "one-command",
+        "label": "One command",
+        "summary": "Run one command in your cluster. Every pod is collected.",
+        "troubleshoot": [
+          "Run kubectl -n ape-agent get pods and check a pod is Running on every node.",
+          "Run kubectl -n ape-agent logs ds/ape-agent. Unauthorized means the token is wrong or was revoked. Run the command again with a new token.",
+          "Logs written to a file inside a container are not collected. Make the app print to the console."
+        ],
+        "steps": [
+          {
+            "title": "Run this where kubectl points at your cluster",
+            "description": "Run it once per cluster. Running it again with a new token updates the old one.",
+            "code": {
+              "filename": "terminal",
+              "content": "curl -fsSL https://YOUR_PRAMAAN_URL/api/install/kubernetes.sh | APE_TOKEN=YOUR_TOKEN sh"
+            }
+          }
+        ]
+      },
+      {
+        "id": "helm-vector",
+        "label": "Helm with Vector",
+        "summary": "Vector runs on every node and reads all pod logs.",
+        "troubleshoot": [
+          "Run kubectl get pods and check the log reader pods are Running on every node.",
+          "Run kubectl logs on one of those pods and look for errors reaching our address.",
+          "Check the secret exists with kubectl get secret pramaan-token."
+        ],
+        "steps": [
+          {
+            "title": "Store your token as a secret",
+            "description": "Run this once in the cluster where you want to collect logs.",
+            "code": {
+              "filename": "terminal",
+              "content": "kubectl create secret generic pramaan-token --from-literal=token=YOUR_TOKEN"
+            }
+          },
+          {
+            "title": "Save this Helm values file",
+            "description": "Your cluster must be able to reach the address in the file. localhost only works on your own machine.",
+            "code": {
+              "filename": "values.yaml",
+              "content": "role: Agent\nservice:\n  enabled: false\nserviceHeadless:\n  enabled: false\nenv:\n  - name: PRAMAAN_TOKEN\n    valueFrom:\n      secretKeyRef:\n        name: pramaan-token\n        key: token\ncustomConfig:\n  data_dir: /vector-data-dir\n  sources:\n    pods:\n      type: kubernetes_logs\n  transforms:\n    label:\n      type: remap\n      inputs:\n        - pods\n      source: |\n        .service = .kubernetes.pod_labels.\"app.kubernetes.io/name\"\n        if is_null(.service) {\n          .service = .kubernetes.container_name\n        }\n  sinks:\n    pramaan:\n      type: http\n      inputs:\n        - label\n      uri: https://YOUR_INGEST_URL/v1/logs?env=production\n      encoding:\n        codec: json\n      auth:\n        strategy: bearer\n        token: \"${PRAMAAN_TOKEN}\""
+            }
+          },
+          {
+            "title": "Install it with Helm",
+            "code": {
+              "filename": "terminal",
+              "content": "helm repo add vector https://helm.vector.dev\nhelm install vector vector/vector -f values.yaml"
+            }
+          }
+        ]
+      },
+      {
+        "id": "helm-fluent-bit",
+        "label": "Helm with Fluent Bit",
+        "summary": "Fluent Bit runs on every node and reads all pod logs.",
+        "troubleshoot": [
+          "Run kubectl get pods and check the log reader pods are Running on every node.",
+          "Run kubectl logs on one of those pods and look for errors reaching our address.",
+          "Check the secret exists with kubectl get secret pramaan-token."
+        ],
+        "steps": [
+          {
+            "title": "Store your token as a secret",
+            "description": "Run this once in the cluster where you want to collect logs.",
+            "code": {
+              "filename": "terminal",
+              "content": "kubectl create secret generic pramaan-token --from-literal=token=YOUR_TOKEN"
+            }
+          },
+          {
+            "title": "Save this Helm values file",
+            "description": "Your cluster must be able to reach the address in the file. localhost only works on your own machine.",
+            "code": {
+              "filename": "values.yaml",
+              "content": "env:\n  - name: PRAMAAN_TOKEN\n    valueFrom:\n      secretKeyRef:\n        name: pramaan-token\n        key: token\nconfig:\n  inputs: |\n    [INPUT]\n        Name   tail\n        Path   /var/log/containers/*.log\n        Tag    kube.*\n        multiline.parser docker, cri\n  filters: |\n    [FILTER]\n        Name   kubernetes\n        Match  kube.*\n        Merge_Log On\n    [FILTER]\n        Name   nest\n        Match  kube.*\n        Operation lift\n        Nested_under kubernetes\n        Add_prefix kubernetes_\n    [FILTER]\n        Name   modify\n        Match  kube.*\n        Copy   kubernetes_container_name service\n        Rename log message\n  outputs: |\n    [OUTPUT]\n        Name   http\n        Match  *\n        Host   your_ingest_url\n        Port   80\n        URI    /v1/logs?env=production\n        Format json\n        Json_date_key timestamp\n        Json_date_format iso8601\n        Header Authorization Bearer ${PRAMAAN_TOKEN}"
+            }
+          },
+          {
+            "title": "Install it with Helm",
+            "code": {
+              "filename": "terminal",
+              "content": "helm repo add fluent https://fluent.github.io/helm-charts\nhelm install fluent-bit fluent/fluent-bit -f values.yaml"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "ubuntu",
+    "name": "Ubuntu / Debian",
+    "tagline": "System journal and log files",
+    "description": "Install Vector from its apt repository. It reads the systemd journal and the log files you list on the server and sends them to us.",
+    "group": "collect",
+    "way": "agent",
+    "codeChange": false,
+    "facts": {
+      "access": "Root access to install a package and read /var/log and the systemd journal.",
+      "limits": "Up to 10 MB per request, and logs are kept 7 days by default."
+    },
+    "collects": [
+      "Every systemd service's journal output, named after the unit",
+      "The log files you list, such as syslog, auth.log and nginx",
+      "The hostname of each server"
+    ],
+    "docsUrl": "https://vector.dev/docs/setup/installation/package-managers/apt/",
+    "related": ["vector", "docker"],
+    "methods": [
+      {
+        "id": "apt",
+        "label": "Vector from apt",
+        "summary": "Install one package, save one config file, restart it.",
+        "troubleshoot": [
+          "Run sudo journalctl -u vector -f and look for errors.",
+          "Run sudo vector validate /etc/vector/vector.yaml after you edit the config.",
+          "The vector user needs to be in the adm and systemd-journal groups to read logs."
+        ],
+        "steps": [
+          {
+            "title": "Install Vector",
+            "code": {
+              "filename": "terminal",
+              "content": "bash -c \"$(curl -L https://setup.vector.dev)\"\nsudo apt-get install -y vector\nsudo usermod -aG adm,systemd-journal vector"
+            }
+          },
+          {
+            "title": "Save this config",
+            "code": {
+              "filename": "/etc/vector/vector.yaml",
+              "content": "sources:\n  journal:\n    type: journald\n  files:\n    type: file\n    include:\n      - /var/log/syslog\n      - /var/log/auth.log\n      - /var/log/nginx/*.log\ntransforms:\n  label:\n    type: remap\n    inputs:\n      - journal\n      - files\n    source: |\n      .service = .SYSLOG_IDENTIFIER || ._SYSTEMD_UNIT || \"host\"\n      .host = get_hostname!()\nsinks:\n  pramaan:\n    type: http\n    inputs:\n      - label\n    uri: https://YOUR_INGEST_URL/v1/logs?env=production\n    encoding:\n      codec: json\n    auth:\n      strategy: bearer\n      token: YOUR_TOKEN"
+            }
+          },
+          {
+            "title": "Restart Vector",
+            "code": {
+              "filename": "terminal",
+              "content": "sudo systemctl restart vector"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "aws",
+    "name": "AWS",
+    "tagline": "CloudWatch, Lambda and ECS",
+    "description": "Stream CloudWatch log groups through Kinesis Data Firehose to a small Vector relay, or send Lambda and ECS telemetry with the AWS Distro for OpenTelemetry.",
+    "group": "collect",
+    "way": "agent",
+    "codeChange": false,
+    "facts": {
+      "access": "An IAM role that lets CloudWatch Logs write to Firehose, and a public HTTPS address for the relay.",
+      "limits": "Up to 10 MB per request, and logs are kept 7 days by default."
+    },
+    "collects": [
+      "Any CloudWatch log group you subscribe, including Lambda, ECS and API Gateway logs",
+      "Traces and metrics from the AWS Distro for OpenTelemetry"
+    ],
+    "docsUrl": "https://vector.dev/docs/reference/configuration/sources/aws_kinesis_firehose/",
+    "related": ["opentelemetry", "vector"],
+    "methods": [
+      {
+        "id": "firehose",
+        "label": "CloudWatch via Firehose",
+        "summary": "CloudWatch subscription to Firehose, Firehose to a Vector relay, relay to us.",
+        "troubleshoot": [
+          "Check the Firehose delivery stream's error logs for failed HTTP endpoint deliveries.",
+          "The Firehose access key must match FIREHOSE_ACCESS_KEY on the relay.",
+          "Run docker logs pramaan-aws-relay and look for errors."
+        ],
+        "steps": [
+          {
+            "title": "Save the relay config",
+            "code": {
+              "filename": "vector.yaml",
+              "content": "sources:\n  firehose:\n    type: aws_kinesis_firehose\n    address: 0.0.0.0:9000\n    access_keys:\n      - ${FIREHOSE_ACCESS_KEY}\n    record_compression: auto\ntransforms:\n  cloudwatch:\n    type: remap\n    inputs:\n      - firehose\n    source: |\n      parsed = parse_aws_cloudwatch_log_subscription_message!(.message)\n      . = map_values(parsed.log_events) -> |e| {\n        { \"message\": e.message, \"timestamp\": e.timestamp, \"service\": parsed.log_group }\n      }\nsinks:\n  pramaan:\n    type: http\n    inputs:\n      - cloudwatch\n    uri: https://YOUR_INGEST_URL/v1/logs?env=production&service=aws\n    encoding:\n      codec: json\n    auth:\n      strategy: bearer\n      token: YOUR_TOKEN"
+            }
+          },
+          {
+            "title": "Run the relay behind HTTPS",
+            "code": {
+              "filename": "terminal",
+              "content": "docker run -d --name pramaan-aws-relay -p 9000:9000 \\\n  -e FIREHOSE_ACCESS_KEY=choose-a-long-secret \\\n  -v $PWD/vector.yaml:/etc/vector/vector.yaml:ro \\\n  timberio/vector:latest-alpine"
+            }
+          },
+          {
+            "title": "Point Firehose at the relay and subscribe your log groups",
+            "description": "Create a Firehose stream with an HTTP endpoint destination set to the relay's HTTPS address and the same access key, then add a subscription filter on each log group.",
+            "code": {
+              "filename": "terminal",
+              "content": "aws logs put-subscription-filter \\\n  --log-group-name /aws/lambda/my-function \\\n  --filter-name pramaan --filter-pattern \"\" \\\n  --destination-arn arn:aws:firehose:REGION:ACCOUNT:deliverystream/pramaan \\\n  --role-arn arn:aws:iam::ACCOUNT:role/CWLtoFirehose"
+            }
+          }
+        ]
+      },
+      {
+        "id": "adot",
+        "label": "AWS Distro for OpenTelemetry",
+        "summary": "Send Lambda and ECS logs, traces and metrics over OTLP.",
+        "troubleshoot": [
+          "Look in the collector's CloudWatch logs for lines saying Exporting failed.",
+          "A 401 response means the token is wrong, revoked or paused."
+        ],
+        "steps": [
+          {
+            "title": "Use this collector config",
+            "description": "For Lambda, add the ADOT layer and set OPENTELEMETRY_COLLECTOR_CONFIG_URI to this file. For ECS, run it as a sidecar.",
+            "code": {
+              "filename": "collector.yaml",
+              "content": "receivers:\n  otlp:\n    protocols:\n      http:\nexporters:\n  otlphttp:\n    logs_endpoint: https://YOUR_INGEST_URL/v1/logs?way=otlp\n    traces_endpoint: https://YOUR_INGEST_URL/v1/traces?way=otlp\n    metrics_endpoint: https://YOUR_INGEST_URL/v1/metrics?way=otlp\n    headers:\n      x-ape-token: YOUR_TOKEN\nservice:\n  pipelines:\n    logs: { receivers: [otlp], exporters: [otlphttp] }\n    traces: { receivers: [otlp], exporters: [otlphttp] }\n    metrics: { receivers: [otlp], exporters: [otlphttp] }"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "vector",
+    "name": "Vector",
+    "tagline": "Fast, light log shipper",
+    "description": "Vector reads log files on a server and forwards each new line. Good when your apps already write logs to files.",
+    "group": "collect",
+    "way": "agent",
+    "codeChange": false,
+    "facts": {
+      "access": "Read access to the log files you list.",
+      "limits": "Up to 10 MB per request, and logs are kept 7 days by default."
+    },
+    "collects": [
+      "Every new line in the files you list",
+      "Structured JSON lines, with their level and message",
+      "The host name the line came from"
+    ],
+    "docsUrl": "https://vector.dev/docs/",
+    "related": ["docker", "kubernetes"],
+    "methods": [
+      {
+        "id": "linux",
+        "label": "Linux server",
+        "summary": "Install Vector from its package repository.",
+        "troubleshoot": [
+          "Run systemctl status vector and journalctl -u vector -n 20.",
+          "Vector reads only new lines. Write a line to a file in /var/log/app to test it.",
+          "Check the vector user can read the files you list."
+        ],
+        "steps": [
+          {
+            "title": "Install Vector",
+            "description": "For Ubuntu and Debian. Other systems: see the Vector install guide.",
+            "code": {
+              "filename": "terminal",
+              "content": "bash -c \"$(curl -L https://setup.vector.dev)\"\nsudo apt-get install vector"
+            }
+          },
+          {
+            "title": "Replace the config",
+            "code": {
+              "filename": "/etc/vector/vector.yaml",
+              "content": "sources:\n  app_logs:\n    type: file\n    include:\n      - /var/log/app/*.log\nsinks:\n  pramaan:\n    type: http\n    inputs:\n      - app_logs\n    uri: https://YOUR_INGEST_URL/v1/logs?service=my-app&env=production\n    encoding:\n      codec: json\n    auth:\n      strategy: bearer\n      token: YOUR_TOKEN"
+            }
+          },
+          {
+            "title": "Restart Vector",
+            "code": {
+              "filename": "terminal",
+              "content": "sudo systemctl restart vector"
+            }
+          }
+        ]
+      },
+      {
+        "id": "docker",
+        "label": "Docker",
+        "summary": "Run Vector as a container on any machine with Docker.",
+        "troubleshoot": [
+          "Run docker logs pramaan-vector and look for errors.",
+          "Vector reads only new lines. Write a line to a file in the mounted folder to test it.",
+          "If Docker cannot find host.docker.internal, replace it with your machine's address."
+        ],
+        "steps": [
+          {
+            "title": "Save this config",
+            "code": {
+              "filename": "vector.yaml",
+              "content": "sources:\n  app_logs:\n    type: file\n    include:\n      - /var/log/app/*.log\nsinks:\n  pramaan:\n    type: http\n    inputs:\n      - app_logs\n    uri: https://YOUR_INGEST_URL/v1/logs?service=my-app&env=production\n    encoding:\n      codec: json\n    auth:\n      strategy: bearer\n      token: YOUR_TOKEN"
+            }
+          },
+          {
+            "title": "Run Vector",
+            "description": "Change /var/log/app to the folder that holds your logs.",
+            "code": {
+              "filename": "terminal",
+              "content": "docker run -d --name pramaan-vector \\\n  -v $PWD/vector.yaml:/etc/vector/vector.yaml:ro \\\n  -v /var/log/app:/var/log/app:ro \\\n  timberio/vector:latest-alpine"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "fluent-bit",
+    "name": "Fluent Bit",
+    "tagline": "Tiny log forwarder",
+    "description": "Fluent Bit follows log files and forwards new lines. It uses very little memory, so it suits small servers.",
+    "group": "collect",
+    "way": "agent",
+    "codeChange": false,
+    "facts": {
+      "access": "Read access to the log files you list.",
+      "limits": "Up to 10 MB per request, and logs are kept 7 days by default."
+    },
+    "collects": [
+      "Every new line in the files you list",
+      "Structured JSON lines, with their level and message",
+      "Timestamps, read in ISO format"
+    ],
+    "docsUrl": "https://docs.fluentbit.io/manual",
+    "related": ["docker", "kubernetes"],
+    "methods": [
+      {
+        "id": "linux",
+        "label": "Linux server",
+        "summary": "Install Fluent Bit with its official script.",
+        "troubleshoot": [
+          "Run systemctl status fluent-bit and journalctl -u fluent-bit -n 20.",
+          "Fluent Bit reads only new lines. Write a line to a file in /var/log/app to test it.",
+          "Check the user running Fluent Bit can read the files you list."
+        ],
+        "steps": [
+          {
+            "title": "Install Fluent Bit",
+            "code": {
+              "filename": "terminal",
+              "content": "curl https://raw.githubusercontent.com/fluent/fluent-bit/master/install.sh | sh"
+            }
+          },
+          {
+            "title": "Replace the config",
+            "code": {
+              "filename": "/etc/fluent-bit/fluent-bit.conf",
+              "content": "[INPUT]\n    Name   tail\n    Path   /var/log/app/*.log\n\n[OUTPUT]\n    Name   http\n    Match  *\n    Host   your_ingest_url\n    Port   80\n    URI    /v1/logs?service=my-app&env=production\n    Format json\n    Json_date_key timestamp\n    Json_date_format iso8601\n    Header Authorization Bearer YOUR_TOKEN"
+            }
+          },
+          {
+            "title": "Restart Fluent Bit",
+            "code": {
+              "filename": "terminal",
+              "content": "sudo systemctl restart fluent-bit"
+            }
+          }
+        ]
+      },
+      {
+        "id": "docker",
+        "label": "Docker",
+        "summary": "Run Fluent Bit as a container on any machine with Docker.",
+        "troubleshoot": [
+          "Run docker logs pramaan-fluent-bit and look for errors.",
+          "Fluent Bit reads only new lines. Write a line to a file in the mounted folder to test it.",
+          "If Docker cannot find host.docker.internal, replace it with your machine's address."
+        ],
+        "steps": [
+          {
+            "title": "Save this config",
+            "code": {
+              "filename": "fluent-bit.conf",
+              "content": "[INPUT]\n    Name   tail\n    Path   /var/log/app/*.log\n\n[OUTPUT]\n    Name   http\n    Match  *\n    Host   your_ingest_url\n    Port   80\n    URI    /v1/logs?service=my-app&env=production\n    Format json\n    Json_date_key timestamp\n    Json_date_format iso8601\n    Header Authorization Bearer YOUR_TOKEN"
+            }
+          },
+          {
+            "title": "Run Fluent Bit",
+            "description": "Change /var/log/app to the folder that holds your logs.",
+            "code": {
+              "filename": "terminal",
+              "content": "docker run -d --name pramaan-fluent-bit \\\n  -v $PWD/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro \\\n  -v /var/log/app:/var/log/app:ro \\\n  fluent/fluent-bit:latest"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "javascript",
+    "name": "JavaScript and TypeScript",
+    "tagline": "Node.js 18 or newer",
+    "description": "A small package that sends your console logs, uncaught errors and traces from a Node.js app.",
+    "group": "code",
+    "way": "package",
+    "codeChange": true,
+    "facts": {
+      "access": "None. The package only sends data out over HTTPS.",
+      "limits": "Batches of up to 100 items every 2 seconds. Up to 10 MB per request, and logs are kept 7 days by default."
+    },
+    "collects": [
+      "console.log, info, warn, error and debug output",
+      "Uncaught exceptions and unhandled promise rejections",
+      "Errors you report with captureException",
+      "Traces, when the OpenTelemetry SDK is installed"
+    ],
+    "related": ["opentelemetry", "docker"],
+    "methods": [
+      {
+        "id": "package",
+        "label": "Node.js package",
+        "summary": "Add two lines to the start of your app.",
+        "troubleshoot": [
+          "Run your app once. Logs are sent in batches every 2 seconds.",
+          "Check APE_TOKEN and APE_ENDPOINT are set in the same terminal that starts your app.",
+          "Look for a line starting with [ape-agent] in your app's error output."
+        ],
+        "steps": [
+          {
+            "title": "Install the package",
+            "description": "This downloads the package from your own Pramaan server.",
+            "code": {
+              "filename": "terminal",
+              "content": "npm install https://YOUR_PRAMAAN_URL/downloads/ape-agent.tgz"
+            }
+          },
+          {
+            "title": "Add your settings",
+            "description": "Put these in your environment, or in your hosting provider's settings page.",
+            "code": {
+              "filename": "terminal",
+              "content": "export APE_TOKEN=\"YOUR_TOKEN\"\nexport APE_ENDPOINT=\"https://YOUR_INGEST_URL\"\nexport APE_SERVICE=\"my-app\"\nexport APE_ENVIRONMENT=\"production\""
+            }
+          },
+          {
+            "title": "Start it first in your app",
+            "description": "Make it the very first line, before any other import.",
+            "code": {
+              "filename": "server.js",
+              "content": "const ape = require('@ape/agent')\nape.start()"
+            }
+          }
+        ]
+      },
+      {
+        "id": "no-code",
+        "label": "No code changes",
+        "summary": "Load the package from the command line.",
+        "troubleshoot": [
+          "Run your app once. Logs are sent in batches every 2 seconds.",
+          "Check APE_TOKEN and APE_ENDPOINT are set in the same terminal that starts your app.",
+          "Look for a line starting with [ape-agent] in your app's error output."
+        ],
+        "steps": [
+          {
+            "title": "Install the package",
+            "description": "This downloads the package from your own Pramaan server.",
+            "code": {
+              "filename": "terminal",
+              "content": "npm install https://YOUR_PRAMAAN_URL/downloads/ape-agent.tgz"
+            }
+          },
+          {
+            "title": "Add your settings",
+            "description": "Put these in your environment, or in your hosting provider's settings page.",
+            "code": {
+              "filename": "terminal",
+              "content": "export APE_TOKEN=\"YOUR_TOKEN\"\nexport APE_ENDPOINT=\"https://YOUR_INGEST_URL\"\nexport APE_SERVICE=\"my-app\"\nexport APE_ENVIRONMENT=\"production\""
+            }
+          },
+          {
+            "title": "Start your app with the register file",
+            "description": "Node loads the package before your code runs.",
+            "code": {
+              "filename": "terminal",
+              "content": "NODE_OPTIONS=\"--require @ape/agent/register\" node server.js"
+            }
+          }
+        ]
+      },
+      {
+        "id": "express",
+        "label": "Express",
+        "summary": "Also report errors thrown inside routes.",
+        "troubleshoot": [
+          "Run your app once. Logs are sent in batches every 2 seconds.",
+          "Check APE_TOKEN and APE_ENDPOINT are set in the same terminal that starts your app.",
+          "Look for a line starting with [ape-agent] in your app's error output."
+        ],
+        "steps": [
+          {
+            "title": "Install the package",
+            "description": "This downloads the package from your own Pramaan server.",
+            "code": {
+              "filename": "terminal",
+              "content": "npm install https://YOUR_PRAMAAN_URL/downloads/ape-agent.tgz"
+            }
+          },
+          {
+            "title": "Add your settings",
+            "description": "Put these in your environment, or in your hosting provider's settings page.",
+            "code": {
+              "filename": "terminal",
+              "content": "export APE_TOKEN=\"YOUR_TOKEN\"\nexport APE_ENDPOINT=\"https://YOUR_INGEST_URL\"\nexport APE_SERVICE=\"my-app\"\nexport APE_ENVIRONMENT=\"production\""
+            }
+          },
+          {
+            "title": "Start it first, then add the error handler",
+            "description": "The handler goes after all your routes.",
+            "code": {
+              "filename": "server.js",
+              "content": "const ape = require('@ape/agent')\nape.start()\n\nconst express = require('express')\nconst app = express()\n\napp.get('/checkout', () => {\n  throw new Error('payment failed')\n})\n\napp.use(ape.errorHandler())\napp.listen(3001)"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "python",
+    "name": "Python",
+    "tagline": "Python 3.9 or newer",
+    "description": "A small package that sends your logging output, uncaught errors and traces from a Python app.",
+    "group": "code",
+    "way": "package",
+    "codeChange": true,
+    "facts": {
+      "access": "None. The package only sends data out over HTTPS.",
+      "limits": "Batches of up to 100 items every 2 seconds. Up to 10 MB per request, and logs are kept 7 days by default."
+    },
+    "collects": [
+      "Everything written through the logging module",
+      "Uncaught exceptions, including ones in threads",
+      "Errors you report with capture_exception",
+      "Unhandled errors from FastAPI and Flask requests"
+    ],
+    "related": ["opentelemetry", "docker"],
+    "methods": [
+      {
+        "id": "any",
+        "label": "Any Python app",
+        "summary": "Add two lines to the start of your app.",
+        "troubleshoot": [
+          "Run your app once. Logs are sent in batches every 2 seconds.",
+          "Check APE_TOKEN and APE_ENDPOINT are set in the same terminal that starts your app.",
+          "Look for a line starting with [ape-agent] in your app's error output."
+        ],
+        "steps": [
+          {
+            "title": "Install the package",
+            "description": "This downloads the package from your own Pramaan server.",
+            "code": {
+              "filename": "terminal",
+              "content": "pip install https://YOUR_PRAMAAN_URL/downloads/ape_agent-0.1.0-py3-none-any.whl"
+            }
+          },
+          {
+            "title": "Add your settings",
+            "description": "Put these in your environment, or in your hosting provider's settings page.",
+            "code": {
+              "filename": "terminal",
+              "content": "export APE_TOKEN=\"YOUR_TOKEN\"\nexport APE_ENDPOINT=\"https://YOUR_INGEST_URL\"\nexport APE_SERVICE=\"my-app\"\nexport APE_ENVIRONMENT=\"production\""
+            }
+          },
+          {
+            "title": "Start it first in your app",
+            "description": "Make it the first thing your app runs.",
+            "code": {
+              "filename": "main.py",
+              "content": "import ape_agent\nape_agent.start()"
+            }
+          }
+        ]
+      },
+      {
+        "id": "fastapi",
+        "label": "FastAPI",
+        "summary": "Also report errors raised inside requests.",
+        "troubleshoot": [
+          "Run your app once. Logs are sent in batches every 2 seconds.",
+          "Check APE_TOKEN and APE_ENDPOINT are set in the same terminal that starts your app.",
+          "Look for a line starting with [ape-agent] in your app's error output."
+        ],
+        "steps": [
+          {
+            "title": "Install the package",
+            "description": "This downloads the package from your own Pramaan server.",
+            "code": {
+              "filename": "terminal",
+              "content": "pip install https://YOUR_PRAMAAN_URL/downloads/ape_agent-0.1.0-py3-none-any.whl"
+            }
+          },
+          {
+            "title": "Add your settings",
+            "description": "Put these in your environment, or in your hosting provider's settings page.",
+            "code": {
+              "filename": "terminal",
+              "content": "export APE_TOKEN=\"YOUR_TOKEN\"\nexport APE_ENDPOINT=\"https://YOUR_INGEST_URL\"\nexport APE_SERVICE=\"my-app\"\nexport APE_ENVIRONMENT=\"production\""
+            }
+          },
+          {
+            "title": "Start it first, then add the middleware",
+            "code": {
+              "filename": "main.py",
+              "content": "import ape_agent\nape_agent.start()\n\nfrom fastapi import FastAPI\nfrom ape_agent.integrations import ApeASGIMiddleware\n\napp = FastAPI()\napp.add_middleware(ApeASGIMiddleware)\n\n@app.get('/checkout')\ndef checkout():\n    raise RuntimeError('payment failed')"
+            }
+          }
+        ]
+      },
+      {
+        "id": "flask",
+        "label": "Flask",
+        "summary": "Also report errors raised inside requests.",
+        "troubleshoot": [
+          "Run your app once. Logs are sent in batches every 2 seconds.",
+          "Check APE_TOKEN and APE_ENDPOINT are set in the same terminal that starts your app.",
+          "Look for a line starting with [ape-agent] in your app's error output."
+        ],
+        "steps": [
+          {
+            "title": "Install the package",
+            "description": "This downloads the package from your own Pramaan server.",
+            "code": {
+              "filename": "terminal",
+              "content": "pip install https://YOUR_PRAMAAN_URL/downloads/ape_agent-0.1.0-py3-none-any.whl"
+            }
+          },
+          {
+            "title": "Add your settings",
+            "description": "Put these in your environment, or in your hosting provider's settings page.",
+            "code": {
+              "filename": "terminal",
+              "content": "export APE_TOKEN=\"YOUR_TOKEN\"\nexport APE_ENDPOINT=\"https://YOUR_INGEST_URL\"\nexport APE_SERVICE=\"my-app\"\nexport APE_ENVIRONMENT=\"production\""
+            }
+          },
+          {
+            "title": "Start it first, then wrap the app",
+            "code": {
+              "filename": "app.py",
+              "content": "import ape_agent\nape_agent.start()\n\nfrom flask import Flask\nfrom ape_agent.integrations import ApeWSGIMiddleware\n\napp = Flask(__name__)\napp.wsgi_app = ApeWSGIMiddleware(app.wsgi_app)\n\n@app.get('/checkout')\ndef checkout():\n    raise RuntimeError('payment failed')"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "http",
+    "name": "HTTP",
+    "tagline": "POST JSON from anywhere",
+    "description": "Send one JSON object, an array, or newline-separated JSON to our intake address with your source token. Works from scripts, cron jobs and any language.",
+    "group": "code",
+    "way": "http",
+    "codeChange": true,
+    "facts": {
+      "access": "Network access from where you send to our intake address.",
+      "limits": "Up to 10 MB per request (gzip is accepted), and logs are kept 7 days by default."
+    },
+    "collects": [
+      "Any fields you send; message, level, service and timestamp are recognised",
+      "Everything else is kept as searchable attributes"
+    ],
+    "related": ["vector", "javascript"],
+    "methods": [
+      {
+        "id": "curl",
+        "label": "curl",
+        "summary": "One request per batch of logs.",
+        "troubleshoot": [
+          "A 401 response means the token is wrong, revoked or paused.",
+          "A 400 response means the body is not valid JSON.",
+          "Add ?service=name to the address if your lines have no service field."
+        ],
+        "steps": [
+          {
+            "title": "Send a log line",
+            "code": {
+              "filename": "terminal",
+              "content": "curl -X POST \"https://YOUR_INGEST_URL/v1/logs?service=my-app&env=production\" \\\n  -H \"Authorization: Bearer YOUR_TOKEN\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"level\":\"info\",\"message\":\"Hello from curl\",\"user\":{\"id\":42}}'"
+            }
+          },
+          {
+            "title": "Send many lines at once",
+            "description": "Separate JSON objects with new lines, or send a JSON array.",
+            "code": {
+              "filename": "logs.ndjson",
+              "content": "{\"level\":\"info\",\"message\":\"order created\",\"order_id\":\"A1\"}\n{\"level\":\"error\",\"message\":\"payment failed\",\"status\":502}"
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

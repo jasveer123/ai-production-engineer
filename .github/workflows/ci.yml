@@ -132,6 +132,7 @@ jobs:
         include:
           - { name: api, file: Dockerfile.node, target: api }
           - { name: web, file: Dockerfile.node, target: web }
+          - { name: site, file: Dockerfile.node, target: site }
           - { name: migrate, file: Dockerfile.node, target: migrate }
           - { name: ai-worker, file: Dockerfile.ai-worker, target: '' }
     steps:
