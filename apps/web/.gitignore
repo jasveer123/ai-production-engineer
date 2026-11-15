@@ -41,3 +41,7 @@ yarn-error.log*
 next-env.d.ts
 !.env.example
 /public/downloads/
+
+# playwright
+/playwright-report/
+/test-results/
