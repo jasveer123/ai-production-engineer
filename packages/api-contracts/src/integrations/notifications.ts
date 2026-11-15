@@ -26,6 +26,8 @@ export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
   'verification.inconclusive': 'Recovery could not be verified',
 };
 
+export const PHONE_PATTERN = /^\+[1-9]\d{7,14}$/;
+
 export const SLACK_WEBHOOK_PATTERN = /^https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9/_-]+$/;
 
 const channelName = nameSchema(80);
@@ -46,9 +48,33 @@ export const createNotificationChannelSchema = z.discriminatedUnion('kind', [
     minSeverity,
   }),
   z.object({
-    kind: z.literal('webhook'),
+    kind: z.enum(['sms', 'phone']),
+    name: channelName,
+    phone: z
+      .string()
+      .trim()
+      .regex(PHONE_PATTERN, 'Use the international format, like +14155550123'),
+    events: channelEvents,
+    minSeverity,
+  }),
+  z.object({
+    kind: z.literal('push'),
     name: channelName,
     url: boundedUrlSchema,
+    events: channelEvents,
+    minSeverity,
+  }),
+  z.object({
+    kind: z.enum(['webhook', 'teams']),
+    name: channelName,
+    url: boundedUrlSchema,
+    events: channelEvents,
+    minSeverity,
+  }),
+  z.object({
+    kind: z.literal('email'),
+    name: channelName,
+    email: z.string().trim().email().max(320),
     events: channelEvents,
     minSeverity,
   }),
@@ -65,7 +91,7 @@ export type UpdateNotificationChannelInput = z.infer<typeof updateNotificationCh
 
 export interface NotificationChannel {
   id: Uuid;
-  kind: 'slack' | 'webhook';
+  kind: ChannelKind;
   name: string;
   target: string;
   events: NotificationEvent[];
@@ -82,22 +108,93 @@ export type NotificationChannelWithSecret = WithSecret<
   string | null
 >;
 
-export interface NotificationDelivery {
+export type ChannelKind = 'slack' | 'webhook' | 'teams' | 'email' | 'sms' | 'phone' | 'push';
+
+export const DELIVERY_STATES = [
+  'queued',
+  'leased',
+  'provider_accepted',
+  'delivered',
+  'failed_permanent',
+  'retry_wait',
+  'outcome_unknown',
+  'cancelled',
+] as const;
+export type DeliveryState = (typeof DELIVERY_STATES)[number];
+
+export const DELIVERY_CHANNELS = [
+  'email',
+  'sms',
+  'call',
+  'push',
+  'slack',
+  'webhook',
+  'teams',
+] as const;
+export type DeliveryChannel = (typeof DELIVERY_CHANNELS)[number];
+
+export const deliveryQuerySchema = z.object({
+  state: z.enum(DELIVERY_STATES).optional(),
+  channel: z.enum(DELIVERY_CHANNELS).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+});
+export type DeliveryQuery = z.infer<typeof deliveryQuerySchema>;
+
+export interface DeliveryAttemptView {
   id: Uuid;
-  channelId: Uuid;
-  channelName: string;
-  eventType: string;
   incidentId: Uuid | null;
-  status: 'sent' | 'failed';
+  runId: Uuid | null;
+  stepIndex: number | null;
+  eventType: string;
+  channel: DeliveryChannel;
+  channelName: string | null;
+  recipientName: string | null;
+  address: string;
+  state: DeliveryState;
   attempts: number;
+  maxAttempts: number;
+  providerMessageId: string | null;
   responseStatus: number | null;
   error: string | null;
+  nextAttemptAt: IsoTimestamp | null;
   createdAt: IsoTimestamp;
   sentAt: IsoTimestamp | null;
+  deliveredAt: IsoTimestamp | null;
 }
 
 export interface NotificationTestResult {
   ok: boolean;
+  state: DeliveryState;
   status: number | null;
   error: string | null;
+  providerMessageId: string | null;
+}
+
+export const CONTACT_KINDS = ['sms', 'call', 'push'] as const;
+export type ContactKind = (typeof CONTACT_KINDS)[number];
+
+export const createContactMethodSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.enum(['sms', 'call']),
+    address: z
+      .string()
+      .trim()
+      .regex(PHONE_PATTERN, 'Use the international format, like +14155550123'),
+    minSeverity,
+  }),
+  z.object({ kind: z.literal('push'), address: boundedUrlSchema, minSeverity }),
+]);
+export type CreateContactMethodInput = z.input<typeof createContactMethodSchema>;
+
+export interface ContactMethodView {
+  id: Uuid;
+  kind: ContactKind;
+  address: string;
+  minSeverity: Severity;
+  createdAt: IsoTimestamp;
+}
+
+export interface NotificationProviders {
+  email: boolean;
+  twilio: boolean;
 }

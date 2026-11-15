@@ -12,11 +12,7 @@ import { Section } from "../components"
 
 export function CardsSection() {
   return (
-    <Section
-      id="cards"
-      title="Cards"
-      note="Plain, with corner dots (ticked), and interactive (lifts on hover)."
-    >
+    <Section id="cards" title="Cards" note="Plain and interactive.">
       <div className="grid gap-5 md:grid-cols-3">
         <Card>
           <CardHeader>
@@ -25,7 +21,7 @@ export function CardsSection() {
           </CardHeader>
           <CardContent className="text-muted-foreground">Use for grouped content.</CardContent>
         </Card>
-        <Card ticked className="[--tick:var(--brand)]">
+        <Card className="[--tick:var(--brand)]">
           <CardHeader>
             <CardTitle>Ticked card</CardTitle>
             <CardDescription>Four corner dots.</CardDescription>

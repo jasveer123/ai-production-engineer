@@ -12,6 +12,9 @@ import { NativeConnection, Worker } from '@temporalio/worker';
 import { TASK_QUEUES } from '@ape/temporal-workflows';
 import { apiEnvSchema, loadEnv } from '@ape/config';
 import { AppModule } from './app.module';
+import { DB } from './core/db/database.module';
+import type { Database } from './core/db/client';
+import { recordWorkerBeat } from './core/health/worker-heartbeat';
 import { FixActivitiesService } from './modules/fixes/activities/fix-activities.service';
 import { InvestigationActivities } from './modules/investigations/activities/investigation-activities.service';
 import { PrActivitiesService } from './modules/pulls/activities/pr-activities.service';
@@ -25,6 +28,13 @@ async function main() {
   const fix = app.get(FixActivitiesService);
   const prs = app.get(PrActivitiesService);
   const verify = app.get(VerifyActivitiesService);
+  const db = app.get<Database>(DB);
+  const beat = () =>
+    recordWorkerBeat(db, 'temporal-worker').catch((err: unknown) =>
+      new Logger('Worker').warn(`Heartbeat write failed: ${String(err)}`),
+    );
+  void beat();
+  const beatTimer = setInterval(() => void beat(), 30_000);
   const connection = await NativeConnection.connect({ address: env.TEMPORAL_ADDRESS });
 
   const workflows = await Worker.create({
@@ -63,6 +73,7 @@ async function main() {
     `Polling task queues "${TASK_QUEUES.incident}" and "${TASK_QUEUES.evidence}"`,
   );
   await Promise.all([workflows.run(), activities.run()]);
+  clearInterval(beatTimer);
   await app.close();
 }
 

@@ -33,9 +33,26 @@ export const incidents = pgTable(
     firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull(),
     version: integer('version').notNull().default(1),
+    acknowledgedAt: timestamp('acknowledged_at', { withTimezone: true }),
+    acknowledgedBy: uuid('acknowledged_by').references(() => users.id, { onDelete: 'set null' }),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolvedBy: uuid('resolved_by').references(() => users.id, { onDelete: 'set null' }),
+    resolutionOrigin: text('resolution_origin').$type<'manual' | 'automatic'>(),
+    resolutionReason: text('resolution_reason'),
+    assigneeId: uuid('assignee_id').references(() => users.id, { onDelete: 'set null' }),
+    monitorId: uuid('monitor_id').references(() => integrations.id, { onDelete: 'set null' }),
+    // null means never edited by hand, so the monitor/source metadata is inherited
+    metadata: jsonb('metadata').$type<Record<string, string>>(),
+    postMortem: text('post_mortem'),
+    postMortemUpdatedAt: timestamp('post_mortem_updated_at', { withTimezone: true }),
+    postMortemUpdatedBy: uuid('post_mortem_updated_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
     ...timestamps(),
   },
   (t) => [
+    index('incidents_workspace_started_idx').on(t.workspaceId, t.firstSeenAt),
+    index('incidents_monitor_idx').on(t.monitorId),
     uniqueIndex('incidents_open_fingerprint_key')
       .on(t.workspaceId, t.fingerprint)
       .where(sql`${t.status} not in ('resolved', 'closed_without_fix')`),
@@ -73,5 +90,6 @@ export const incidentEvents = pgTable(
       .on(t.incidentId, t.traceId)
       .where(sql`${t.traceId} is not null and ${t.kind} = 'error'`),
     index('incident_events_incident_idx').on(t.incidentId),
+    index('incident_events_incident_time_idx').on(t.incidentId, t.occurredAt),
   ],
 );

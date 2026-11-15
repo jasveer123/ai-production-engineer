@@ -14,25 +14,3 @@ export const logLineSchema = z.object({
   way: z.string(),
 })
 export type LogLine = z.infer<typeof logLineSchema>
-
-export const histogramBucketSchema = z.object({
-  at: z.string(),
-  total: z.number(),
-  errors: z.number(),
-})
-
-export const logSearchSchema = z.object({
-  lines: z.array(logLineSchema),
-  histogram: z.array(histogramBucketSchema),
-  nextBefore: z.number().nullable().optional(),
-  services: z.array(z.string()),
-})
-export type LogSearch = z.infer<typeof logSearchSchema>
-
-export interface LogFilters {
-  text: string
-  levels: string[]
-  services: string[]
-}
-
-export const EMPTY_FILTERS: LogFilters = { text: "", levels: [], services: [] }

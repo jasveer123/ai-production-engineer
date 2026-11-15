@@ -12,6 +12,7 @@ import {
   services,
 } from '../../../core/db/schema';
 import { openIncident } from '../../../ingest/ingestion/infrastructure/open-incident';
+import { planResponse, stopRuns } from '../../incidents';
 import { parseAlerts, type ParsedAlert } from '../domain/parsers';
 import { groupFingerprint, groupKey, groupReason, matchRoute } from '../domain/routing';
 
@@ -20,6 +21,62 @@ type RouteRow = typeof alertRoutes.$inferSelect;
 type AlertRow = typeof alerts.$inferSelect;
 
 export const ALERT_SOURCE_PREFIX = 'alert:';
+
+// Serialises concurrent deliveries for the same alert or incident group until commit.
+const lock = (tx: Tx, key: string) =>
+  tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${key}, 0))`);
+
+// First-party checks always open an incident, as Better Stack does; any alert does while no route covers its source.
+const BUILT_IN_ROUTE_KINDS = new Set(['monitor', 'heartbeat', 'metric_alert', 'log_alert']);
+
+function builtInRoute(kind: string, row: InboundRow, hasRoutes: boolean): RouteRow | null {
+  if (hasRoutes && !BUILT_IN_ROUTE_KINDS.has(kind)) return null;
+  return {
+    id: `builtin:${kind}`,
+    workspaceId: row.workspaceId,
+    name: 'Built-in rule for checks',
+    position: Number.MAX_SAFE_INTEGER,
+    enabled: true,
+    sourceIds: [],
+    conditions: [],
+    groupBy: [],
+    createIncident: true,
+    incidentSeverity: null,
+    createdAt: row.receivedAt,
+    updatedAt: row.receivedAt,
+  };
+}
+
+async function autoResolve(tx: Tx, incidentId: string, at: Date): Promise<void> {
+  const [row] = await tx.select().from(incidents).where(eq(incidents.id, incidentId)).for('update');
+  if (!row) return;
+  const plan = planResponse(row, 'resolve');
+  if (!plan.ok) return;
+  await tx
+    .update(incidents)
+    .set({
+      resolvedAt: at,
+      resolvedBy: null,
+      resolutionOrigin: 'automatic',
+      resolutionReason: 'Every alert on this incident recovered',
+      version: row.version + 1,
+      ...(plan.aiStatus ? { status: plan.aiStatus } : {}),
+    })
+    .where(eq(incidents.id, row.id));
+  await tx.insert(incidentEvents).values({
+    workspaceId: row.workspaceId,
+    incidentId: row.id,
+    kind: 'resolved',
+    source: 'system',
+    occurredAt: at,
+    summary: 'Incident resolved automatically',
+    attributes: {
+      origin: 'automatic',
+      ...(plan.aiStatus ? { from: row.status, to: plan.aiStatus } : {}),
+    },
+  });
+  await stopRuns(tx, row.workspaceId, row.id, 'cancelled');
+}
 
 interface AlertIntake {
   row: InboundRow;
@@ -49,6 +106,7 @@ export class AlertProcessor {
   }
 
   private async one(tx: Tx, row: InboundRow, kind: string, routes: RouteRow[], a: ParsedAlert) {
+    await lock(tx, `alert:${row.integrationId}:${a.dedupKey}`);
     const [existing] = await tx
       .select()
       .from(alerts)
@@ -57,12 +115,14 @@ export class AlertProcessor {
 
     if (a.status === 'resolved') return this.resolve(tx, existing, a);
     if (existing?.status === 'firing') return this.repeatFiring(tx, existing, a);
+    if (existing?.resolvedAt && a.occurredAt < existing.resolvedAt) return;
 
     await this.fire(tx, { row, kind, routes }, a, existing);
   }
 
   private async resolve(tx: Tx, existing: AlertRow | undefined, a: ParsedAlert) {
     if (!existing || existing.status === 'resolved') return;
+    if (a.occurredAt < existing.lastFiredAt) return;
     await tx
       .update(alerts)
       .set({ status: 'resolved', resolvedAt: a.occurredAt })
@@ -82,14 +142,23 @@ export class AlertProcessor {
 
   private async fire(tx: Tx, intake: AlertIntake, a: ParsedAlert, existing: AlertRow | undefined) {
     const { row, kind, routes } = intake;
-    const route = matchRoute(routes, row.integrationId, a);
+    const matched = matchRoute(routes, row.integrationId, a);
+    const route =
+      matched ??
+      builtInRoute(
+        kind,
+        row,
+        routes.some(
+          (r) => r.enabled && (r.sourceIds.length === 0 || r.sourceIds.includes(row.integrationId)),
+        ),
+      );
     const key = route ? groupKey(route, row.integrationId, a) : null;
     const incidentId =
       route && route.createIncident
         ? await this.incidentFor(tx, { row, kind, route, key: key! }, a)
         : null;
     const values = {
-      routeId: route?.id ?? null,
+      routeId: matched?.id ?? null,
       incidentId,
       status: 'firing' as const,
       title: a.title,
@@ -141,6 +210,7 @@ export class AlertProcessor {
   private async incidentFor(tx: Tx, group: IncidentGroup, a: ParsedAlert): Promise<string> {
     const { row, kind, route, key } = group;
     const fingerprint = groupFingerprint(route.id, key);
+    await lock(tx, `incident:${row.workspaceId}:${fingerprint}`);
     const [open] = await tx
       .select({ id: incidents.id })
       .from(incidents)
@@ -188,10 +258,15 @@ export class AlertProcessor {
       fingerprint,
       severity: route.incidentSeverity ?? a.severity,
       occurredAt: a.occurredAt,
-      summary: `Incident opened by alert route "${route.name}"`,
+      summary: route.id.startsWith('builtin:')
+        ? `Incident started: ${a.title}`
+        : `Incident opened by alert route "${route.name}"`,
       correlationId: `ingest-${row.id}`,
     });
-    await tx.update(incidents).set({ eventCount: 1 }).where(eq(incidents.id, id));
+    await tx
+      .update(incidents)
+      .set({ eventCount: 1, ...(kind === 'monitor' ? { monitorId: row.integrationId } : {}) })
+      .where(eq(incidents.id, id));
     return id;
   }
 
@@ -221,6 +296,7 @@ export class AlertProcessor {
         summary: 'All alerts for this incident have resolved',
         attributes: { allResolved: true },
       });
+      await autoResolve(tx, alert.incidentId!, a.occurredAt);
     }
   }
 }

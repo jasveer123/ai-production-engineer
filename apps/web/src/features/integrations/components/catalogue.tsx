@@ -7,9 +7,9 @@ import {
   INTEGRATION_GROUP_LABEL,
   type IntegrationGroup,
 } from "../constants"
-import type { IngestOverview, StreamState } from "../schemas"
+import { getSourceState } from "../lib"
+import type { IngestOverview } from "../schemas"
 import { IntegrationTile } from "./integration-tile"
-import { SharedStatusNote } from "./shared-status-note"
 
 export type GroupFilter = IntegrationGroup | "all"
 
@@ -24,9 +24,6 @@ interface CatalogueProps {
   onGroupChange: (group: GroupFilter) => void
   onSearchChange: (search: string) => void
 }
-
-const stateOf = (overview: IngestOverview | undefined, way: string): StreamState =>
-  overview?.ways.find((item) => item.way === way)?.state ?? "not_set_up"
 
 export function Catalogue({
   all,
@@ -43,7 +40,7 @@ export function Catalogue({
   return (
     <section className="grid gap-4" aria-labelledby="catalogue-title">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 id="catalogue-title" className="font-heading text-xl font-semibold">
+        <h2 id="catalogue-title" className="font-heading text-sm font-semibold">
           Catalogue
         </h2>
         <span className="font-mono text-[0.8125rem] text-muted-foreground">
@@ -92,14 +89,13 @@ export function Catalogue({
                 <IntegrationTile
                   key={item.id}
                   definition={item}
-                  state={stateOf(overview, item.way)}
+                  state={getSourceState(overview?.tokens, item.id)}
                 />
               ))}
             </div>
           </div>
         )
       })}
-      <SharedStatusNote definitions={all} />
     </section>
   )
 }

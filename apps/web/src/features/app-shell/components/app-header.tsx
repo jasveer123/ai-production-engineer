@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation"
 import { LogOut } from "lucide-react"
 import { Badge, Button, Spinner } from "@/components/ui"
 import { Logo, ThemeToggle } from "@/components/shared"
+import { CommandMenu } from "./command-menu"
+import { MobileNav } from "./mobile-nav"
 import { useCurrentWorkspace, useLogout } from "@/features/auth"
 import { LiveStatus } from "@/features/integrations"
 import { ROUTES } from "@/lib/constants/routes"
@@ -16,8 +18,10 @@ export function AppHeader() {
   const signOut = () => logout.mutateAsync().finally(() => router.replace(ROUTES.login))
 
   return (
-    <header className="sticky top-0 z-30 flex items-center gap-6 border-b border-line bg-panel px-6 py-3">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-panel px-4 sm:px-6">
+      <MobileNav />
       <Logo />
+      <CommandMenu />
       <div className="ml-auto flex items-center gap-4">
         <LiveStatus />
         {workspace && (

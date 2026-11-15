@@ -1,36 +1,55 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { and, arrayContains, eq, sql } from 'drizzle-orm';
+import { Inject, Injectable } from '@nestjs/common';
+import { and, arrayContains, eq } from 'drizzle-orm';
+import type { DeliveryChannel } from '@ape/api-contracts';
 import { ENV, type ApiEnv } from '../../../core/config/config.module';
 import { DB } from '../../../core/db/database.module';
 import type { Database } from '../../../core/db/client';
+import { incidentEvents, incidents, notificationChannels } from '../../../core/db/schema';
 import {
-  incidentEvents,
-  incidents,
-  notificationChannels,
-  notificationDeliveries,
-} from '../../../core/db/schema';
-import {
+  maskPhone,
+  maskTarget,
   notificationTypeFor,
   severityAtLeast,
   type IncidentSnapshot,
   type Notification,
 } from '../domain/messages';
-import {
-  NotificationSender,
-  type ChannelRow,
-  type SendResult,
-} from '../infrastructure/notification-sender.service';
+import type { ChannelRow } from '../infrastructure/notification-sender.service';
+import { DeliveryLedger, type AttemptRow, type NewAttempt } from './delivery-ledger.service';
 
-export class RetryableDeliveryError extends Error {}
+export const deliveryChannelOf = (kind: string): DeliveryChannel =>
+  kind === 'phone' ? 'call' : (kind as DeliveryChannel);
+
+export function channelDisplay(channel: ChannelRow): string {
+  if (channel.kind === 'slack') return `Slack · ${channel.name}`;
+  if (channel.kind === 'sms' || channel.kind === 'phone') return maskPhone(channel.url ?? '');
+  if (channel.kind === 'email') return channel.url ?? '';
+  return maskTarget('webhook', channel.url ?? '');
+}
+
+export function channelAttempt(
+  channel: ChannelRow,
+  n: Notification,
+  extra: Partial<NewAttempt> & { dedupKey: string },
+): NewAttempt {
+  return {
+    workspaceId: channel.workspaceId,
+    incidentId: n.key.startsWith('test:') ? null : n.incident.id,
+    channelId: channel.id,
+    eventType: n.type,
+    channel: deliveryChannelOf(channel.kind),
+    address: channelDisplay(channel),
+    recipientName: channel.name,
+    payload: n,
+    ...extra,
+  };
+}
 
 @Injectable()
 export class NotificationDispatcher {
-  private readonly logger = new Logger(NotificationDispatcher.name);
-
   constructor(
     @Inject(DB) private readonly db: Database,
     @Inject(ENV) private readonly env: ApiEnv,
-    private readonly sender: NotificationSender,
+    private readonly ledger: DeliveryLedger,
   ) {}
 
   incidentUrl(workspaceId: string, incidentId: string) {
@@ -52,7 +71,6 @@ export class NotificationDispatcher {
       workspaceId: row.incident.workspaceId,
       title: row.incident.title,
       severity: row.incident.severity,
-
       status:
         typeof row.event.attributes.to === 'string' ? row.event.attributes.to : row.incident.status,
       serviceName: row.incident.serviceName,
@@ -80,60 +98,19 @@ export class NotificationDispatcher {
         )
     ).filter((c) => severityAtLeast(incident.severity, c.minSeverity));
 
-    let sent = 0;
-    const retry: string[] = [];
-    for (const channel of channels) {
-      const [done] = await this.db
-        .select({ status: notificationDeliveries.status })
-        .from(notificationDeliveries)
-        .where(
-          and(
-            eq(notificationDeliveries.channelId, channel.id),
-            eq(notificationDeliveries.eventKey, n.key),
-          ),
-        );
-      if (done?.status === 'sent') continue;
-      const result = await this.deliver(channel, n);
-      if (result.ok) sent++;
-      else if (!result.permanent) retry.push(channel.name);
-    }
-    if (retry.length > 0) {
-      throw new RetryableDeliveryError(`Delivery to ${retry.join(', ')} failed; will retry`);
-    }
-    return sent;
+    const ids = await this.ledger.enqueue(
+      this.db,
+      channels.map((c) => channelAttempt(c, n, { dedupKey: `${c.id}:${n.key}` })),
+    );
+    await this.ledger.deliverNow(ids);
+    return ids.length;
   }
 
-  async deliver(channel: ChannelRow, n: Notification): Promise<SendResult> {
-    const result = await this.sender.send(channel, n);
-    const now = new Date();
-    await this.db
-      .insert(notificationDeliveries)
-      .values({
-        workspaceId: channel.workspaceId,
-        channelId: channel.id,
-        eventKey: n.key,
-        eventType: n.type,
-        incidentId: n.key.startsWith('test:') ? null : n.incident.id,
-        status: result.ok ? 'sent' : 'failed',
-        responseStatus: result.status,
-        error: result.error,
-        sentAt: result.ok ? now : null,
-      })
-      .onConflictDoUpdate({
-        target: [notificationDeliveries.channelId, notificationDeliveries.eventKey],
-        set: {
-          status: result.ok ? 'sent' : 'failed',
-          attempts: sql`${notificationDeliveries.attempts} + 1`,
-          responseStatus: result.status,
-          error: result.error,
-          sentAt: result.ok ? now : null,
-        },
-      });
-    await this.db
-      .update(notificationChannels)
-      .set(result.ok ? { lastDeliveryAt: now, lastError: null } : { lastError: result.error })
-      .where(eq(notificationChannels.id, channel.id));
-    if (!result.ok) this.logger.warn(`Notification to "${channel.name}" failed: ${result.error}`);
-    return result;
+  async deliverOnce(channel: ChannelRow, n: Notification): Promise<AttemptRow | undefined> {
+    const ids = await this.ledger.enqueue(this.db, [
+      channelAttempt(channel, n, { dedupKey: n.key, incidentId: null }),
+    ]);
+    const [row] = await this.ledger.deliverNow(ids);
+    return row;
   }
 }

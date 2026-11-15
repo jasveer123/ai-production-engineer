@@ -17,10 +17,7 @@ const STEPS: IncidentStep[] = [
 
 export function AuthShowcase() {
   return (
-    <Card
-      ticked
-      className="hidden min-h-0 justify-between gap-0 border-line-strong p-12 shadow-[0_0_3.75rem_-1.5rem_var(--glow-strong)] [--tick:var(--brand)] lg:sticky lg:top-3 lg:flex lg:h-[calc(100svh-1.5rem)] lg:self-start"
-    >
+    <Card className="hidden min-h-0 justify-between gap-0 border-line-strong p-12 shadow-[0_0_3.75rem_-1.5rem_var(--glow-strong)] [--tick:var(--brand)] lg:sticky lg:top-3 lg:flex lg:h-[calc(100svh-1.5rem)] lg:self-start">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(35rem_18.75rem_at_18%_0%,var(--glow-strong),transparent_70%)]"

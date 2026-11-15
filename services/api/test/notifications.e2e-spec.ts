@@ -5,12 +5,13 @@ import type {
   Incident,
   NotificationChannel,
   NotificationChannelWithSecret,
-  NotificationDelivery,
+  DeliveryAttemptView,
 } from '@ape/api-contracts';
 import { and, eq, sql } from 'drizzle-orm';
 import type { App } from 'supertest/types';
 import { createDatabase } from '../src/core/db/client';
-import { notificationDeliveries, outbox, secrets } from '../src/core/db/schema';
+import { deliveryAttempts, outbox, secrets } from '../src/core/db/schema';
+import { DeliveryLedger } from '../src/modules/notifications/application/delivery-ledger.service';
 import { verifySignature } from '../src/ingest/ingestion/domain/webhook-signature';
 import { OutboxPublisher } from '../src/core/temporal/outbox-publisher.service';
 import { TemporalService } from '../src/core/temporal/temporal.service';
@@ -187,9 +188,9 @@ describe('Notifications (e2e)', () => {
     expect(check).toEqual({ ok: true });
 
     const deliveries = (await owner.get(`/workspaces/${ws}/notifications/deliveries`).expect(200))
-      .body as NotificationDelivery[];
+      .body as DeliveryAttemptView[];
     expect(deliveries).toMatchObject([
-      { status: 'sent', eventType: 'incident.detected', attempts: 1 },
+      { state: 'delivered', eventType: 'incident.detected', attempts: 1, channel: 'webhook' },
     ]);
   });
 
@@ -237,29 +238,28 @@ describe('Notifications (e2e)', () => {
 
     await publisher.publishBatch();
     expect(received.map((r) => r.path).sort()).toEqual(['/flaky', '/ok']);
-    const [row] = await notifyRows(ws);
-    expect(row).toMatchObject({ attempts: 1, publishedAt: null });
-    expect(row!.lastError).toContain('hook /flaky');
+    expect((await notifyRows(ws))[0]!.publishedAt).not.toBeNull();
+    const rows = () =>
+      db.select().from(deliveryAttempts).where(eq(deliveryAttempts.workspaceId, ws));
+    const flaky = (await rows()).find((d) => d.state === 'retry_wait')!;
+    expect(flaky).toMatchObject({ attempts: 1, error: 'Receiver responded 503' });
+    expect(flaky.nextAttemptAt!.getTime()).toBeGreaterThan(Date.now());
 
-    await publisher.publishBatch();
+    const ledger = app.get(DeliveryLedger);
+    await ledger.processDue();
     expect(received).toHaveLength(2);
 
     respond.delete('/flaky');
     await db
-      .update(outbox)
+      .update(deliveryAttempts)
       .set({ nextAttemptAt: sql`now()` })
-      .where(eq(outbox.id, row!.id));
-    await publisher.publishBatch();
+      .where(eq(deliveryAttempts.id, flaky.id));
+    await ledger.processDue(new Date(Date.now() + 1000));
     expect(received.map((r) => r.path).sort()).toEqual(['/flaky', '/flaky', '/ok']);
-    const deliveries = await db
-      .select()
-      .from(notificationDeliveries)
-      .where(eq(notificationDeliveries.workspaceId, ws));
-    expect(deliveries.map((d) => [d.status, d.attempts]).sort()).toEqual([
-      ['sent', 1],
-      ['sent', 2],
+    expect((await rows()).map((d) => [d.state, d.attempts]).sort()).toEqual([
+      ['delivered', 1],
+      ['delivered', 2],
     ]);
-    expect((await notifyRows(ws))[0]!.publishedAt).not.toBeNull();
   });
 
   it('does not retry a permanent failure (4xx) and shows it on the channel', async () => {
@@ -280,7 +280,13 @@ describe('Notifications (e2e)', () => {
     const res = await owner
       .post(`/workspaces/${ws}/notifications/channels/${ch.id}/test`)
       .expect(200);
-    expect(res.body).toEqual({ ok: true, status: 200, error: null });
+    expect(res.body).toEqual({
+      ok: true,
+      state: 'delivered',
+      status: 200,
+      error: null,
+      providerMessageId: null,
+    });
     expect(received[0]!.body.incident).toMatchObject({ status: 'detected', severity: 'low' });
   });
 

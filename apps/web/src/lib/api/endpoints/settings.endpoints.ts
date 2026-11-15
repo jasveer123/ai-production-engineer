@@ -1,0 +1,15 @@
+export const SETTINGS_ENDPOINTS = {
+  WORKSPACE: (workspaceId: string) => `/workspaces/${workspaceId}`,
+  MEMBERS: (workspaceId: string) => `/workspaces/${workspaceId}/members`,
+  MEMBER: (workspaceId: string, id: string) => `/workspaces/${workspaceId}/members/${id}`,
+  INVITATIONS: (workspaceId: string) => `/workspaces/${workspaceId}/invitations`,
+  INVITATION: (workspaceId: string, id: string) => `/workspaces/${workspaceId}/invitations/${id}`,
+  APPROVAL: (workspaceId: string) => `/workspaces/${workspaceId}/settings/approval-policy`,
+  SEVERITY_RULES: (workspaceId: string) => `/workspaces/${workspaceId}/settings/severity-rules`,
+  API_TOKENS: "/auth/api-tokens",
+  API_TOKEN: (id: string) => `/auth/api-tokens/${id}`,
+  USAGE: (workspaceId: string) => `/workspaces/${workspaceId}/usage`,
+  LIMITS: (workspaceId: string) => `/workspaces/${workspaceId}/usage/limits`,
+  SYSTEM_STATUS: (workspaceId: string) => `/workspaces/${workspaceId}/system-status`,
+  AUDIT: (workspaceId: string) => `/workspaces/${workspaceId}/audit-events`,
+} as const

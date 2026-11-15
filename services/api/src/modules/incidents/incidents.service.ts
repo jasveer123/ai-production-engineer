@@ -1,12 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, gte, lt, lte, ne, notInArray, inArray, type SQL } from 'drizzle-orm';
+import { and, desc, eq, ne, type SQL } from 'drizzle-orm';
 import {
-  CLOSED_STATUSES,
   type ApprovalPolicyInput,
   type CreateIncidentInput,
   type Incident,
-  type IncidentListQuery,
   type SeverityRule,
   type TimelineEntry,
   type TransitionIncidentInput,
@@ -15,82 +13,35 @@ import { AuditService } from '../../core/audit/audit.service';
 import { ApiException, conflict, isUniqueViolation, notFound } from '../../core/common/errors';
 import type { ActorContext } from '../../core/common/request-context';
 import { DB } from '../../core/db/database.module';
-import type { Database } from '../../core/db/client';
+import type { Database, Tx } from '../../core/db/client';
+import { ENV, type ApiEnv } from '../../core/config/config.module';
 import {
-  deployments,
   incidentEvents,
   incidents,
+  integrations,
   outbox,
   services,
   DEFAULT_APPROVAL_POLICY,
   users,
   workspaces,
 } from '../../core/db/schema';
+import { IncidentReader, type IncidentRow } from './application/incident-reader';
 import { canTransition } from './domain/lifecycle';
-
-const DEPLOY_LOOKBACK_MS = 24 * 60 * 60_000;
-
-type IncidentRow = typeof incidents.$inferSelect;
-
-const toDto = (r: IncidentRow, repositoryFullName: string | null): Incident => ({
-  id: r.id,
-  title: r.title,
-  description: r.description,
-  status: r.status,
-  severity: r.severity,
-  source: r.source,
-  serviceId: r.serviceId,
-  serviceName: r.serviceName,
-  environment: r.environment,
-  repositoryFullName,
-  fingerprint: r.fingerprint,
-  eventCount: r.eventCount,
-  firstSeenAt: r.firstSeenAt.toISOString(),
-  lastSeenAt: r.lastSeenAt.toISOString(),
-  version: r.version,
-  createdAt: r.createdAt.toISOString(),
-});
+import { incidentDeploys } from './infrastructure/deploys';
+import { startPolicyRun } from './infrastructure/escalation-hook';
+import { notifyWholeTeam } from './infrastructure/team-notify';
 
 @Injectable()
 export class IncidentsService {
   constructor(
     @Inject(DB) private readonly db: Database,
+    @Inject(ENV) private readonly env: ApiEnv,
     private readonly audit: AuditService,
+    private readonly reader: IncidentReader,
   ) {}
 
-  async list(actor: ActorContext, q: IncidentListQuery & { limit: number }): Promise<Incident[]> {
-    const f: SQL[] = [eq(incidents.workspaceId, actor.workspaceId)];
-    if (q.status === 'open') f.push(notInArray(incidents.status, [...CLOSED_STATUSES]));
-    else if (q.status === 'closed') f.push(inArray(incidents.status, [...CLOSED_STATUSES]));
-    else if (q.status) f.push(eq(incidents.status, q.status));
-    if (q.severity) f.push(eq(incidents.severity, q.severity));
-    if (q.serviceId) f.push(eq(incidents.serviceId, q.serviceId));
-    if (q.environment) f.push(eq(incidents.environment, q.environment));
-    if (q.before) f.push(lt(incidents.lastSeenAt, new Date(q.before)));
-
-    const rows = await this.db
-      .select({ incident: incidents, repo: services.repositoryFullName })
-      .from(incidents)
-      .leftJoin(services, eq(services.id, incidents.serviceId))
-      .where(and(...f))
-      .orderBy(desc(incidents.lastSeenAt))
-      .limit(q.limit);
-    return rows.map((r) => toDto(r.incident, r.repo));
-  }
-
-  async get(actor: ActorContext, id: string): Promise<Incident> {
-    const [row] = await this.db
-      .select({ incident: incidents, repo: services.repositoryFullName })
-      .from(incidents)
-      .leftJoin(services, eq(services.id, incidents.serviceId))
-      .where(and(eq(incidents.id, id), eq(incidents.workspaceId, actor.workspaceId)));
-    if (!row) throw notFound('Incident');
-    return toDto(row.incident, row.repo);
-  }
-
   async timeline(actor: ActorContext, id: string): Promise<TimelineEntry[]> {
-    const incident = await this.get(actor, id);
-
+    const incident = await this.reader.get(actor.workspaceId, id);
     const read = (kind: SQL, limit: number) =>
       this.db
         .select({ e: incidentEvents, actorEmail: users.email })
@@ -105,38 +56,13 @@ export class IncidentsService {
         )
         .orderBy(desc(incidentEvents.occurredAt))
         .limit(limit);
-    const [steps, errors] = await Promise.all([
+    const [steps, errors, deploys] = await Promise.all([
       read(ne(incidentEvents.kind, 'error'), 500),
       read(eq(incidentEvents.kind, 'error'), 200),
+      incidentDeploys(this.db, actor.workspaceId, incident),
     ]);
-    const events = [...steps, ...errors];
-
-    const deploys =
-      incident.serviceName && incident.environment
-        ? await this.db
-            .select()
-            .from(deployments)
-            .where(
-              and(
-                eq(deployments.workspaceId, actor.workspaceId),
-                eq(deployments.serviceName, incident.serviceName),
-                eq(deployments.environment, incident.environment),
-                gte(
-                  deployments.deployedAt,
-                  new Date(Date.parse(incident.firstSeenAt) - DEPLOY_LOOKBACK_MS),
-                ),
-                lte(
-                  deployments.deployedAt,
-                  new Date(Math.max(Date.parse(incident.lastSeenAt), Date.now())),
-                ),
-              ),
-            )
-            .orderBy(desc(deployments.deployedAt))
-            .limit(20)
-        : [];
-
     const entries: TimelineEntry[] = [
-      ...events.map(({ e, actorEmail }) => ({
+      ...[...steps, ...errors].map(({ e, actorEmail }) => ({
         kind: e.kind as 'error' | 'created' | 'status_change',
         id: e.id,
         at: e.occurredAt.toISOString(),
@@ -147,31 +73,16 @@ export class IncidentsService {
         actorEmail,
         attributes: e.attributes,
       })),
-      ...deploys.map((d) => ({
-        kind: 'deploy' as const,
-        id: d.id,
-        at: d.deployedAt.toISOString(),
-        source: 'deploy_webhook',
-        summary: `Deployed ${d.serviceName}${d.version ? ` ${d.version}` : ''} to ${d.environment}`,
-        commitSha: d.commitSha,
-        version: d.version,
-        environment: d.environment,
-      })),
+      ...deploys,
     ];
     return entries.sort((a, b) => b.at.localeCompare(a.at));
   }
 
   async create(actor: ActorContext, input: CreateIncidentInput): Promise<Incident> {
-    let service: typeof services.$inferSelect | undefined;
-    if (input.serviceId) {
-      [service] = await this.db
-        .select()
-        .from(services)
-        .where(and(eq(services.id, input.serviceId), eq(services.workspaceId, actor.workspaceId)));
-      if (!service) throw notFound('Service');
-    }
+    const service = input.serviceId ? await this.findService(actor, input.serviceId) : undefined;
+    const monitor = input.monitorId ? await this.findMonitor(actor, input.monitorId) : undefined;
     const now = new Date();
-    const row = await this.db.transaction(async (tx) => {
+    const id = await this.db.transaction(async (tx) => {
       const [r] = await tx
         .insert(incidents)
         .values({
@@ -179,6 +90,7 @@ export class IncidentsService {
           serviceId: service?.id ?? null,
           serviceName: service?.name ?? null,
           environment: service?.environment ?? null,
+          monitorId: monitor?.id ?? null,
           title: input.title,
           description: input.description ?? null,
           severity: input.severity ?? 'medium',
@@ -188,36 +100,63 @@ export class IncidentsService {
           lastSeenAt: now,
         })
         .returning();
+      const row = r!;
       await tx.insert(incidentEvents).values({
         workspaceId: actor.workspaceId,
-        incidentId: r!.id,
+        incidentId: row.id,
         kind: 'created',
         source: 'manual',
         occurredAt: now,
         actorId: actor.userId,
-        summary: 'Incident created manually',
+        summary: 'Incident reported manually',
+        attributes: { notify: input.notify ?? 'none' },
       });
       await tx.insert(outbox).values({
         workspaceId: actor.workspaceId,
         topic: 'incident.detected',
-        payload: { incidentId: r!.id, workspaceId: actor.workspaceId },
+        payload: { incidentId: row.id, workspaceId: actor.workspaceId },
       });
+      await this.notify(tx, actor, input, row);
       await this.audit.record(
         {
           workspaceId: actor.workspaceId,
           actorId: actor.userId,
           action: 'incident.created',
           resourceType: 'incident',
-          resourceId: r!.id,
+          resourceId: row.id,
           outcome: 'success',
           correlationId: actor.correlationId,
-          metadata: { source: 'manual', severity: r!.severity },
+          metadata: { source: 'manual', severity: row.severity, notify: input.notify ?? 'none' },
         },
         tx,
       );
-      return r!;
+      return row.id;
     });
-    return toDto(row, service?.repositoryFullName ?? null);
+    return this.reader.get(actor.workspaceId, id);
+  }
+
+  private async notify(tx: Tx, actor: ActorContext, input: CreateIncidentInput, row: IncidentRow) {
+    if (input.notify === 'policy' && input.policyId)
+      await startPolicyRun(tx, actor.workspaceId, row.id, input.policyId);
+    if (input.notify === 'team') await notifyWholeTeam(tx, row, this.env.WEB_URL);
+  }
+
+  private async findService(actor: ActorContext, id: string) {
+    const [service] = await this.db
+      .select()
+      .from(services)
+      .where(and(eq(services.id, id), eq(services.workspaceId, actor.workspaceId)));
+    if (!service) throw notFound('Service');
+    return service;
+  }
+
+  private async findMonitor(actor: ActorContext, id: string) {
+    const [monitor] = await this.db
+      .select({ id: integrations.id })
+      .from(integrations)
+      .where(and(eq(integrations.id, id), eq(integrations.workspaceId, actor.workspaceId)));
+    if (!monitor) throw notFound('Monitor');
+    return monitor;
   }
 
   async transition(
@@ -281,7 +220,7 @@ export class IncidentsService {
       }
       throw err;
     }
-    return this.get(actor, id);
+    return this.reader.get(actor.workspaceId, id);
   }
 
   async severityRules(actor: ActorContext): Promise<SeverityRule[]> {

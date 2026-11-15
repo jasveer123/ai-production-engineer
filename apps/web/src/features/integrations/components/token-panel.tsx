@@ -1,7 +1,8 @@
 "use client"
 
 import { Eyebrow } from "@/components/ui"
-import { useRevokeToken, useRotateToken } from "../hooks"
+import { useRevokeToken, useRotateToken, useSources } from "../hooks"
+import { formatCount } from "../lib"
 import type { IngestToken } from "../schemas"
 import type { TokenSecret } from "../types"
 import { TokenCreateForm } from "./token-create-form"
@@ -10,6 +11,10 @@ import { TokenSecretNotice } from "./token-secret-notice"
 
 interface TokenPanelProps {
   workspaceId: string
+  platform: string
+  platformName: string
+  way: string
+  ingestUrl: string
   tokens: IngestToken[]
   canManage: boolean
   secret: TokenSecret | null
@@ -18,6 +23,10 @@ interface TokenPanelProps {
 
 export function TokenPanel({
   workspaceId,
+  platform,
+  platformName,
+  way,
+  ingestUrl,
   tokens,
   canManage,
   secret,
@@ -26,7 +35,14 @@ export function TokenPanel({
   const rotate = useRotateToken(workspaceId)
   const revoke = useRevokeToken(workspaceId)
   const activeTokens = tokens.filter((token) => !token.revokedAt)
-  const pending = rotate.isPending || revoke.isPending
+  const sources = activeTokens.filter((token) => token.platform === platform)
+  const older = activeTokens.filter((token) => !token.platform)
+  const { sources: overview, setPaused } = useSources(workspaceId)
+  const pending = rotate.isPending || revoke.isPending || setPaused.isPending
+  const pausedAt = (id: string) =>
+    overview.data?.sources.find((source) => source.id === id)?.pausedAt ?? null
+  const volume = overview.data?.volume24h.find((item) => item.way === way)
+  const onTogglePause = (id: string) => setPaused.mutate({ id, paused: !pausedAt(id) })
 
   const onRotate = (id: string) =>
     rotate.mutate(id, { onSuccess: (rotated) => onSecretChange({ id, token: rotated.token }) })
@@ -37,20 +53,27 @@ export function TokenPanel({
   return (
     <div className="grid gap-3">
       <div className="grid gap-1">
-        <Eyebrow>Your token</Eyebrow>
+        <Eyebrow>Your source</Eyebrow>
         <p className="text-[0.8125rem] leading-5 text-muted-foreground">
-          A token tells us which workspace your data belongs to. Keep it private.
+          A source is one {platformName} connection with its own token. Keep the token private.
+        </p>
+        <p className="text-[0.8125rem] text-muted-foreground">
+          Received through {way} in the last 24 hours: {formatCount(volume?.logs ?? 0)} logs
         </p>
       </div>
       {secret && <TokenSecretNotice token={secret.token} />}
-      {activeTokens.length > 0 && (
-        <ul className="grid gap-2">
-          {activeTokens.map((token) => (
+      {sources.length > 0 && (
+        <ul className="grid gap-3">
+          {sources.map((token) => (
             <TokenRow
               key={token.id}
               token={token}
+              platformName={platformName}
+              ingestUrl={ingestUrl}
               canManage={canManage}
               pending={pending}
+              pausedAt={pausedAt(token.id)}
+              onTogglePause={onTogglePause}
               onRotate={onRotate}
               onRevoke={onRevoke}
             />
@@ -58,13 +81,41 @@ export function TokenPanel({
         </ul>
       )}
       {canManage ? (
-        <TokenCreateForm workspaceId={workspaceId} onCreated={onSecretChange} />
+        <TokenCreateForm
+          workspaceId={workspaceId}
+          platform={platform}
+          defaultName={platformName}
+          onCreated={onSecretChange}
+        />
       ) : (
-        activeTokens.length === 0 && (
+        sources.length === 0 && (
           <p className="text-[0.8125rem] text-muted-foreground">
-            Ask an admin or owner of this workspace to create a token.
+            Ask an admin or owner of this workspace to create a source.
           </p>
         )
+      )}
+      {older.length > 0 && (
+        <details className="border border-line p-3">
+          <summary className="cursor-pointer text-[0.8125rem] text-muted-foreground">
+            Older workspace tokens ({older.length})
+          </summary>
+          <ul className="mt-3 grid gap-3">
+            {older.map((token) => (
+              <TokenRow
+                key={token.id}
+                token={token}
+                platformName={null}
+                ingestUrl={ingestUrl}
+                canManage={canManage}
+                pending={pending}
+                pausedAt={pausedAt(token.id)}
+                onTogglePause={onTogglePause}
+                onRotate={onRotate}
+                onRevoke={onRevoke}
+              />
+            ))}
+          </ul>
+        </details>
       )}
     </div>
   )

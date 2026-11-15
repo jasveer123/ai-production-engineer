@@ -1,4 +1,5 @@
 import {
+  bigserial,
   boolean,
   index,
   integer,
@@ -75,3 +76,30 @@ export interface AlertCondition {
   op: 'eq' | 'neq' | 'contains' | 'not_contains' | 'regex' | 'exists' | 'not_exists';
   value?: string;
 }
+
+export const monitorChecks = pgTable(
+  'monitor_checks',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    workspaceId: workspaceRef(),
+    monitorId: uuid('monitor_id')
+      .notNull()
+      .references(() => integrations.id, { onDelete: 'cascade' }),
+    checkedAt: timestamp('checked_at', { withTimezone: true }).notNull().defaultNow(),
+    ok: boolean('ok').notNull(),
+    statusCode: integer('status_code'),
+    responseMs: integer('response_ms').notNull(),
+    error: text('error'),
+    region: text('region'),
+    maintenance: boolean('maintenance').notNull().default(false),
+    transition: text('transition').$type<'down' | 'up'>(),
+    timings: jsonb('timings').$type<{
+      dnsMs: number | null;
+      connectMs: number | null;
+      tlsMs: number | null;
+      firstByteMs: number | null;
+    }>(),
+    configVersion: integer('config_version'),
+  },
+  (t) => [index('monitor_checks_monitor_time_idx').on(t.monitorId, t.checkedAt)],
+);

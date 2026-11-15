@@ -9,10 +9,28 @@ import {
   ingestStreams,
   integrations,
   logRecords,
+  errorOccurrences,
+  metricPoints,
   spans,
+  type IngestSinkProgress,
 } from '../../../core/db/schema';
 import { redact } from '../../../modules/investigations/domain/redact';
 import type { Batch, ErrorInput } from '../domain/types';
+import { IngestReceipts, type ReceiptOptions } from './ingest-receipts.service';
+
+type Sink = keyof IngestSinkProgress;
+interface Checkpoint {
+  from: number;
+  save: (sink: Sink, done: number) => Promise<void>;
+}
+
+export interface WriteResult {
+  logs: number;
+  spans: number;
+  errors: number;
+  receiptId: string | null;
+  replayed: boolean;
+}
 
 export const INGEST_PROVIDER = 'ingest';
 export const INGEST_ERROR_SOURCE = 'ingest_error';
@@ -81,6 +99,7 @@ export class TelemetryStore implements OnModuleInit, OnModuleDestroy {
   constructor(
     @Inject(DB) private readonly db: Database,
     @Inject(ENV) private readonly env: ApiEnv,
+    private readonly receipts: IngestReceipts,
   ) {}
 
   onModuleInit(): void {
@@ -93,31 +112,80 @@ export class TelemetryStore implements OnModuleInit, OnModuleDestroy {
     if (this.retentionTimer) clearInterval(this.retentionTimer);
   }
 
-  async write(
-    workspaceId: string,
-    batch: Batch,
-  ): Promise<{ logs: number; spans: number; errors: number }> {
+  async write(workspaceId: string, batch: Batch, opts?: ReceiptOptions): Promise<WriteResult> {
+    const receipt = opts
+      ? await this.receipts.begin(workspaceId, batch, opts)
+      : { id: null, sinks: {}, alreadyCompleted: false };
+    const result = { logs: 0, spans: batch.spans.length, errors: batch.errors.length };
+    if (receipt.alreadyCompleted)
+      return { ...result, logs: batch.logs.length, receiptId: receipt.id, replayed: true };
+    const progress: IngestSinkProgress = { ...receipt.sinks };
+    const receiptId = receipt.id;
+    const save = receiptId
+      ? (sink: Sink, done: number) => {
+          progress[sink] = done;
+          return this.receipts.checkpoint(receiptId, { ...progress });
+        }
+      : (sink: Sink, done: number) => {
+          progress[sink] = done;
+          return Promise.resolve();
+        };
     const tally = new StreamTally();
-    const logsWritten = await this.writeLogs(workspaceId, batch, tally);
-    await this.writeSpans(workspaceId, batch, tally);
-    if (batch.errors.length > 0) await this.bufferErrors(workspaceId, batch, tally);
-    for (const m of batch.metrics)
-      tally.bump({
-        service: m.service,
-        environment: m.environment,
-        key: 'metrics',
-        n: m.count,
-        at: new Date(),
+    try {
+      result.logs = await this.writeLogs(workspaceId, batch, tally, {
+        from: progress.logs ?? 0,
+        save,
       });
-
-    await this.upsertStreams(workspaceId, batch.way, tally.streams);
-    return { logs: logsWritten, spans: batch.spans.length, errors: batch.errors.length };
+      await this.writeSpans(workspaceId, batch, tally, { from: progress.spans ?? 0, save });
+      if (batch.errors.length > 0)
+        await this.bufferErrors(workspaceId, batch, tally, { from: progress.errors ?? 0, save });
+      await this.writePoints(workspaceId, batch, { from: progress.points ?? 0, save });
+      for (const m of batch.metrics)
+        tally.bump({
+          service: m.service,
+          environment: m.environment,
+          key: 'metrics',
+          n: m.count,
+          at: new Date(),
+        });
+      await this.upsertStreams(workspaceId, batch.way, tally.streams);
+      if (receipt.id) await this.receipts.finish(receipt.id, progress, null);
+    } catch (err) {
+      if (receipt.id)
+        await this.receipts.finish(receipt.id, progress, err as Error).catch(() => undefined);
+      throw err;
+    }
+    return { ...result, receiptId: receipt.id, replayed: false };
   }
 
-  private async writeLogs(workspaceId: string, batch: Batch, tally: StreamTally): Promise<number> {
+  private async chunked<T>(
+    items: T[],
+    sink: Sink,
+    cp: Checkpoint,
+    fn: (rows: T[]) => Promise<void>,
+  ) {
+    for (let i = cp.from; i < items.length; i += CHUNK) {
+      const rows = items.slice(i, i + CHUNK);
+      await fn(rows);
+      await cp.save(sink, i + rows.length);
+    }
+  }
+
+  private async writePoints(workspaceId: string, batch: Batch, cp: Checkpoint): Promise<void> {
+    await this.chunked(batch.points, 'points', cp, async (rows) => {
+      await this.db.insert(metricPoints).values(rows.map((p) => ({ workspaceId, ...p })));
+    });
+  }
+
+  private async writeLogs(
+    workspaceId: string,
+    batch: Batch,
+    tally: StreamTally,
+    cp: Checkpoint,
+  ): Promise<number> {
     let written = 0;
-    for (let i = 0; i < batch.logs.length; i += CHUNK) {
-      const rows = batch.logs.slice(i, i + CHUNK).map((l) => {
+    await this.chunked(batch.logs, 'logs', cp, async (chunk) => {
+      const rows = chunk.map((l) => {
         tally.bump({
           service: l.service,
           environment: l.environment,
@@ -147,13 +215,18 @@ export class TelemetryStore implements OnModuleInit, OnModuleDestroy {
         .onConflictDoNothing()
         .returning({ id: logRecords.id });
       written += res.length;
-    }
+    });
     return written;
   }
 
-  private async writeSpans(workspaceId: string, batch: Batch, tally: StreamTally): Promise<void> {
-    for (let i = 0; i < batch.spans.length; i += CHUNK) {
-      const rows = batch.spans.slice(i, i + CHUNK).map((s) => {
+  private async writeSpans(
+    workspaceId: string,
+    batch: Batch,
+    tally: StreamTally,
+    cp: Checkpoint,
+  ): Promise<void> {
+    await this.chunked(batch.spans, 'spans', cp, async (chunk) => {
+      const rows = chunk.map((s) => {
         tally.bump({
           service: s.service,
           environment: s.environment,
@@ -179,28 +252,35 @@ export class TelemetryStore implements OnModuleInit, OnModuleDestroy {
         };
       });
       await this.db.insert(spans).values(rows).onConflictDoNothing();
-    }
+    });
   }
 
-  private async bufferErrors(workspaceId: string, batch: Batch, tally: StreamTally): Promise<void> {
+  private async bufferErrors(
+    workspaceId: string,
+    batch: Batch,
+    tally: StreamTally,
+    cp: Checkpoint,
+  ): Promise<void> {
     const integrationId = await this.ingestIntegrationId(workspaceId);
-    const rows = batch.errors.slice(0, 1000).map((e) => {
-      tally.bump({
-        service: e.service,
-        environment: e.environment,
-        key: 'errors',
-        n: 1,
-        at: e.occurredAt,
+    await this.chunked(batch.errors.slice(0, 1000), 'errors', cp, async (chunk) => {
+      const rows = chunk.map((e) => {
+        tally.bump({
+          service: e.service,
+          environment: e.environment,
+          key: 'errors',
+          n: 1,
+          at: e.occurredAt,
+        });
+        return {
+          workspaceId,
+          integrationId,
+          source: INGEST_ERROR_SOURCE,
+          externalEventId: e.eventId ?? errorEventId(e),
+          payload: errorPayload(e, batch.way),
+        };
       });
-      return {
-        workspaceId,
-        integrationId,
-        source: INGEST_ERROR_SOURCE,
-        externalEventId: e.eventId ?? errorEventId(e),
-        payload: errorPayload(e, batch.way),
-      };
+      await this.db.insert(inboundEvents).values(rows).onConflictDoNothing();
     });
-    await this.db.insert(inboundEvents).values(rows).onConflictDoNothing();
   }
 
   private async upsertStreams(workspaceId: string, way: string, streams: Map<string, Counts>) {
@@ -272,6 +352,9 @@ export class TelemetryStore implements OnModuleInit, OnModuleDestroy {
     try {
       await this.db.delete(logRecords).where(lt(logRecords.ts, cutoff));
       await this.db.delete(spans).where(lt(spans.startTime, cutoff));
+      await this.db.delete(errorOccurrences).where(lt(errorOccurrences.occurredAt, cutoff));
+      await this.db.delete(metricPoints).where(lt(metricPoints.ts, cutoff));
+      await this.receipts.purge(cutoff);
     } catch (err) {
       this.logger.warn(`Retention cleanup failed: ${(err as Error).message}`);
     }

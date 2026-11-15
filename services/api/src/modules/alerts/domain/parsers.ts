@@ -2,6 +2,8 @@ import { z } from 'zod';
 import type { Severity } from '@ape/api-contracts';
 
 import { PermanentIngestError } from '../../../ingest/ingestion/domain/normalize';
+import { parseMetricAlert } from './metric-alert-parser';
+import { parseMonitor } from './monitor-parser';
 import {
   date,
   firstDefined,
@@ -16,20 +18,12 @@ import {
   tagLabels,
   text,
   url,
+  type ParsedAlert,
 } from './parser-utils';
 
 export { mapSeverity };
 
-export interface ParsedAlert {
-  dedupKey: string;
-  status: 'firing' | 'resolved';
-  title: string;
-  description: string | null;
-  severity: Severity;
-  labels: Record<string, string>;
-  sourceUrl: string | null;
-  occurredAt: Date;
-}
+export type { ParsedAlert };
 
 const MAX_ALERTS_PER_REQUEST = 100;
 
@@ -306,19 +300,51 @@ function parseElasticsearch(payload: unknown, now: Date): ParsedAlert[] {
 }
 
 function parseHeartbeat(payload: unknown, now: Date): ParsedAlert[] {
-  const p = payload as { status?: string; name?: string; lastPingAt?: string | null };
+  const p = payload as {
+    status?: string;
+    name?: string;
+    lastPingAt?: string | null;
+    cause?: string | null;
+    occurredAt?: string;
+  };
   const name = text(p?.name, 200) ?? 'heartbeat';
   const firing = p?.status !== 'resolved';
+  const last = p?.lastPingAt ? `Last ping at ${p.lastPingAt}.` : 'No ping has been received yet.';
   return [
     {
       dedupKey: 'heartbeat',
       status: firing ? 'firing' : 'resolved',
-      title: `Heartbeat "${name}" ${firing ? 'missed' : 'resumed'}`,
-      description: p?.lastPingAt
-        ? `Last ping at ${p.lastPingAt}.`
-        : 'No ping has been received yet.',
+      title: `Heartbeat "${name}" ${firing ? 'is down' : 'recovered'}`,
+      description: firing ? (text(p?.cause, 2000) ?? last) : last,
       severity: 'high',
       labels: { heartbeat: name },
+      sourceUrl: null,
+      occurredAt: date(p?.occurredAt, now),
+    },
+  ];
+}
+
+function parseLogAlert(payload: unknown, now: Date): ParsedAlert[] {
+  const p = payload as {
+    status?: string;
+    name?: string;
+    reason?: string;
+    severity?: string;
+    service?: string;
+  };
+  const name = text(p?.name, 200) ?? 'log alert';
+  const firing = p?.status !== 'resolved';
+  const severity = ['low', 'medium', 'high', 'critical'].includes(p?.severity ?? '')
+    ? (p.severity as ParsedAlert['severity'])
+    : 'high';
+  return [
+    {
+      dedupKey: 'log_alert',
+      status: firing ? 'firing' : 'resolved',
+      title: `Log alert "${name}" ${firing ? 'is firing' : 'recovered'}`,
+      description: text(p?.reason, 500),
+      severity,
+      labels: { alert: name, ...(p?.service ? { service: text(p.service, 120) ?? '' } : {}) },
       sourceUrl: null,
       occurredAt: now,
     },
@@ -344,6 +370,12 @@ export function parseAlerts(kind: string, payload: unknown, now = new Date()): P
       return parseElasticsearch(payload, now);
     case 'heartbeat':
       return parseHeartbeat(payload, now);
+    case 'monitor':
+      return parseMonitor(payload, now);
+    case 'log_alert':
+      return parseLogAlert(payload, now);
+    case 'metric_alert':
+      return parseMetricAlert(payload, now);
     default:
       throw new PermanentIngestError('unknown_source', `No alert parser for "${kind}"`);
   }

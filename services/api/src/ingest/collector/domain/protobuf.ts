@@ -1,4 +1,4 @@
-class Reader {
+export class Reader {
   pos = 0;
   constructor(
     readonly buf: Uint8Array,
@@ -84,7 +84,7 @@ class Reader {
 
 const hex = (b: Uint8Array) => Buffer.from(b).toString('hex');
 
-function message<T extends object>(
+export function message<T extends object>(
   r: Reader,
   init: T,
   handlers: Record<number, (r: Reader, out: T, wire: number) => void>,
@@ -218,8 +218,127 @@ function logRecord(r: Reader): Json {
   );
 }
 
+const zigzag = (v: bigint) => Number((v >> 1n) ^ -(v & 1n));
+const ns = (r: Reader) => r.fixed64().toString();
+
+function repeated(r: Reader, wire: number, read: (r: Reader) => number): number[] {
+  if (wire !== 2) return [read(r)];
+  const sub = r.sub();
+  const out: number[] = [];
+  while (!sub.done()) out.push(read(sub));
+  return out;
+}
+
+const pushAll = (out: Json, key: string, values: number[]) => {
+  ((out[key] ??= []) as number[]).push(...values);
+};
+
+function numberPoint(r: Reader): Json {
+  return message<Json>(
+    r,
+    { attributes: [] },
+    {
+      7: attrs,
+      2: (r, o) => (o.startTimeUnixNano = ns(r)),
+      3: (r, o) => (o.timeUnixNano = ns(r)),
+      4: (r, o) => (o.asDouble = r.double()),
+      6: (r, o) => (o.asInt = BigInt.asIntN(64, r.fixed64()).toString()),
+    },
+  );
+}
+
+function histogramPoint(r: Reader): Json {
+  return message<Json>(
+    r,
+    { attributes: [] },
+    {
+      9: attrs,
+      2: (r, o) => (o.startTimeUnixNano = ns(r)),
+      3: (r, o) => (o.timeUnixNano = ns(r)),
+      4: (r, o) => (o.count = ns(r)),
+      5: (r, o) => (o.sum = r.double()),
+      6: (r, o, w) =>
+        pushAll(
+          o,
+          'bucketCounts',
+          repeated(r, w, (x) => Number(x.fixed64())),
+        ),
+      7: (r, o, w) =>
+        pushAll(
+          o,
+          'explicitBounds',
+          repeated(r, w, (x) => x.double()),
+        ),
+      11: (r, o) => (o.min = r.double()),
+      12: (r, o) => (o.max = r.double()),
+    },
+  );
+}
+
+function expBuckets(r: Reader): Json {
+  return message<Json>(
+    r,
+    { bucketCounts: [] },
+    {
+      1: (r, o) => (o.offset = zigzag(r.varint())),
+      2: (r, o, w) =>
+        pushAll(
+          o,
+          'bucketCounts',
+          repeated(r, w, (x) => Number(x.varint())),
+        ),
+    },
+  );
+}
+
+function expHistogramPoint(r: Reader): Json {
+  return message<Json>(
+    r,
+    { attributes: [] },
+    {
+      1: attrs,
+      2: (r, o) => (o.startTimeUnixNano = ns(r)),
+      3: (r, o) => (o.timeUnixNano = ns(r)),
+      4: (r, o) => (o.count = ns(r)),
+      5: (r, o) => (o.sum = r.double()),
+      6: (r, o) => (o.scale = zigzag(r.varint())),
+      7: (r, o) => (o.zeroCount = ns(r)),
+      8: (r, o) => (o.positive = expBuckets(r.sub())),
+      9: (r, o) => (o.negative = expBuckets(r.sub())),
+      12: (r, o) => (o.min = r.double()),
+      13: (r, o) => (o.max = r.double()),
+    },
+  );
+}
+
 function metric(r: Reader): Json {
-  return message<Json>(r, {}, { 1: (r, o) => (o.name = r.string()) });
+  const points = (point: (r: Reader) => Json) => (r: Reader) =>
+    message<Json>(
+      r.sub(),
+      { dataPoints: [] },
+      {
+        1: (r, o) => push(o, 'dataPoints', point(r.sub())),
+        2: (r, o) => (o.aggregationTemporality = Number(r.varint())),
+        3: (r, o) => (o.isMonotonic = r.varint() !== 0n),
+      },
+    );
+  const skipped = (r: Reader) => {
+    r.pos = r.end;
+    return {};
+  };
+  return message<Json>(
+    r,
+    {},
+    {
+      1: (r, o) => (o.name = r.string()),
+      3: (r, o) => (o.unit = r.string()),
+      5: (r, o) => (o.gauge = points(numberPoint)(r)),
+      7: (r, o) => (o.sum = points(numberPoint)(r)),
+      9: (r, o) => (o.histogram = points(histogramPoint)(r)),
+      10: (r, o) => (o.exponentialHistogram = points(expHistogramPoint)(r)),
+      11: (r, o) => (o.summary = points(skipped)(r)),
+    },
+  );
 }
 
 function resourceGroup(
@@ -283,45 +402,4 @@ export function decodeMetrics(buf: Uint8Array): Json {
   );
 }
 
-export class Writer {
-  private chunks: number[] = [];
-
-  private varintRaw(v: bigint): void {
-    let x = BigInt.asUintN(64, v);
-    while (x > 0x7fn) {
-      this.chunks.push(Number((x & 0x7fn) | 0x80n));
-      x >>= 7n;
-    }
-    this.chunks.push(Number(x));
-  }
-  private tag(field: number, wire: number) {
-    this.varintRaw(BigInt((field << 3) | wire));
-  }
-  uint(field: number, v: number | bigint): this {
-    this.tag(field, 0);
-    this.varintRaw(BigInt(v));
-    return this;
-  }
-  fixed64(field: number, v: bigint): this {
-    this.tag(field, 1);
-    const b = Buffer.alloc(8);
-    b.writeBigUInt64LE(v);
-    this.chunks.push(...b);
-    return this;
-  }
-  bytes(field: number, v: Uint8Array): this {
-    this.tag(field, 2);
-    this.varintRaw(BigInt(v.length));
-    this.chunks.push(...v);
-    return this;
-  }
-  string(field: number, v: string): this {
-    return this.bytes(field, Buffer.from(v, 'utf8'));
-  }
-  message(field: number, w: Writer): this {
-    return this.bytes(field, w.finish());
-  }
-  finish(): Uint8Array {
-    return Uint8Array.from(this.chunks);
-  }
-}
+export { Writer } from './protobuf-writer';

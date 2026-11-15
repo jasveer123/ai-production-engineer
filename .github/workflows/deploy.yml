@@ -76,6 +76,7 @@ jobs:
           build api Dockerfile.node api
           build migrate Dockerfile.node migrate
           build web Dockerfile.node web
+          build site Dockerfile.node site
           build ai-worker Dockerfile.ai-worker ""
 
       - name: Build the release image (host files + sandbox worker)

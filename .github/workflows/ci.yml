@@ -132,6 +132,7 @@ jobs:
         include:
           - { name: api, file: Dockerfile.node, target: api }
           - { name: web, file: Dockerfile.node, target: web }
+          - { name: site, file: Dockerfile.node, target: site }
           - { name: migrate, file: Dockerfile.node, target: migrate }
           - { name: ai-worker, file: Dockerfile.ai-worker, target: '' }
     steps:
@@ -172,7 +173,7 @@ jobs:
     needs: e2e-changes
     if: needs.e2e-changes.outputs.run == 'true'
     runs-on: ubuntu-latest
-    continue-on-error: true
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -184,12 +185,15 @@ jobs:
       - run: pnpm --filter @ape/config --filter @ape/api-contracts --filter @ape/temporal-workflows build
       - name: Playwright
         run: |
-          if [ ! -f apps/web/playwright.config.ts ]; then echo "No Playwright config yet; skipping."; exit 0; fi
+          if [ ! -f apps/web/playwright.config.ts ]; then echo "::error::apps/web/playwright.config.ts is missing; the e2e journey gate cannot run."; exit 1; fi
           pnpm --filter @ape/web exec playwright install --with-deps chromium
           pnpm --filter @ape/web exec playwright test
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: playwright-report
-          path: apps/web/playwright-report
-          if-no-files-found: ignore
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          if-no-files-found: warn
+          retention-days: 14

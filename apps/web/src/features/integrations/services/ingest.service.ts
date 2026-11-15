@@ -1,12 +1,14 @@
-import { INGEST_ENDPOINTS, http } from "@/lib/api"
+import { EXPLORE_ENDPOINTS, INGEST_ENDPOINTS, http } from "@/lib/api"
 import {
   ingestOverviewSchema,
   ingestTokenWithSecretSchema,
   logSearchResultSchema,
+  sourcesOverviewSchema,
   type CreateTokenRequest,
   type IngestOverview,
   type IngestTokenWithSecret,
   type LogSearchResult,
+  type SourcesOverview,
   type TestLogRequest,
 } from "../schemas"
 import { RECENT_LOGS_LIMIT, TEST_LOG, USAGE_WINDOW_MS } from "../constants"
@@ -31,6 +33,18 @@ export const ingestService = {
       {
         schema: ingestTokenWithSecretSchema,
       }
+    ),
+
+  sources: (workspaceId: string) =>
+    http.get<SourcesOverview>(EXPLORE_ENDPOINTS.SOURCES(workspaceId), {
+      schema: sourcesOverviewSchema,
+    }),
+
+  setPaused: (workspaceId: string, tokenId: string, paused: boolean) =>
+    http.post<void>(
+      paused
+        ? EXPLORE_ENDPOINTS.SOURCE_PAUSE(workspaceId, tokenId)
+        : EXPLORE_ENDPOINTS.SOURCE_RESUME(workspaceId, tokenId)
     ),
 
   revokeToken: (workspaceId: string, tokenId: string) =>

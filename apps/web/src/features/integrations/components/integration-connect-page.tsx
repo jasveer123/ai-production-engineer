@@ -10,7 +10,7 @@ import { formatRelativeTime } from "@/lib/format/relative-time"
 import { INTEGRATIONS } from "../catalog"
 import { COLLECTOR, type IntegrationId } from "../constants"
 import { useIngestOverview, useTokenSecret } from "../hooks"
-import type { StreamState } from "../schemas"
+import { getSourceLastUsed, getSourceState } from "../lib"
 import { CollectorCard } from "./collector-card"
 import { LiveLogs } from "./live-logs"
 import { SendTestLogButton } from "./send-test-log-button"
@@ -44,8 +44,8 @@ export function IntegrationConnectPage({ id }: IntegrationConnectPageProps) {
     )
   }
 
-  const way = overview.ways.find((item) => item.way === definition.way)
-  const state: StreamState = way?.state ?? "not_set_up"
+  const state = getSourceState(overview.tokens, definition.id)
+  const lastUsed = getSourceLastUsed(overview.tokens, definition.id)
 
   const collectorAnchor = (COLLECTOR.INTEGRATIONS as readonly string[]).includes(definition.id)
     ? definition.id
@@ -78,9 +78,9 @@ export function IntegrationConnectPage({ id }: IntegrationConnectPageProps) {
         <div className="flex flex-wrap items-center gap-2">
           <StateBadge state={state} />
           <Badge>{definition.codeChange ? "Adds a package" : "No code changes"}</Badge>
-          {way?.lastReceivedAt && (
+          {lastUsed && (
             <span className="text-[0.8125rem] text-muted-foreground">
-              Last log {formatRelativeTime(way.lastReceivedAt)}
+              Last log {formatRelativeTime(lastUsed)}
             </span>
           )}
         </div>
@@ -93,6 +93,10 @@ export function IntegrationConnectPage({ id }: IntegrationConnectPageProps) {
         </h2>
         <TokenPanel
           workspaceId={workspace.id}
+          platform={definition.id}
+          platformName={definition.name}
+          way={definition.way}
+          ingestUrl={overview.ingestUrl}
           tokens={overview.tokens}
           canManage={canManage}
           secret={secret}

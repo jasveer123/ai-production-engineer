@@ -2,10 +2,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { ok, bad, parse, UUID, c } = require('./helpers.cjs');
 
-test('heartbeat is the only source kind that is not a webhook', () => {
+test('internal sources are the only kinds that are not webhooks', () => {
   assert.deepEqual(
     c.ALERT_SOURCE_KINDS.filter((k) => !c.WEBHOOK_ALERT_KINDS.includes(k)),
-    ['heartbeat'],
+    ['heartbeat', 'monitor', 'log_alert', 'metric_alert'],
   );
   for (const kind of c.ALERT_SOURCE_KINDS) assert.ok(c.ALERT_SOURCE_LABELS[kind]);
 });
@@ -28,13 +28,13 @@ test('createAlertSourceSchema: heartbeat needs an interval and defaults the grac
   bad(c.createAlertSourceSchema, {
     kind: 'heartbeat',
     name: 'cron',
-    intervalSeconds: 7 * 86400 + 1,
+    intervalSeconds: 31 * 86400 + 1,
   });
   bad(c.createAlertSourceSchema, {
     kind: 'heartbeat',
     name: 'cron',
     intervalSeconds: 60,
-    graceSeconds: 86401,
+    graceSeconds: 7 * 86400 + 1,
   });
 });
 

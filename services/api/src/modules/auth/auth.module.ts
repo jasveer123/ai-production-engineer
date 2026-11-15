@@ -5,6 +5,8 @@ import { ENV, type ApiEnv } from '../../core/config/config.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { AccountLinks } from './application/account-links.service';
 import { AccountService } from './application/account.service';
+import { ApiTokensController } from './api-tokens.controller';
+import { ApiTokensService } from './application/api-tokens.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { GitHubOAuthService } from './infrastructure/github-oauth.service';
@@ -29,7 +31,7 @@ import { SessionGuard } from './session.guard';
       }),
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, ApiTokensController],
   exports: [Mailer],
   providers: [
     AuthService,
@@ -37,6 +39,7 @@ import { SessionGuard } from './session.guard';
     AccountService,
     InvitationService,
     SessionService,
+    ApiTokensService,
     GitHubOAuthService,
     SlackOAuthService,
     OAuthProviders,

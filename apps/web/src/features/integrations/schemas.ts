@@ -13,6 +13,7 @@ export type StreamState = z.infer<typeof streamStateSchema>
 export const ingestTokenSchema = z.object({
   id: z.string(),
   name: z.string(),
+  platform: z.string().nullable(),
   masked: z.string(),
   createdAt: z.string(),
   lastUsedAt: z.string().nullable(),
@@ -80,6 +81,7 @@ export type LogSearchResult = z.infer<typeof logSearchResultSchema>
 
 export interface CreateTokenRequest {
   name: string
+  platform?: string
 }
 
 export interface TestLogRequest {
@@ -109,3 +111,20 @@ export const pullRequestSchema = z.object({
   createdAt: z.string(),
 })
 export type PullRequest = z.infer<typeof pullRequestSchema>
+
+export const sourcesOverviewSchema = z.object({
+  ingestUrl: z.string(),
+  sources: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      platform: z.string().nullable(),
+      lastUsedAt: z.string().nullable(),
+      pausedAt: z.string().nullable(),
+    })
+  ),
+  volume24h: z.array(
+    z.object({ way: z.string(), logs: z.number(), lastAt: z.string().nullable() })
+  ),
+})
+export type SourcesOverview = z.infer<typeof sourcesOverviewSchema>

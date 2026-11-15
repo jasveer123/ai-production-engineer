@@ -4,6 +4,7 @@ import type {
   IngestOverview,
   IngestTokenWithSecret,
   LogSearchResult,
+  ServiceSummaryResult,
   ToolView,
 } from '@ape/api-contracts';
 import type { INestApplication } from '@nestjs/common';
@@ -60,6 +61,58 @@ describe('Telemetry intake, ingest tokens and tools (e2e)', () => {
     const viewer = await loginAs(app, 'v@shop.test');
     await viewer.get(`/workspaces/${ws.id}/ingest`).expect(200);
     await viewer.post(`/workspaces/${ws.id}/ingest/tokens`).send({ name: 'x' }).expect(403);
+  });
+
+  it('ties a token to one platform and keeps that when it is rotated', async () => {
+    const created = (
+      await owner
+        .post(`/workspaces/${ws.id}/ingest/tokens`)
+        .send({ name: 'Prod cluster', platform: 'kubernetes' })
+        .expect(201)
+    ).body as IngestTokenWithSecret;
+    expect(created.platform).toBe('kubernetes');
+    await owner
+      .post(`/workspaces/${ws.id}/ingest/tokens`)
+      .send({ name: 'x', platform: 'nope' })
+      .expect(400);
+    const rotated = (
+      await owner.post(`/workspaces/${ws.id}/ingest/tokens/${created.id}/rotate`).expect(200)
+    ).body as IngestTokenWithSecret;
+    expect(rotated.platform).toBe('kubernetes');
+    const overview = (await owner.get(`/workspaces/${ws.id}/ingest`).expect(200))
+      .body as IngestOverview;
+    const byName = overview.tokens.filter((t) => t.name === 'Prod cluster');
+    expect(byName.map((t) => t.platform)).toEqual(['kubernetes']);
+    expect(overview.tokens.find((t) => t.name === 'Default')?.platform).toBeNull();
+  });
+
+  it('summarises logs per service for the last day and keeps it per workspace', async () => {
+    const lines = [
+      { message: 'ok', level: 'info', service: 'checkout' },
+      { message: 'boom', level: 'error', service: 'checkout' },
+      { message: 'ok', level: 'info', service: 'orders' },
+    ];
+    await http()
+      .post('/v1/logs')
+      .set('Authorization', `Bearer ${token}`)
+      .set('Content-Type', 'application/x-ndjson')
+      .send(lines.map((l) => JSON.stringify(l)).join('\n'))
+      .expect(202);
+
+    const summary = (await owner.get(`/workspaces/${ws.id}/logs/services`).expect(200))
+      .body as ServiceSummaryResult;
+    const byName = Object.fromEntries(summary.services.map((s) => [s.service, s]));
+    expect(byName['checkout']).toMatchObject({ total: 2, errors: 1 });
+    expect(byName['orders']).toMatchObject({ total: 1, errors: 0 });
+    expect(byName['checkout']!.buckets).toHaveLength(24);
+    expect(byName['checkout']!.buckets.reduce((a, b) => a + b, 0)).toBe(2);
+
+    const other = await loginAs(app, 'other@shop.test');
+    const otherWs = await createWorkspace(other, 'Other');
+    const otherSummary = (await other.get(`/workspaces/${otherWs.id}/logs/services`).expect(200))
+      .body as ServiceSummaryResult;
+    expect(otherSummary.services).toEqual([]);
+    await owner.get(`/workspaces/${otherWs.id}/logs/services`).expect(404);
   });
 
   it('rejects missing, unknown and revoked tokens', async () => {

@@ -6,7 +6,7 @@ import {
   webhookPayload,
   type Notification,
 } from './domain/messages';
-import { checkOutboundUrl, isPrivateAddress, UnsafeUrlError } from './infrastructure/outbound-url';
+import { checkOutboundUrl, isPrivateAddress, UnsafeUrlError } from '../../core/common/outbound-url';
 
 const n: Notification = {
   type: 'incident.detected',

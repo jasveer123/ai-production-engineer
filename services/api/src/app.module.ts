@@ -12,13 +12,22 @@ import { DatabaseModule } from './core/db/database.module';
 import { DeploymentsModule } from './modules/deployments/deployments.module';
 import { HealthModule } from './core/health/health.module';
 import { IncidentsModule } from './modules/incidents/incidents.module';
+import { ReportingModule } from './modules/reporting/reporting.module';
 import { IngestionModule } from './ingest/ingestion/ingestion.module';
 import { InvestigationsModule } from './modules/investigations/investigations.module';
+import { AssistantModule } from './modules/assistant/assistant.module';
+import { RumModule } from './modules/rum/rum.module';
+import { ErrorsModule } from './modules/errors/errors.module';
+import { MetricsModule } from './modules/metrics/metrics.module';
+import { StatusModule } from './modules/status/status.module';
+import { EscalationModule } from './modules/escalation/escalation.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { OncallModule } from './modules/oncall/oncall.module';
 import { QualityModule } from './modules/quality/quality.module';
 import { RealtimeModule } from './core/realtime/realtime.module';
 import { SecretsModule } from './core/secrets/secrets.module';
 import { ServiceMappingsModule } from './modules/service-mappings/service-mappings.module';
+import { ExploreModule } from './modules/explore/explore.module';
 import { SetupModule } from './connectors/setup/setup.module';
 import { ToolsModule } from './connectors/tools/tools.module';
 import { UsageModule } from './modules/usage/usage.module';
@@ -34,7 +43,9 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     HealthModule,
     WorkspacesModule,
     ServiceMappingsModule,
+    ExploreModule,
     IncidentsModule,
+    ReportingModule,
     IngestionModule,
     CollectorModule,
     AlertsModule,
@@ -42,6 +53,13 @@ import { WorkspacesModule } from './modules/workspaces/workspaces.module';
     SetupModule,
     InvestigationsModule,
     NotificationsModule,
+    OncallModule,
+    EscalationModule,
+    StatusModule,
+    MetricsModule,
+    ErrorsModule,
+    RumModule,
+    AssistantModule,
     RealtimeModule,
     QualityModule,
     DeploymentsModule,

@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq, isNull } from 'drizzle-orm';
-import type { IngestToken, IngestTokenWithSecret } from '@ape/api-contracts';
+import type { IngestPlatform, IngestToken, IngestTokenWithSecret } from '@ape/api-contracts';
 import { AuditService } from '../../../core/audit/audit.service';
 import { sha256 } from '../../../modules/auth/domain/password';
 import { notFound } from '../../../core/common/errors';
@@ -46,6 +46,7 @@ export class IngestTokensService {
     return {
       id: r.id,
       name: r.name,
+      platform: (r.platform as IngestPlatform | null) ?? null,
       masked: maskToken(r.last4),
       createdAt: r.createdAt.toISOString(),
       lastUsedAt: r.lastUsedAt?.toISOString() ?? null,
@@ -62,19 +63,24 @@ export class IngestTokensService {
     return rows.map((r) => this.toDto(r));
   }
 
-  async create(actor: ActorContext, name: string): Promise<IngestTokenWithSecret> {
+  async create(
+    actor: ActorContext,
+    name: string,
+    platform?: IngestPlatform,
+  ): Promise<IngestTokenWithSecret> {
     const token = newIngestToken();
     const [row] = await this.db
       .insert(ingestTokens)
       .values({
         workspaceId: actor.workspaceId,
         name,
+        platform: platform ?? null,
         tokenHash: sha256(token),
         last4: token.slice(-4),
         createdBy: actor.userId,
       })
       .returning();
-    await this.record(actor, 'ingest_token.created', row!.id, { name });
+    await this.record(actor, 'ingest_token.created', row!.id, { name, platform });
     return { ...this.toDto(row!), token };
   }
 
@@ -91,6 +97,7 @@ export class IngestTokensService {
         .values({
           workspaceId: actor.workspaceId,
           name: old.name,
+          platform: old.platform,
           tokenHash: sha256(token),
           last4: token.slice(-4),
           createdBy: actor.userId,
@@ -123,7 +130,13 @@ export class IngestTokensService {
       const [row] = await this.db
         .select({ id: ingestTokens.id, workspaceId: ingestTokens.workspaceId })
         .from(ingestTokens)
-        .where(and(eq(ingestTokens.tokenHash, hash), isNull(ingestTokens.revokedAt)));
+        .where(
+          and(
+            eq(ingestTokens.tokenHash, hash),
+            isNull(ingestTokens.revokedAt),
+            isNull(ingestTokens.pausedAt),
+          ),
+        );
       entry = { workspaceId: row?.workspaceId ?? null, tokenId: row?.id ?? null, at: now };
       this.cache.set(hash, entry);
       if (this.cache.size > 50_000) this.cache.clear();

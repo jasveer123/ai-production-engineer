@@ -6,10 +6,7 @@ type EyebrowProps = React.ComponentProps<"span">
 export function Eyebrow({ className, ...props }: EyebrowProps) {
   return (
     <span
-      className={cn(
-        "font-mono text-[0.6875rem] leading-4 font-medium tracking-[0.08em] text-muted-foreground uppercase",
-        className
-      )}
+      className={cn("text-xs leading-4 font-medium text-muted-foreground", className)}
       {...props}
     />
   )

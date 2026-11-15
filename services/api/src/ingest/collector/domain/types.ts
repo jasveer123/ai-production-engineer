@@ -1,5 +1,5 @@
 import type { IngestWay, LogLevel } from '@ape/api-contracts';
-import type { SpanEvent } from '../../../core/db/schema';
+import type { MetricHistogram, SpanEvent } from '../../../core/db/schema';
 
 export const DEFAULT_ENVIRONMENT = 'production';
 export const DEFAULT_SERVICE = 'unknown-service';
@@ -58,6 +58,28 @@ export interface ErrorInput {
   attributes: Record<string, unknown>;
 }
 
+export interface MetricPointInput {
+  ts: Date;
+  service: string;
+  environment: string;
+  name: string;
+  kind: 'gauge' | 'counter' | 'sum' | 'histogram';
+  unit: string | null;
+  value: number;
+  attributes: Record<string, unknown>;
+  scope?: string | null;
+  seriesKey?: string | null;
+  startTs?: Date | null;
+  temporality?: 'cumulative' | 'delta' | null;
+  monotonic?: boolean | null;
+  histogram?: MetricHistogram | null;
+}
+
+export interface Rejection {
+  index: number;
+  code: string;
+}
+
 export interface Batch {
   way: IngestWay;
   logs: LogInput[];
@@ -65,6 +87,18 @@ export interface Batch {
   errors: ErrorInput[];
 
   metrics: { service: string; environment: string; count: number }[];
+  points: MetricPointInput[];
+  received: number;
+  rejected: number;
+  rejectReason: string | null;
+  rejections: Rejection[];
+}
+
+export function reject(batch: Batch, reason: string, n = 1, index?: number): void {
+  batch.rejected += n;
+  batch.rejectReason ??= reason;
+  if (index !== undefined && batch.rejections.length < 100)
+    batch.rejections.push({ index, code: reason });
 }
 
 export const emptyBatch = (way: IngestWay): Batch => ({
@@ -73,6 +107,11 @@ export const emptyBatch = (way: IngestWay): Batch => ({
   spans: [],
   errors: [],
   metrics: [],
+  points: [],
+  received: 0,
+  rejected: 0,
+  rejectReason: null,
+  rejections: [],
 });
 
 const LEVELS: Record<string, LogLevel> = {

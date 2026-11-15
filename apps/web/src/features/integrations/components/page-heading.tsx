@@ -1,17 +1,16 @@
-import { Eyebrow } from "@/components/ui"
-
 interface PageHeadingProps {
-  workspaceName: string
+  workspaceName?: string
   title: string
+  description?: string
 }
 
-export function PageHeading({ workspaceName, title }: PageHeadingProps) {
+export function PageHeading({ title, description }: PageHeadingProps) {
   return (
-    <div className="grid gap-1.5">
-      <Eyebrow>Workspace · {workspaceName}</Eyebrow>
-      <h1 className="font-heading text-[1.75rem] leading-[2.125rem] font-semibold tracking-tight">
-        {title}
-      </h1>
+    <div className="grid gap-1">
+      <h1 className="font-heading text-xl font-semibold tracking-tight">{title}</h1>
+      {description && (
+        <p className="max-w-prose text-[0.8125rem] text-muted-foreground">{description}</p>
+      )}
     </div>
   )
 }

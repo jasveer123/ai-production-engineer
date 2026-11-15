@@ -37,12 +37,12 @@ export const opentelemetry: IntegrationDefinition = {
     access:
       "Read access to any log files you list. Network access from the Collector or your app to our intake address.",
     limits:
-      "Up to 10 MB per request (gzip is accepted), and logs are kept 7 days by default. Metrics are accepted and counted, not stored.",
+      "Up to 10 MB per request (gzip is accepted). Logs are kept 7 days by default. Supported OTLP metric points are stored for querying; retention follows your deployment settings.",
   },
   collects: [
     "Logs from OTLP and from log files you list",
     "Traces, stored so the AI can read a whole request",
-    "Metrics, accepted and counted",
+    "Supported OTLP metric points, stored for querying",
   ],
   docsUrl: "https://opentelemetry.io/docs/collector/",
   related: [INTEGRATION_ID.JAVASCRIPT, INTEGRATION_ID.PYTHON],

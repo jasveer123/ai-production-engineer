@@ -16,3 +16,14 @@ export function formatRelativeTime(iso: string, now: number = Date.now()): strin
 export function formatClockTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour12: false })
 }
+
+export function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  })
+}

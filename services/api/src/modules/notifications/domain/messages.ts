@@ -18,6 +18,7 @@ export interface Notification {
   summary: string;
   incident: IncidentSnapshot;
   url: string;
+  note?: string;
 }
 
 const STATUS_EVENTS: Record<string, NotificationEvent> = {
@@ -100,6 +101,56 @@ export function webhookPayload(n: Notification) {
   };
 }
 
+export function teamsMessage(n: Notification) {
+  return {
+    type: 'message',
+    attachments: [
+      {
+        contentType: 'application/vnd.microsoft.card.adaptive',
+        content: {
+          $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
+          type: 'AdaptiveCard',
+          version: '1.4',
+          body: [
+            { type: 'TextBlock', weight: 'Bolder', size: 'Medium', text: headline(n), wrap: true },
+            { type: 'TextBlock', text: n.incident.title.slice(0, 300), wrap: true },
+            {
+              type: 'TextBlock',
+              isSubtle: true,
+              wrap: true,
+              text: `${n.incident.severity} · ${n.incident.status.replace(/_/g, ' ')}`,
+            },
+          ],
+          actions: [{ type: 'Action.OpenUrl', title: 'Open incident', url: n.url }],
+        },
+      },
+    ],
+  };
+}
+
+export function emailMessage(n: Notification): { subject: string; text: string } {
+  const i = n.incident;
+  return {
+    subject: `[${i.severity}] ${i.title}`.slice(0, 200),
+    text: [
+      headline(n),
+      i.title,
+      `Severity: ${i.severity}. Status: ${i.status.replace(/_/g, ' ')}.`,
+      i.serviceName ? `Service: ${i.serviceName}${i.environment ? ` (${i.environment})` : ''}` : '',
+      n.summary,
+      '',
+      `Open it: ${n.url}`,
+      n.note ?? '',
+    ]
+      .filter((line, index, all) => line !== '' || (index > 0 && all[index - 1] !== ''))
+      .join('\n')
+      .trim(),
+  };
+}
+
+export const maskPhone = (phone: string) =>
+  phone.length > 6 ? `${phone.slice(0, 3)}••••${phone.slice(-3)}` : '—';
+
 export function maskTarget(kind: string, url: string): string {
   try {
     const u = new URL(url);
@@ -111,4 +162,23 @@ export function maskTarget(kind: string, url: string): string {
   } catch {
     return '—';
   }
+}
+
+export function testNotification(workspaceId: string, key: string, url: string): Notification {
+  return {
+    type: 'incident.detected',
+    key,
+    occurredAt: new Date().toISOString(),
+    summary: 'This is a test notification from Pramaan. No incident is open.',
+    url,
+    incident: {
+      id: key,
+      workspaceId,
+      title: 'Test notification',
+      severity: 'low',
+      status: 'detected',
+      serviceName: null,
+      environment: null,
+    },
+  };
 }

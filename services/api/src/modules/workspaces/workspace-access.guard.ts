@@ -11,6 +11,7 @@ import type { Database } from '../../core/db/client';
 import { workspaceMembers, workspaces } from '../../core/db/schema';
 import { MIN_ROLE_KEY } from './min-role.decorator';
 import { hasRole } from './domain/roles';
+import { decideTokenAccess } from '../auth/domain/token-scope';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -49,6 +50,17 @@ export class WorkspaceAccessGuard implements CanActivate {
             )
             .limit(1)
         : [];
+
+    const tokenDecision = req.auth.token
+      ? decideTokenAccess(req.auth.token, { workspaceId, method: req.method, path: req.path })
+      : 'allow';
+    if (tokenDecision === 'wrong_workspace') throw notFound('Workspace');
+    if (tokenDecision !== 'allow')
+      throw forbidden(
+        tokenDecision === 'missing_scope'
+          ? 'This API token does not have the scope for this action'
+          : 'This API token is not allowed in this area',
+      );
 
     if (!membership) {
       await this.audit.record({

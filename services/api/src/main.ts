@@ -18,7 +18,15 @@ async function bootstrap() {
   const doc = new DocumentBuilder()
     .setTitle('AI Production Engineer API')
     .setVersion('0.1.0')
+    .setDescription(
+      'Public REST API under /api/v1/workspaces/{workspaceId}: monitors, alert sources and heartbeats, incidents, on-call and status pages. Authenticate with a workspace API token: Authorization: Bearer ape_pat_...',
+    )
     .addCookieAuth('ape_session')
+    .addBearerAuth({
+      type: 'http',
+      scheme: 'bearer',
+      description: 'Workspace API token (ape_pat_...)',
+    })
     .build();
   SwaggerModule.setup('docs', app, () => SwaggerModule.createDocument(app, doc));
 

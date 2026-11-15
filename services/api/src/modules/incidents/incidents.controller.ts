@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import {
   approvalPolicySchema,
+  responseActionSchema,
   createIncidentSchema,
   incidentListQuerySchema,
   severityRulesSchema,
@@ -19,6 +20,7 @@ import {
   type ApprovalPolicyInput,
   type CreateIncidentInput,
   type Incident,
+  type ResponseActionInput,
   type SeverityRule,
   type TimelineEntry,
   type TransitionIncidentInput,
@@ -28,12 +30,18 @@ import type { ActorContext } from '../../core/common/request-context';
 import { ZodValidationPipe } from '../../core/common/zod-validation.pipe';
 import { MinRole } from '../workspaces/min-role.decorator';
 import { WorkspaceAccessGuard } from '../workspaces/workspace-access.guard';
+import { IncidentReader } from './application/incident-reader';
+import { IncidentResponseService } from './application/incident-response.service';
 import { IncidentsService } from './incidents.service';
 
-@Controller('workspaces/:workspaceId')
+@Controller(['workspaces/:workspaceId', 'api/v1/workspaces/:workspaceId'])
 @UseGuards(WorkspaceAccessGuard)
 export class IncidentsController {
-  constructor(private readonly svc: IncidentsService) {}
+  constructor(
+    private readonly svc: IncidentsService,
+    private readonly reader: IncidentReader,
+    private readonly response: IncidentResponseService,
+  ) {}
 
   @Get('incidents')
   list(
@@ -41,7 +49,7 @@ export class IncidentsController {
     @Query(new ZodValidationPipe(incidentListQuerySchema))
     q: ReturnType<typeof incidentListQuerySchema.parse>,
   ): Promise<Incident[]> {
-    return this.svc.list(actor, q);
+    return this.reader.list(actor.workspaceId, q);
   }
 
   @Post('incidents')
@@ -58,7 +66,7 @@ export class IncidentsController {
     @Actor() actor: ActorContext,
     @Param('incidentId', ParseUUIDPipe) id: string,
   ): Promise<Incident> {
-    return this.svc.get(actor, id);
+    return this.reader.get(actor.workspaceId, id);
   }
 
   @Get('incidents/:incidentId/timeline')
@@ -67,6 +75,17 @@ export class IncidentsController {
     @Param('incidentId', ParseUUIDPipe) id: string,
   ): Promise<TimelineEntry[]> {
     return this.svc.timeline(actor, id);
+  }
+
+  @Post('incidents/:incidentId/acknowledge')
+  @MinRole('engineer')
+  @HttpCode(200)
+  acknowledge(
+    @Actor() actor: ActorContext,
+    @Param('incidentId', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(responseActionSchema.default({}))) body: ResponseActionInput,
+  ): Promise<Incident> {
+    return this.response.respond(actor, id, 'acknowledge', body);
   }
 
   @Post('incidents/:incidentId/transitions')
