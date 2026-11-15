@@ -1,21 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ERRORS_POLL_MS } from "../constants"
 import { errorsService } from "../services"
+import type { ErrorUpdate } from "../services/errors.service"
+import type { ErrorFilters } from "../schemas"
 
-export function useErrors(
-  workspaceId: string | undefined,
-  status: string,
-  q: string,
-  assignee: string
-) {
+export function useErrors(workspaceId: string | undefined, filters: ErrorFilters) {
+  const query = Object.fromEntries(
+    Object.entries(filters)
+      .map(([k, v]) => [k, v.trim()])
+      .filter(([, v]) => v && v !== "all")
+  )
   return useQuery({
-    queryKey: ["errors", workspaceId ?? "", "list", status, q, assignee],
-    queryFn: () =>
-      errorsService.list(workspaceId!, {
-        ...(status !== "all" ? { status } : {}),
-        ...(q ? { q } : {}),
-        ...(assignee !== "all" ? { assignee } : {}),
-      }),
+    queryKey: ["errors", workspaceId ?? "", "list", query],
+    queryFn: () => errorsService.list(workspaceId!, query),
     enabled: Boolean(workspaceId),
     refetchInterval: ERRORS_POLL_MS,
   })
@@ -34,8 +31,7 @@ export function useUpdateError(workspaceId: string, id: string) {
   const queryClient = useQueryClient()
   return useMutation({
     meta: { successMessage: "Error updated" },
-    mutationFn: (body: { status?: string; assigneeId?: string | null }) =>
-      errorsService.update(workspaceId, id, body),
+    mutationFn: (body: ErrorUpdate) => errorsService.update(workspaceId, id, body),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["errors", workspaceId] }),
   })
 }
@@ -71,6 +67,44 @@ export function useRemoveSourceMap(workspaceId: string) {
   return useMutation({
     meta: { successMessage: "Source map removed" },
     mutationFn: (id: string) => errorsService.removeSourceMap(workspaceId, id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["errors", workspaceId] }),
+  })
+}
+
+export function useErrorApps(workspaceId: string | undefined) {
+  return useQuery({
+    queryKey: ["errors", workspaceId ?? "", "apps"],
+    queryFn: () => errorsService.apps(workspaceId!),
+    enabled: Boolean(workspaceId),
+    refetchInterval: ERRORS_POLL_MS,
+  })
+}
+
+export function useCreateErrorApp(workspaceId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    meta: { successMessage: "Application created" },
+    mutationFn: (body: { name: string; platform: string }) =>
+      errorsService.createApp(workspaceId, body),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["errors", workspaceId] }),
+  })
+}
+
+export function useUpdateErrorApp(workspaceId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    meta: { successMessage: "Spike protection updated" },
+    mutationFn: ({ id, rateLimitPerMinute }: { id: string; rateLimitPerMinute: number }) =>
+      errorsService.updateApp(workspaceId, id, { rateLimitPerMinute }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["errors", workspaceId] }),
+  })
+}
+
+export function useRemoveErrorApp(workspaceId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    meta: { successMessage: "Application removed" },
+    mutationFn: (id: string) => errorsService.removeApp(workspaceId, id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["errors", workspaceId] }),
   })
 }

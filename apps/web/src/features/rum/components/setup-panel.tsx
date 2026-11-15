@@ -6,6 +6,7 @@ import { Button, CodeBlock, Input, Spinner } from "@/components/ui"
 import { ConfirmDialog } from "@/components/shared"
 import { useIngestOverview, useSiteOrigin } from "@/features/integrations"
 import { useCreateRumApp, useRemoveRumApp, useRumApps } from "../hooks"
+import { AppPrivacyForm } from "./app-privacy-form"
 
 interface SetupPanelProps {
   workspaceId: string
@@ -70,11 +71,12 @@ export function SetupPanel({ workspaceId, canManage }: SetupPanelProps) {
           </div>
           <CodeBlock>{`<script async src="${origin}/rum.js" data-key="${app.appKey}" data-api="${api}"></script>`}</CodeBlock>
           <p className="text-[0.75rem] text-muted-foreground">
-            Optional: <span className="font-mono">data-replay=&quot;false&quot;</span> turns replay
-            off, <span className="font-mono">data-mask=&quot;true&quot;</span> hides all text, and
-            any element with <span className="font-mono">data-pramaan-mask</span> is hidden. Inputs
-            are never recorded.
+            Call <span className="font-mono">pramaan.identify(&#123; id, name, email &#125;)</span>{" "}
+            to name users and{" "}
+            <span className="font-mono">pramaan.track(&quot;name&quot;, props)</span> for custom
+            events. If the Sentry SDK is on the page, its errors link to the replay.
           </p>
+          <AppPrivacyForm workspaceId={workspaceId} app={app} canManage={canManage} />
         </article>
       ))}
       {(apps.data ?? []).length === 0 && (

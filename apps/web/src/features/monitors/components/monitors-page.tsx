@@ -1,11 +1,22 @@
 "use client"
 
 import { StatusStrip, StorySteps } from "@/components/shared"
-import { Spinner, Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui"
+import Link from "next/link"
+import { Plus } from "lucide-react"
+import {
+  Button,
+  Spinner,
+  Table,
+  TableBody,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui"
 import { useCurrentWorkspace } from "@/features/auth"
 import { PageHeading } from "@/features/integrations"
 import { useMonitors } from "../hooks"
-import { MonitorCreateDialog } from "./monitor-create-dialog"
+import { ROUTES } from "@/lib/constants/routes"
+import { BulkImportDrawer } from "./bulk-import-drawer"
 import { MonitorRow } from "./monitor-row"
 
 export function MonitorsPage() {
@@ -29,7 +40,14 @@ export function MonitorsPage() {
   const uptimes = active.flatMap((item) => (item.uptime24h === null ? [] : [item.uptime24h]))
   const average = uptimes.length ? uptimes.reduce((a, b) => a + b, 0) / uptimes.length : null
   const slowest = [...active].sort((a, b) => (b.lastResponseMs ?? 0) - (a.lastResponseMs ?? 0))[0]
-  const create = canManage ? <MonitorCreateDialog workspaceId={workspace.id} /> : null
+  const create = canManage ? (
+    <div className="flex flex-wrap gap-2">
+      <BulkImportDrawer workspaceId={workspace.id} />
+      <Button size="sm" nativeButton={false} render={<Link href={`${ROUTES.monitors}/new`} />}>
+        <Plus /> New monitor
+      </Button>
+    </div>
+  ) : null
 
   const headline =
     items.length === 0
@@ -60,7 +78,7 @@ export function MonitorsPage() {
             steps={[
               {
                 title: "You add an address",
-                text: "A website, a keyword on a page, a status code or an open port.",
+                text: "A website, a keyword, a status code, ping, a port, a mail server or DNS.",
               },
               {
                 title: "We check it all day",

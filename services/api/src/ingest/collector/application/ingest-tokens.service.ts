@@ -130,7 +130,13 @@ export class IngestTokensService {
       const [row] = await this.db
         .select({ id: ingestTokens.id, workspaceId: ingestTokens.workspaceId })
         .from(ingestTokens)
-        .where(and(eq(ingestTokens.tokenHash, hash), isNull(ingestTokens.revokedAt)));
+        .where(
+          and(
+            eq(ingestTokens.tokenHash, hash),
+            isNull(ingestTokens.revokedAt),
+            isNull(ingestTokens.pausedAt),
+          ),
+        );
       entry = { workspaceId: row?.workspaceId ?? null, tokenId: row?.id ?? null, at: now };
       this.cache.set(hash, entry);
       if (this.cache.size > 50_000) this.cache.clear();

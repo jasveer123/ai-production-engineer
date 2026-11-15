@@ -7,6 +7,7 @@ import { useChannels, useDeleteChannel, useTestChannel, useUpdateChannel } from 
 import type { ChannelWithSecret } from "../schemas"
 import { ChannelCreateDialog } from "./channel-create-dialog"
 import { ChannelRow } from "./channel-row"
+import { ProvidersNotice } from "./providers-notice"
 
 interface ChannelsPanelProps {
   workspaceId: string
@@ -25,11 +26,13 @@ export function ChannelsPanel({ workspaceId }: ChannelsPanelProps) {
     <div className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="max-w-prose text-[0.8125rem] leading-5 text-muted-foreground">
-          A channel is a place Pramaan sends messages: a Slack channel or any URL that accepts a
-          JSON POST.
+          A channel is a shared place Pramaan sends messages: Slack, Microsoft Teams, an inbox, a
+          phone number, or any URL that accepts a signed JSON POST. Escalation steps can target
+          channels too.
         </p>
         <ChannelCreateDialog workspaceId={workspaceId} onCreated={setCreated} />
       </div>
+      <ProvidersNotice workspaceId={workspaceId} />
       {created?.signingSecret && (
         <div className="grid gap-2">
           <TokenSecretNotice token={created.signingSecret} />

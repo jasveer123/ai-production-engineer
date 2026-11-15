@@ -2,6 +2,8 @@ export const NOTIFICATION_POLL_MS = 15_000
 
 export const CHANNEL_KINDS = [
   { value: "slack", label: "Slack" },
+  { value: "teams", label: "Microsoft Teams" },
+  { value: "email", label: "E-mail" },
   { value: "webhook", label: "Webhook" },
   { value: "sms", label: "SMS" },
   { value: "phone", label: "Phone call" },
@@ -18,6 +20,16 @@ export const TARGET_COPY: Record<string, { label: string; help: string; placehol
     label: "Webhook URL",
     help: "Pramaan sends a signed JSON POST.",
     placeholder: "https://example.com/hook",
+  },
+  teams: {
+    label: "Teams incoming webhook URL",
+    help: "Create a Workflows or Incoming Webhook connector in the Teams channel and paste its URL.",
+    placeholder: "https://example.webhook.office.com/…",
+  },
+  email: {
+    label: "E-mail address",
+    help: "A shared inbox or list address. Needs SMTP or Resend set up on this deployment.",
+    placeholder: "oncall@example.com",
   },
   sms: {
     label: "Phone number",
@@ -49,3 +61,20 @@ export const EVENT_LABEL: Record<string, string> = Object.fromEntries(
 )
 
 export const MIN_SEVERITIES = ["low", "medium", "high", "critical"] as const
+
+export const DELIVERY_STATES = [
+  { value: "queued", label: "Queued", tone: "default" },
+  { value: "leased", label: "Sending", tone: "info" },
+  { value: "provider_accepted", label: "Accepted by provider", tone: "info" },
+  { value: "delivered", label: "Delivered", tone: "success" },
+  { value: "retry_wait", label: "Retrying", tone: "warning" },
+  { value: "outcome_unknown", label: "Outcome unknown", tone: "warning" },
+  { value: "failed_permanent", label: "Failed", tone: "destructive" },
+  { value: "cancelled", label: "Cancelled", tone: "default" },
+] as const
+
+export const CONTACT_KINDS = [
+  { value: "sms", label: "SMS", placeholder: "+14155550123" },
+  { value: "call", label: "Phone call", placeholder: "+14155550123" },
+  { value: "push", label: "Push (ntfy topic URL)", placeholder: "https://ntfy.sh/my-alerts" },
+] as const

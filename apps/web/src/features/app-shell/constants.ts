@@ -12,7 +12,10 @@ import {
   MousePointerClick,
   PhoneCall,
   Radio,
+  ScrollText,
+  ListTree,
   ChartLine,
+  ChartColumn,
   Settings,
   Siren,
   Sparkles,
@@ -47,6 +50,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Fixes", href: ROUTES.fixes, icon: GitPullRequest },
       { label: "On-call", href: ROUTES.oncall, icon: PhoneCall },
       { label: "Escalation", href: ROUTES.escalation, icon: Workflow },
+      { label: "Reporting", href: ROUTES.reporting, icon: ChartColumn },
       { label: "Alerts", href: ROUTES.alerts, icon: BellRing },
     ],
   },
@@ -62,6 +66,8 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Observe",
     items: [
+      { label: "Logs", href: ROUTES.exploreLogs, icon: ScrollText },
+      { label: "Traces", href: ROUTES.exploreTraces, icon: ListTree },
       { label: "Live tail", href: ROUTES.liveTail, icon: Radio },
       { label: "Metrics", href: ROUTES.metrics, icon: ChartLine },
       { label: "Errors", href: ROUTES.errors, icon: Bug },

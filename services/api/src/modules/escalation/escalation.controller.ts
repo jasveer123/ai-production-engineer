@@ -12,10 +12,13 @@ import {
 } from '@nestjs/common';
 import {
   createPolicySchema,
+  simplePolicySchema,
   updatePolicySchema,
   type CreatePolicyInput,
   type EscalationRunView,
+  type PolicyPreview,
   type PolicyView,
+  type SimplePolicyInput,
   type UpdatePolicyInput,
 } from '@ape/api-contracts';
 import { Actor } from '../../core/common/actor.decorator';
@@ -47,6 +50,23 @@ export class EscalationController {
     @Body(new ZodValidationPipe(createPolicySchema)) body: CreatePolicyInput,
   ): Promise<PolicyView> {
     return this.escalation.create(actor, body);
+  }
+
+  @Post('policies/simple')
+  @MinRole('admin')
+  saveSimple(
+    @Actor() actor: ActorContext,
+    @Body(new ZodValidationPipe(simplePolicySchema)) body: SimplePolicyInput,
+  ): Promise<PolicyView> {
+    return this.escalation.saveSimple(actor, body);
+  }
+
+  @Get('policies/:policyId/preview')
+  preview(
+    @Actor() actor: ActorContext,
+    @Param('policyId', ParseUUIDPipe) id: string,
+  ): Promise<PolicyPreview[]> {
+    return this.escalation.preview(actor, id);
   }
 
   @Patch('policies/:policyId')

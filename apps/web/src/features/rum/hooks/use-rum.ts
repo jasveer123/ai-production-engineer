@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { RUM_POLL_MS } from "../constants"
 import { rumService } from "../services"
-import type { FunnelStep } from "../schemas"
+import type { NewFunnel, RumAppSettings, SessionFilters } from "../schemas"
 
 const key = (ws: string | undefined, ...rest: unknown[]) => ["rum", ws ?? "", ...rest]
 
@@ -20,13 +20,10 @@ export const useRumOverview = (ws: string | undefined, appId: string, minutes: n
     refetchInterval: RUM_POLL_MS,
   })
 
-export const useRumSessions = (
-  ws: string | undefined,
-  filters: { appId: string; minutes: number; hasErrors: boolean; q: string; userId?: string }
-) =>
+export const useRumSessions = (ws: string | undefined, filters: SessionFilters) =>
   useQuery({
     queryKey: key(ws, "sessions", filters),
-    queryFn: () => rumService.sessions(ws!, { ...filters, appId: filters.appId || undefined }),
+    queryFn: () => rumService.sessions(ws!, filters),
     enabled: Boolean(ws),
     refetchInterval: RUM_POLL_MS,
   })
@@ -101,8 +98,7 @@ export function useCreateFunnel(ws: string) {
   const done = useInvalidate(ws)
   return useMutation({
     meta: { successMessage: "Funnel created" },
-    mutationFn: (body: { appId: string; name: string; steps: FunnelStep[] }) =>
-      rumService.createFunnel(ws, body),
+    mutationFn: (body: NewFunnel) => rumService.createFunnel(ws, body),
     onSuccess: done,
   })
 }
@@ -112,6 +108,24 @@ export function useRemoveFunnel(ws: string) {
   return useMutation({
     meta: { successMessage: "Funnel deleted" },
     mutationFn: (id: string) => rumService.removeFunnel(ws, id),
+    onSuccess: done,
+  })
+}
+
+export const useRumVitals = (ws: string | undefined, appId: string, minutes: number) =>
+  useQuery({
+    queryKey: key(ws, "vitals", appId, minutes),
+    queryFn: () => rumService.vitals(ws!, { appId: appId || undefined, minutes }),
+    enabled: Boolean(ws),
+    refetchInterval: RUM_POLL_MS,
+  })
+
+export function useUpdateRumApp(ws: string) {
+  const done = useInvalidate(ws)
+  return useMutation({
+    meta: { successMessage: "Privacy settings saved" },
+    mutationFn: ({ id, ...body }: Partial<RumAppSettings> & { id: string }) =>
+      rumService.updateApp(ws, id, body),
     onSuccess: done,
   })
 }

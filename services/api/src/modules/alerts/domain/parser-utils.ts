@@ -2,6 +2,17 @@ import { createHash } from 'node:crypto';
 import type { Severity } from '@ape/api-contracts';
 import { PermanentIngestError } from '../../../ingest/ingestion/domain/normalize';
 
+export interface ParsedAlert {
+  dedupKey: string;
+  status: 'firing' | 'resolved';
+  title: string;
+  description: string | null;
+  severity: Severity;
+  labels: Record<string, string>;
+  sourceUrl: string | null;
+  occurredAt: Date;
+}
+
 const MAX_LABELS = 50;
 
 export const prim = (v: unknown): string =>

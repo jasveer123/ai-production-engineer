@@ -14,7 +14,7 @@ import {
   SPAN_KEYS,
   TIME_KEYS,
   TRACE_KEYS,
-  USED,
+  consumedKeys,
 } from './record-fields';
 import {
   boundAttributes,
@@ -23,6 +23,7 @@ import {
   emptyBatch,
   isErrorLevel,
   parseDate,
+  reject,
   stackLines,
   toLevel,
   type Batch,
@@ -90,7 +91,8 @@ function extraAttributes(
   exception: ExceptionInfo | null,
 ): Record<string, unknown> {
   const attributes: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(merged)) if (!USED.has(k)) attributes[k] = v;
+  const used = consumedKeys(merged);
+  for (const [k, v] of Object.entries(merged)) if (!used.has(k)) attributes[k] = v;
   if (exception) {
     attributes['exception.type'] = exception.type;
     attributes['exception.message'] = exception.message;
@@ -141,9 +143,44 @@ export function errorFromLog(log: LogInput, eventId: string | null = null): Erro
   };
 }
 
+function asRecord(v: unknown): Record<string, unknown> {
+  return v && typeof v === 'object' && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : { message: typeof v === 'string' ? v : JSON.stringify(v) };
+}
+
+const INVALID = Symbol('invalid');
+
+function splitRecords(text: string): unknown[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  const whole = safeJson(trimmed);
+  if (Array.isArray(whole)) return whole;
+  if (whole !== undefined) return [whole];
+  if (trimmed.startsWith('[')) throw new BadPayload('Body is not valid JSON');
+  const lines = trimmed.split('\n').filter((line) => line.trim());
+  const values = lines.map((line) => safeJson(line) ?? INVALID);
+  if (values.every((v) => v === INVALID)) throw new BadPayload('Body is neither JSON nor NDJSON');
+  return values;
+}
+
+export function lenientRecords(
+  batch: Batch,
+  text: string,
+): { index: number; rec: Record<string, unknown> }[] {
+  const out: { index: number; rec: Record<string, unknown> }[] = [];
+  splitRecords(text).forEach((v, index) => {
+    batch.received += 1;
+    if (v === INVALID) return reject(batch, 'invalid_json', 1, index);
+    if (out.length >= MAX_RECORDS) return reject(batch, 'limit_exceeded', 1, index);
+    out.push({ index, rec: asRecord(v) });
+  });
+  return out;
+}
+
 export function jsonLogsToBatch(body: string, way: Batch['way'], defaults: Defaults = {}): Batch {
   const batch = emptyBatch(way);
-  for (const rec of parseJsonRecords(body)) {
+  for (const { rec } of lenientRecords(batch, body)) {
     const log = recordToLog(rec, defaults);
     batch.logs.push(log);
     const err = errorFromLog(log);

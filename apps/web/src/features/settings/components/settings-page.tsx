@@ -7,6 +7,7 @@ import { PageHeading } from "@/features/integrations"
 import { ApiTokensPanel } from "./api-tokens-panel"
 import { AuditPanel } from "./audit-panel"
 import { useMembers } from "../hooks"
+import { SystemStatusCard } from "./system-status-card"
 import { TeamPanel } from "./team-panel"
 import { UsageLimitsPanel } from "./usage-limits-panel"
 import { WorkspacePanel } from "./workspace-panel"
@@ -62,9 +63,14 @@ export function SettingsPage() {
             canManage={canManage}
             isOwner={isOwner}
           />
+          {canManage && (
+            <div className="pt-5">
+              <SystemStatusCard workspaceId={workspace.id} />
+            </div>
+          )}
         </TabsContent>
         <TabsContent value="tokens" className="pt-5">
-          <ApiTokensPanel />
+          <ApiTokensPanel workspaceId={workspace.id} workspaceName={workspace.name} />
         </TabsContent>
         {canManage && (
           <TabsContent value="usage" className="pt-5">

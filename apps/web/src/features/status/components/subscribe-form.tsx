@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Button, Input, Spinner } from "@/components/ui"
+import { ApiError } from "@/lib/api"
 import { useSubscribe } from "../hooks"
 
 interface SubscribeFormProps {
@@ -11,11 +12,13 @@ interface SubscribeFormProps {
 export function SubscribeForm({ slug }: SubscribeFormProps) {
   const subscribe = useSubscribe(slug)
   const [email, setEmail] = React.useState("")
+  const limited = subscribe.error instanceof ApiError && subscribe.error.status === 429
 
   if (subscribe.isSuccess) {
     return (
-      <p className="border border-line bg-panel p-4 text-sm">
-        Check your inbox. Click the link we sent to start getting updates.
+      <p className="border border-line bg-panel p-4 text-sm" role="status">
+        If this address can receive updates, a confirmation link is on its way. It expires in 24
+        hours.
       </p>
     )
   }
@@ -42,8 +45,10 @@ export function SubscribeForm({ slug }: SubscribeFormProps) {
         {subscribe.isPending && <Spinner />} Subscribe
       </Button>
       {subscribe.isError && (
-        <span className="text-[0.8125rem] text-danger">
-          That email address does not look right.
+        <span className="text-[0.8125rem] text-danger" role="alert">
+          {limited
+            ? "Too many attempts. Try again later."
+            : "That email address does not look right."}
         </span>
       )}
     </form>

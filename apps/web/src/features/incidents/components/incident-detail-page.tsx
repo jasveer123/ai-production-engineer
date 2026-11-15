@@ -5,11 +5,13 @@ import { useParams } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 import { Button, Spinner } from "@/components/ui"
 import { useCurrentWorkspace } from "@/features/auth"
-import { ACTOR_ROLES } from "@/lib/constants/roles"
+import { ACTOR_ROLES, MANAGER_ROLES } from "@/lib/constants/roles"
 import { ROUTES } from "@/lib/constants/routes"
 import { useIncident } from "../hooks"
+import { IncidentFacts } from "./incident-facts"
 import { IncidentHeader } from "./incident-header"
 import { IncidentStory } from "./incident-story"
+import { PostMortemEditor } from "./post-mortem-editor"
 
 export function IncidentDetailPage() {
   const params = useParams<{ id: string }>()
@@ -48,8 +50,20 @@ export function IncidentDetailPage() {
       >
         <ArrowLeft /> All incidents
       </Button>
-      <IncidentHeader workspaceId={workspace.id} incident={data} canAct={canAct} />
+      <IncidentHeader
+        workspaceId={workspace.id}
+        incident={data}
+        canAct={canAct}
+        canRemove={MANAGER_ROLES.includes(workspace.role)}
+      />
+      <IncidentFacts workspaceId={workspace.id} incident={data} canAct={canAct} />
       <IncidentStory workspaceId={workspace.id} incident={data} canAct={canAct} />
+      <PostMortemEditor
+        key={data.postMortemUpdatedAt ?? "new"}
+        workspaceId={workspace.id}
+        incident={data}
+        canAct={canAct}
+      />
     </div>
   )
 }

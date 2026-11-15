@@ -4,7 +4,14 @@ export const heartbeatStatusSchema = z.object({
   intervalSeconds: z.number(),
   graceSeconds: z.number(),
   state: z.string(),
+  paused: z.boolean().default(false),
   lastPingAt: z.string().nullable(),
+  dueAt: z.string().nullable().default(null),
+  running: z
+    .object({ executionId: z.string().nullable(), startedAt: z.string() })
+    .nullable()
+    .default(null),
+  metadata: z.record(z.string(), z.string()).default({}),
 })
 
 export const alertSourceSchema = z.object({
@@ -15,6 +22,7 @@ export const alertSourceSchema = z.object({
   url: z.string(),
   lastReceivedAt: z.string().nullable(),
   lastError: z.string().nullable(),
+  escalationPolicyId: z.string().nullable().default(null),
   heartbeat: heartbeatStatusSchema.nullable(),
   createdAt: z.string(),
 })
@@ -64,11 +72,69 @@ export const alertRouteSchema = z.object({
 })
 export type AlertRoute = z.infer<typeof alertRouteSchema>
 
+export const heartbeatPingSchema = z.object({
+  id: z.number(),
+  signal: z.string(),
+  outcome: z.string(),
+  executionId: z.string().nullable(),
+  durationMs: z.number().nullable(),
+  body: z.string().nullable(),
+  receivedAt: z.string(),
+})
+export type HeartbeatPing = z.infer<typeof heartbeatPingSchema>
+
+export const heartbeatDetailSchema = z.object({
+  source: alertSourceSchema,
+  pingUrl: z.string().nullable(),
+  pings: z.array(heartbeatPingSchema),
+})
+export type HeartbeatDetail = z.infer<typeof heartbeatDetailSchema>
+
+export const alertReceiptSchema = z.object({
+  id: z.string(),
+  externalEventId: z.string(),
+  outcome: z.string(),
+  reason: z.string().nullable(),
+  attempts: z.number(),
+  duplicates: z.number(),
+  receivedAt: z.string(),
+  processedAt: z.string().nullable(),
+  payload: z.record(z.string(), z.unknown()),
+})
+export type AlertReceipt = z.infer<typeof alertReceiptSchema>
+
+export const routePreviewSchema = z.object({
+  error: z.string().nullable(),
+  alerts: z.array(
+    z.object({
+      title: z.string(),
+      status: z.string(),
+      severity: z.string(),
+      dedupKey: z.string(),
+      route: z.object({ id: z.string(), name: z.string() }).nullable(),
+      groupKey: z.string().nullable(),
+      createsIncident: z.boolean(),
+    })
+  ),
+})
+export type RoutePreview = z.infer<typeof routePreviewSchema>
+
 export interface CreateSourceRequest {
   kind: string
   name: string
   intervalSeconds?: number
   graceSeconds?: number
+  metadata?: Record<string, string>
+  escalationPolicyId?: string | null
+}
+
+export interface UpdateSourceRequest {
+  name?: string
+  intervalSeconds?: number
+  graceSeconds?: number
+  metadata?: Record<string, string>
+  escalationPolicyId?: string | null
+  paused?: boolean
 }
 
 export interface RouteRequest {

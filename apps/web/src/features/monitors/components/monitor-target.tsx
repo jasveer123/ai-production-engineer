@@ -1,9 +1,12 @@
 import type { Monitor } from "../schemas"
 
 interface MonitorTargetProps {
-  monitor: Pick<Monitor, "url" | "host" | "port">
+  monitor: Pick<Monitor, "kind" | "url" | "host" | "port" | "dnsDomain" | "dnsRecordType">
 }
 
 export function MonitorTarget({ monitor }: MonitorTargetProps) {
-  return <>{monitor.url ?? `${monitor.host}:${monitor.port}`}</>
+  if (monitor.url) return <>{monitor.url}</>
+  if (monitor.kind === "dns")
+    return <>{`${monitor.dnsDomain} ${monitor.dnsRecordType} @${monitor.host}`}</>
+  return <>{monitor.port ? `${monitor.host}:${monitor.port}` : monitor.host}</>
 }

@@ -2,7 +2,8 @@ import { jsonLogsToBatch, sdkErrorsToBatch, vercelToBatch } from './domain/forma
 import { maskToken, newIngestToken } from './application/ingest-tokens.service';
 import { streamState } from './application/ingest.service';
 import { parseLogQuery } from './domain/log-query';
-import { logsToBatch, metricsToBatch, tracesToBatch } from './domain/otlp';
+import { logsToBatch, tracesToBatch } from './domain/otlp';
+import { metricsToBatch } from './domain/otlp-metrics';
 import { decodeLogs, decodeMetrics, decodeTraces, Writer } from './domain/protobuf';
 import {
   logplexToBatch,

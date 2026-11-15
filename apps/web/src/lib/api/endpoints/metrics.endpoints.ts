@@ -5,4 +5,9 @@ export const METRICS_ENDPOINTS = {
   DASHBOARDS: (workspaceId: string) => `/workspaces/${workspaceId}/metrics/dashboards`,
   DASHBOARD: (workspaceId: string, id: string) =>
     `/workspaces/${workspaceId}/metrics/dashboards/${id}`,
+  TEMPLATES: (workspaceId: string) => `/workspaces/${workspaceId}/metrics/dashboard-templates`,
+  ALERTS: (workspaceId: string) => `/workspaces/${workspaceId}/metric-alerts`,
+  ALERT: (workspaceId: string, id: string) => `/workspaces/${workspaceId}/metric-alerts/${id}`,
+  ALERT_CHECK: (workspaceId: string, id: string) =>
+    `/workspaces/${workspaceId}/metric-alerts/${id}/check`,
 } as const

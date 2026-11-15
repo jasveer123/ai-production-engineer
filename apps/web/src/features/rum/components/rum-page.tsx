@@ -14,6 +14,7 @@ import { OverviewPanel } from "./overview-panel"
 import { SessionsPanel } from "./sessions-panel"
 import { SetupPanel } from "./setup-panel"
 import { UsersPanel } from "./users-panel"
+import { VitalsPanel } from "./vitals-panel"
 
 export function RumPage() {
   const { workspace, canManage, isPending } = useCurrentWorkspace()
@@ -94,6 +95,7 @@ export function RumPage() {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="sessions">Sessions</TabsTrigger>
+          <TabsTrigger value="vitals">Web vitals</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="events">Events</TabsTrigger>
           <TabsTrigger value="funnels">Funnels</TabsTrigger>
@@ -113,6 +115,9 @@ export function RumPage() {
             </button>
           )}
           <SessionsPanel workspaceId={ws} appId={appId} minutes={minutes} userId={userId} />
+        </TabsContent>
+        <TabsContent value="vitals" className="pt-5">
+          <VitalsPanel workspaceId={ws} appId={appId} minutes={minutes} />
         </TabsContent>
         <TabsContent value="users" className="pt-5">
           <UsersPanel

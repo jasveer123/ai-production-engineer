@@ -4,7 +4,6 @@ import { StatusStrip, StorySteps } from "@/components/shared"
 import { Spinner } from "@/components/ui"
 import { useCurrentWorkspace } from "@/features/auth"
 import { PageHeading } from "@/features/integrations"
-import { ACTOR_ROLES } from "@/lib/constants/roles"
 import { useStatusPages } from "../hooks"
 import { PageCard } from "./page-card"
 import { PageDialog } from "./page-dialog"
@@ -24,12 +23,8 @@ export function StatusPagesPage() {
   if (!workspace) return null
 
   const items = pages.data ?? []
-  const canPost = ACTOR_ROLES.includes(workspace.role)
 
-  const live = items.reduce(
-    (n, page) => n + page.updates.filter((u) => u.state !== "resolved").length,
-    0
-  )
+  const live = items.reduce((n, page) => n + page.openReports, 0)
   const subscribers = items.reduce((n, page) => n + page.subscribers, 0)
   const create = canManage ? <PageDialog workspaceId={workspace.id} /> : null
 
@@ -47,7 +42,10 @@ export function StatusPagesPage() {
           <StorySteps
             heading="How a status page works"
             steps={[
-              { title: "Choose monitors", text: "Pick which services your customers care about." },
+              {
+                title: "Build the structure",
+                text: "Group resources into sections and link monitors.",
+              },
               {
                 title: "It updates itself",
                 text: "When a monitor fails, the page shows it and posts an update.",
@@ -65,7 +63,7 @@ export function StatusPagesPage() {
             tone={live > 0 ? "warn" : "ok"}
             headline={
               live > 0
-                ? `${live} open incident update${live === 1 ? "" : "s"} on your pages`
+                ? `${live} open status report${live === 1 ? "" : "s"} on your pages`
                 : "Your public pages show all clear"
             }
             detail={
@@ -83,13 +81,7 @@ export function StatusPagesPage() {
           />
           <div className="grid gap-5">
             {items.map((page) => (
-              <PageCard
-                key={page.id}
-                workspaceId={workspace.id}
-                page={page}
-                canManage={canManage}
-                canPost={canPost}
-              />
+              <PageCard key={page.id} page={page} />
             ))}
           </div>
         </>

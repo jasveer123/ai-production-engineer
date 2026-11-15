@@ -67,6 +67,9 @@ export const apiTokenSchema = z.object({
   id: z.string(),
   name: z.string(),
   prefix: z.string(),
+  workspaceId: z.string().nullable().default(null),
+  scopes: z.array(z.string()).default([]),
+  areas: z.array(z.string()).default([]),
   expiresAt: z.string().nullable(),
   lastUsedAt: z.string().nullable(),
   createdAt: z.string(),
@@ -74,3 +77,25 @@ export const apiTokenSchema = z.object({
 export type ApiToken = z.infer<typeof apiTokenSchema>
 export const apiTokenWithSecretSchema = apiTokenSchema.extend({ token: z.string() })
 export type ApiTokenWithSecret = z.infer<typeof apiTokenWithSecretSchema>
+
+export const systemStatusSchema = z.object({
+  status: z.string(),
+  checkedAt: z.string(),
+  checks: z.array(
+    z.object({
+      name: z.string(),
+      status: z.string(),
+      latencyMs: z.number().nullable(),
+      detail: z.string().nullable(),
+    })
+  ),
+})
+export type SystemStatus = z.infer<typeof systemStatusSchema>
+
+export interface CreateApiTokenRequest {
+  name: string
+  workspaceId: string
+  scopes: string[]
+  areas: string[]
+  expiresInDays: number | null
+}

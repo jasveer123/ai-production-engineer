@@ -13,7 +13,7 @@ import request from 'supertest';
 import type { App } from 'supertest/types';
 import { AlertSourcesService } from '../src/modules/alerts/application/alert-sources.service';
 import { createDatabase } from '../src/core/db/client';
-import { auditEvents, incidents } from '../src/core/db/schema';
+import { auditEvents, incidents, integrations } from '../src/core/db/schema';
 import { IngestionProcessor } from '../src/ingest/ingestion/application/ingestion.processor';
 import { createTestApp, createWorkspace, loginAs, resetDatabase } from './helpers';
 
@@ -82,8 +82,8 @@ describe('Alerts, routes and heartbeats (e2e)', () => {
     expect(denied.length).toBeGreaterThanOrEqual(3);
 
     const body = am([{ status: 'firing', name: 'HighErrorRate', service: 'checkout', fp: 'fp1' }]);
-    expect((await send(body).expect(202)).body).toEqual({ accepted: true, duplicate: false });
-    expect((await send(body).expect(202)).body).toEqual({ accepted: true, duplicate: true });
+    expect((await send(body).expect(202)).body).toMatchObject({ accepted: true, duplicate: false });
+    expect((await send(body).expect(202)).body).toMatchObject({ accepted: true, duplicate: true });
 
     await request(app.getHttpServer())
       .post(`/ingest/alerts/${source.id}?token=${source.token}`)
@@ -94,7 +94,8 @@ describe('Alerts, routes and heartbeats (e2e)', () => {
     const alerts = await list(owner, ws);
     expect(alerts).toHaveLength(2);
 
-    expect(alerts.every((a) => a.routeId === null && a.incidentId === null)).toBe(true);
+    // With no route covering the source, every alert still opens an incident, as Better Stack does.
+    expect(alerts.every((a) => a.routeId === null && a.incidentId !== null)).toBe(true);
 
     expect(
       ((await owner.get(`/workspaces/${ws}/integrations`).expect(200)).body as Integration[])
@@ -243,14 +244,22 @@ describe('Alerts, routes and heartbeats (e2e)', () => {
       .set('x-ape-token', hb.token)
       .send({})
       .expect(400);
-    expect(await sources.checkHeartbeats(new Date(Date.now() + 30_000))).toBe(0);
+    // The processor ignores a recovery older than the last firing, so the miss must lie in the past.
+    const t0 = Date.now() - 300_000;
+    const [hbRow] = await db.select().from(integrations).where(eq(integrations.id, hb.id));
+    const at = new Date(t0).toISOString();
+    await db
+      .update(integrations)
+      .set({ config: { ...hbRow!.config, lastPingAt: at, windowStartAt: at } })
+      .where(eq(integrations.id, hb.id));
+    expect(await sources.checkHeartbeats(new Date(t0 + 30_000))).toBe(0);
 
-    expect(await sources.checkHeartbeats(new Date(Date.now() + 120_000))).toBe(1);
-    expect(await sources.checkHeartbeats(new Date(Date.now() + 180_000))).toBe(0);
+    expect(await sources.checkHeartbeats(new Date(t0 + 120_000))).toBe(1);
+    expect(await sources.checkHeartbeats(new Date(t0 + 180_000))).toBe(0);
     await processor.processBatch();
     let [a] = await list(owner, ws);
     expect(a).toMatchObject({
-      title: 'Heartbeat "nightly-backup" missed',
+      title: 'Heartbeat "nightly-backup" is down',
       status: 'firing',
       severity: 'high',
     });
@@ -260,7 +269,7 @@ describe('Alerts, routes and heartbeats (e2e)', () => {
       .post(`/ingest/heartbeats/${hb.id}`)
       .set('authorization', `Bearer ${hb.token}`)
       .expect(202);
-    expect(ping.body).toEqual({ accepted: true, state: 'recovered' });
+    expect(ping.body).toMatchObject({ accepted: true, state: 'up', outcome: 'recovered' });
     await processor.processBatch();
     [a] = await list(owner, ws);
     expect(a!.status).toBe('resolved');

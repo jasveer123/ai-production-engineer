@@ -40,6 +40,7 @@ export const inboundEvents = pgTable(
     payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
     status: inboundEventStatusEnum('status').notNull().default('pending'),
     attempts: integer('attempts').notNull().default(0),
+    duplicateCount: integer('duplicate_count').notNull().default(0),
     nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
     deadReason: text('dead_reason'),
     lastError: text('last_error'),
@@ -48,6 +49,7 @@ export const inboundEvents = pgTable(
   },
   (t) => [
     uniqueIndex('inbound_events_external_key').on(t.integrationId, t.externalEventId),
+    index('inbound_events_integration_time_idx').on(t.integrationId, t.receivedAt),
     index('inbound_events_pending_idx')
       .on(t.nextAttemptAt)
       .where(sql`${t.status} = 'pending'`),

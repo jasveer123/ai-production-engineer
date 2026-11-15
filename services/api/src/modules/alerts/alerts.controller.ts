@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import {
   Body,
   Controller,
@@ -20,133 +19,96 @@ import {
   alertPreviewSchema,
   alertRouteSchema,
   createAlertSourceSchema,
+  updateAlertSourceSchema,
   reorderAlertRoutesSchema,
   updateAlertRouteSchema,
   type AlertListQuery,
+  type AlertIntakeReceipt,
   type AlertPreview,
+  type AlertReceiptView,
   type AlertRoute,
   type AlertRouteInput,
   type AlertSource,
   type AlertSourceWithToken,
   type AlertView,
   type CreateAlertSourceInput,
+  type HeartbeatDetail,
+  type UpdateAlertSourceInput,
 } from '@ape/api-contracts';
 import type { Request } from 'express';
-import { AuditService } from '../../core/audit/audit.service';
-import { Public } from '../auth/public.decorator';
 import { Actor } from '../../core/common/actor.decorator';
-import { ApiException } from '../../core/common/errors';
+import { ApiException, notFound } from '../../core/common/errors';
 import type { ActorContext } from '../../core/common/request-context';
 import { ZodValidationPipe } from '../../core/common/zod-validation.pipe';
 import { MinRole } from '../workspaces/min-role.decorator';
 import { WorkspaceAccessGuard } from '../workspaces/workspace-access.guard';
+import { AlertReceiptsService } from './application/alert-receipts.service';
 import { AlertRoutesService } from './application/alert-routes.service';
 import { AlertSourcesService, type SourceConfig } from './application/alert-sources.service';
+import { HeartbeatsService } from './application/heartbeats.service';
+import type { HeartbeatSignal } from './domain/heartbeat';
+import { bodyText, eventIdOf, executionIdOf, validationProblem } from './intake-helpers';
 
-function tokenOf(req: Request): string | undefined {
-  const auth = req.header('authorization');
-  if (auth?.toLowerCase().startsWith('bearer ')) return auth.slice(7).trim();
-  return (
-    req.header('x-ape-token') ?? (typeof req.query.token === 'string' ? req.query.token : undefined)
-  );
-}
-
-function parseSnsBody(req: Request): Record<string, unknown> | null {
-  const body: unknown = req.body;
-  if (body && typeof body === 'object' && !Array.isArray(body) && 'Type' in body) return body;
-  if (typeof body !== 'string') return null;
-  try {
-    const parsed = JSON.parse(body) as unknown;
-    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null;
-  } catch {
-    return null;
-  }
-}
-
-const unauthorized = () =>
-  new ApiException(HttpStatus.UNAUTHORIZED, 'invalid_token', 'Unknown alert source or bad token');
-
-@Controller('ingest')
-export class AlertIntakeController {
-  constructor(
-    private readonly sources: AlertSourcesService,
-    private readonly audit: AuditService,
-  ) {}
-
-  private async reject(sourceId: string, req: Request) {
-    await this.audit.record({
-      actorType: 'system',
-      action: 'alert_source.rejected',
-      resourceType: 'alert_source',
-      resourceId: sourceId.slice(0, 64),
-      outcome: 'denied',
-      correlationId: req.correlationId,
-      metadata: { ip: req.ip },
-    });
-    return unauthorized();
-  }
-
-  @Public()
-  @Post('alerts/:sourceId')
-  @HttpCode(HttpStatus.ACCEPTED)
-  async alert(@Param('sourceId') sourceId: string, @Req() req: Request) {
-    const row = await this.sources.authenticate(sourceId, tokenOf(req));
-    if (!row) throw await this.reject(sourceId, req);
-    if ((row.config as unknown as SourceConfig).kind === 'heartbeat') {
-      throw new ApiException(
-        HttpStatus.BAD_REQUEST,
-        'heartbeat',
-        'Send heartbeats to /ingest/heartbeats',
-      );
-    }
-    if ((row.config as unknown as SourceConfig).kind === 'cloudwatch') {
-      const sns = parseSnsBody(req);
-      if (sns?.Type === 'SubscriptionConfirmation' || sns?.Type === 'UnsubscribeConfirmation') {
-        await this.sources.confirmSnsSubscription(row, sns);
-        return { accepted: true, duplicate: false };
-      }
-      if (sns) req.body = sns;
-    }
-    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
-      throw new ApiException(HttpStatus.BAD_REQUEST, 'validation_failed', 'Expected a JSON object');
-    }
-
-    const id = createHash('sha256')
-      .update(req.rawBody ?? JSON.stringify(req.body))
-      .digest('hex');
-    const duplicate = await this.sources.buffer(row, id, req.body as Record<string, unknown>);
-    return { accepted: true, duplicate };
-  }
-
-  @Public()
-  @Post('heartbeats/:sourceId')
-  @HttpCode(HttpStatus.ACCEPTED)
-  async pingPost(@Param('sourceId') sourceId: string, @Req() req: Request) {
-    return this.ping(sourceId, req);
-  }
-
-  @Public()
-  @Get('heartbeats/:sourceId')
-  @HttpCode(HttpStatus.ACCEPTED)
-  async pingGet(@Param('sourceId') sourceId: string, @Req() req: Request) {
-    return this.ping(sourceId, req);
-  }
-
-  private async ping(sourceId: string, req: Request) {
-    const row = await this.sources.authenticate(sourceId, tokenOf(req));
-    if (!row || (row.config as unknown as SourceConfig).kind !== 'heartbeat')
-      throw await this.reject(sourceId, req);
-    return { accepted: true, state: await this.sources.ping(row) };
-  }
-}
-
-@Controller('workspaces/:workspaceId')
+@Controller(['workspaces/:workspaceId', 'api/v1/workspaces/:workspaceId'])
 @UseGuards(WorkspaceAccessGuard)
 export class AlertsController {
   constructor(
     private readonly sources: AlertSourcesService,
     private readonly routes: AlertRoutesService,
+    private readonly heartbeats: HeartbeatsService,
+    private readonly receipts: AlertReceiptsService,
   ) {}
+
+  @Post('alert-sources/:sourceId/events')
+  @MinRole('engineer')
+  @HttpCode(HttpStatus.ACCEPTED)
+  async sendEvent(
+    @Actor() actor: ActorContext,
+    @Param('sourceId', ParseUUIDPipe) id: string,
+    @Req() req: Request,
+  ): Promise<AlertIntakeReceipt> {
+    const row = await this.sources.find(actor, id);
+    const kind = (row.config as unknown as SourceConfig).kind;
+    if (
+      kind === 'heartbeat' ||
+      !req.body ||
+      typeof req.body !== 'object' ||
+      Array.isArray(req.body)
+    )
+      throw new ApiException(HttpStatus.BAD_REQUEST, 'validation_failed', 'Expected a JSON alert');
+    const body = req.body as Record<string, unknown>;
+    const problem = validationProblem(kind, body);
+    const receipt = await this.sources.receive(
+      row,
+      eventIdOf(req, body),
+      body,
+      problem ?? undefined,
+    );
+    if (problem)
+      throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, 'invalid_payload', problem, receipt);
+    return { accepted: true, ...receipt };
+  }
+
+  @Post('alert-sources/:sourceId/heartbeat/ping')
+  @MinRole('engineer')
+  @HttpCode(HttpStatus.ACCEPTED)
+  async ping(
+    @Actor() actor: ActorContext,
+    @Param('sourceId', ParseUUIDPipe) id: string,
+    @Query('signal') signal: string | undefined,
+    @Req() req: Request,
+  ) {
+    const row = await this.sources.find(actor, id);
+    if ((row.config as unknown as SourceConfig).kind !== 'heartbeat') throw notFound('Heartbeat');
+    const kind: HeartbeatSignal = signal === 'fail' || signal === 'start' ? signal : 'success';
+    const result = await this.heartbeats.signal(row.id, {
+      signal: kind,
+      at: new Date(),
+      executionId: executionIdOf(req),
+      cause: kind === 'fail' ? bodyText(req) : null,
+    });
+    return { accepted: true, ...result };
+  }
 
   @Get('alerts')
   alerts(
@@ -168,6 +130,43 @@ export class AlertsController {
     @Body(new ZodValidationPipe(createAlertSourceSchema)) body: CreateAlertSourceInput,
   ): Promise<AlertSourceWithToken> {
     return this.sources.create(actor, body);
+  }
+
+  @Patch('alert-sources/:sourceId')
+  @MinRole('admin')
+  updateSource(
+    @Actor() actor: ActorContext,
+    @Param('sourceId', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(updateAlertSourceSchema)) body: UpdateAlertSourceInput,
+  ): Promise<AlertSource> {
+    return this.sources.update(actor, id, body);
+  }
+
+  @Get('alert-sources/:sourceId/heartbeat')
+  heartbeat(
+    @Actor() actor: ActorContext,
+    @Param('sourceId', ParseUUIDPipe) id: string,
+  ): Promise<HeartbeatDetail> {
+    return this.sources.heartbeatDetail(actor, id);
+  }
+
+  @Get('alert-sources/:sourceId/events')
+  listReceipts(
+    @Actor() actor: ActorContext,
+    @Param('sourceId', ParseUUIDPipe) id: string,
+  ): Promise<AlertReceiptView[]> {
+    return this.receipts.list(actor, id);
+  }
+
+  @Post('alert-sources/:sourceId/events/:receiptId/replay')
+  @MinRole('admin')
+  @HttpCode(200)
+  replay(
+    @Actor() actor: ActorContext,
+    @Param('sourceId', ParseUUIDPipe) id: string,
+    @Param('receiptId', ParseUUIDPipe) receiptId: string,
+  ): Promise<AlertReceiptView> {
+    return this.receipts.replay(actor, id, receiptId);
   }
 
   @Post('alert-sources/:sourceId/rotate-token')

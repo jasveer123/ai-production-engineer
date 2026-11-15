@@ -22,4 +22,18 @@ export const INCIDENTS_ENDPOINTS = {
   PULL_REQUESTS: (workspaceId: string) => `/workspaces/${workspaceId}/pull-requests`,
   SYNC_PULL_REQUEST: (workspaceId: string, id: string) =>
     `/workspaces/${workspaceId}/pull-requests/${id}/sync`,
+  RESPOND: (workspaceId: string, id: string, action: string) =>
+    `/workspaces/${workspaceId}/incidents/${id}/${action}`,
+  ACTIVITY: (workspaceId: string, id: string) =>
+    `/workspaces/${workspaceId}/incidents/${id}/activity`,
+  CONTEXT: (workspaceId: string, id: string) =>
+    `/workspaces/${workspaceId}/incidents/${id}/context`,
+  COMMENTS: (workspaceId: string, id: string) =>
+    `/workspaces/${workspaceId}/incidents/${id}/comments`,
+  COMMENT: (workspaceId: string, id: string, commentId: string) =>
+    `/workspaces/${workspaceId}/incidents/${id}/comments/${commentId}`,
+  POST_MORTEM: (workspaceId: string, id: string) =>
+    `/workspaces/${workspaceId}/incidents/${id}/post-mortem`,
+  METADATA: (workspaceId: string, id: string) =>
+    `/workspaces/${workspaceId}/incidents/${id}/metadata`,
 } as const

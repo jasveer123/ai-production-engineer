@@ -3,6 +3,8 @@
 import { Badge, Button } from "@/components/ui"
 import { ConfirmDialog } from "@/components/shared"
 import { PolicyDialog } from "./policy-dialog"
+import { PolicyPreview } from "./policy-preview"
+import { PolicySteps } from "./policy-steps"
 import { useDeletePolicy, useTogglePolicy } from "../hooks"
 import type { Policy } from "../schemas"
 
@@ -22,42 +24,43 @@ export function PolicyCard({ workspaceId, policy, canManage }: PolicyCardProps) 
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="font-heading text-lg font-semibold">{policy.name}</h2>
           <Badge>{policy.minSeverity}+</Badge>
+          {policy.isDefault && <Badge variant="brand">default</Badge>}
+          {policy.generated && <Badge>simple mode</Badge>}
+          {policy.repeatCount > 0 && <Badge>repeats {policy.repeatCount}×</Badge>}
           {!policy.enabled && <Badge>paused</Badge>}
         </div>
-        {canManage && (
-          <div className="flex gap-2">
-            <PolicyDialog workspaceId={workspaceId} policy={policy} />
-            <Button
-              size="xs"
-              variant="outline"
-              disabled={toggle.isPending}
-              onClick={() => toggle.mutate({ id: policy.id, enabled: !policy.enabled })}
-            >
-              {policy.enabled ? "Pause" : "Resume"}
-            </Button>
-            <ConfirmDialog
-              triggerLabel="Delete"
-              title={`Delete ${policy.name}?`}
-              description="Incidents stop escalating under this policy. This cannot be undone."
-              confirmLabel="Delete policy"
-              pending={remove.isPending}
-              onConfirm={() => remove.mutate(policy.id)}
-            />
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2">
+          <PolicyPreview workspaceId={workspaceId} policyId={policy.id} policyName={policy.name} />
+          {canManage && (
+            <>
+              <PolicyDialog workspaceId={workspaceId} policy={policy} />
+              <Button
+                size="xs"
+                variant="outline"
+                disabled={toggle.isPending}
+                onClick={() => toggle.mutate({ id: policy.id, enabled: !policy.enabled })}
+              >
+                {policy.enabled ? "Pause" : "Resume"}
+              </Button>
+              <ConfirmDialog
+                triggerLabel="Delete"
+                title={`Delete ${policy.name}?`}
+                description="New incidents stop using this policy. Running escalations finish with the steps they started with. This cannot be undone."
+                confirmLabel="Delete policy"
+                pending={remove.isPending}
+                onConfirm={() => remove.mutate(policy.id)}
+              />
+            </>
+          )}
+        </div>
       </div>
-      <ol className="grid gap-2">
-        {policy.steps.map((step, index) => (
-          <li key={index} className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="font-mono text-[0.75rem] text-muted-foreground">
-              {index === 0 ? "Immediately" : `After ${step.waitMinutes} min`}
-            </span>
-            {step.targets.map((target, i) => (
-              <Badge key={i}>{target.label}</Badge>
-            ))}
-          </li>
-        ))}
-      </ol>
+      <PolicySteps steps={policy.steps} />
+      {policy.branches.map((branch) => (
+        <div key={branch.name} className="grid gap-2 border-l-2 border-line-strong pl-3">
+          <span className="text-[0.8125rem] font-medium">When {branch.name}</span>
+          <PolicySteps steps={branch.steps} />
+        </div>
+      ))}
     </article>
   )
 }

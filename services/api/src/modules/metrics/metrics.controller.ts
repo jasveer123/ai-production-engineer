@@ -12,7 +12,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  DASHBOARD_TEMPLATES,
   createDashboardSchema,
+  type DashboardTemplate,
   metricQuerySchema,
   updateDashboardSchema,
   type CreateDashboardInput,
@@ -51,6 +53,11 @@ export class MetricsController {
     query: ReturnType<typeof metricQuerySchema.parse>,
   ): Promise<MetricSeries> {
     return this.metrics.series(actor, query);
+  }
+
+  @Get('dashboard-templates')
+  templates(): DashboardTemplate[] {
+    return DASHBOARD_TEMPLATES;
   }
 
   @Get('dashboards')

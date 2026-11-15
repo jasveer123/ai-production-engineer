@@ -5,19 +5,28 @@ import { Badge, Button, Spinner } from "@/components/ui"
 import { AGGS } from "../constants"
 import { useMetricSeries } from "../hooks"
 import type { Widget } from "../schemas"
-import { LineChart } from "./line-chart"
-import { MetricChart } from "./metric-chart"
+import { MetricAlertDrawer } from "./metric-alert-drawer"
+import { WidgetBody } from "./widget-body"
 
 interface WidgetCardProps {
   workspaceId: string
   widget: Widget
   minutes: number
+  extraFilters: string
   canEdit: boolean
   onRemove: (id: string) => void
 }
 
-export function WidgetCard({ workspaceId, widget, minutes, canEdit, onRemove }: WidgetCardProps) {
-  const series = useMetricSeries(workspaceId, widget, minutes)
+export function WidgetCard({
+  workspaceId,
+  widget,
+  minutes,
+  extraFilters,
+  canEdit,
+  onRemove,
+}: WidgetCardProps) {
+  const filters = [widget.filters, extraFilters].filter(Boolean).join(",")
+  const series = useMetricSeries(workspaceId, { ...widget, filters }, minutes)
   const agg = AGGS.find((item) => item.value === widget.agg)?.label ?? widget.agg
 
   return (
@@ -30,18 +39,21 @@ export function WidgetCard({ workspaceId, widget, minutes, canEdit, onRemove }: 
             <Badge>{agg}</Badge>
             {widget.service && <Badge>{widget.service}</Badge>}
             {widget.groupBy && <Badge>by {widget.groupBy}</Badge>}
-            {widget.filters && <Badge>{widget.filters}</Badge>}
+            {filters && <Badge>{filters}</Badge>}
           </div>
         </div>
         {canEdit && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Remove ${widget.title}`}
-            onClick={() => onRemove(widget.id)}
-          >
-            <X />
-          </Button>
+          <div className="flex items-center gap-1">
+            <MetricAlertDrawer workspaceId={workspaceId} widget={{ ...widget, filters }} />
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Remove ${widget.title}`}
+              onClick={() => onRemove(widget.id)}
+            >
+              <X />
+            </Button>
+          </div>
         )}
       </div>
       {series.isPending ? (
@@ -49,13 +61,11 @@ export function WidgetCard({ workspaceId, widget, minutes, canEdit, onRemove }: 
           <Spinner />
         </div>
       ) : series.data ? (
-        series.data.groups ? (
-          <LineChart series={series.data} />
-        ) : (
-          <MetricChart series={series.data} />
-        )
+        <WidgetBody series={series.data} chart={widget.chart} />
       ) : (
-        <p className="text-sm text-muted-foreground">Could not load this chart.</p>
+        <p className="text-sm text-muted-foreground">
+          Could not load this chart. It retries every 30 seconds.
+        </p>
       )}
     </article>
   )

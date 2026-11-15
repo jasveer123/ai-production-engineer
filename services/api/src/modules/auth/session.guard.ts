@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { trace } from '@opentelemetry/api';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import type { Request } from 'express';
-import { unauthorized } from '../../core/common/errors';
+import { forbidden, unauthorized } from '../../core/common/errors';
 import { DB } from '../../core/db/database.module';
 import type { Database } from '../../core/db/client';
 import { sessions } from '../../core/db/schema';
@@ -39,14 +39,7 @@ export class SessionGuard implements CanActivate {
 
     const req = context.switchToHttp().getRequest<Request>();
     const token = (req.cookies as Record<string, string> | undefined)?.[SESSION_COOKIE];
-    if (!token) {
-      const bearer = /^Bearer\s+(\S+)$/i.exec(req.header('authorization') ?? '')?.[1];
-      const pat = bearer ? await this.apiTokens.resolve(bearer) : null;
-      if (!pat) throw unauthorized();
-      req.auth = { userId: pat.userId, sessionId: `pat:${pat.tokenId}` };
-      trace.getActiveSpan()?.setAttribute('user_id', pat.userId);
-      return true;
-    }
+    if (!token) return this.fromApiToken(req);
 
     let payload: SessionToken;
     try {
@@ -73,6 +66,19 @@ export class SessionGuard implements CanActivate {
 
     req.auth = { userId: payload.sub, sessionId: payload.sid };
     trace.getActiveSpan()?.setAttribute('user_id', payload.sub);
+    return true;
+  }
+
+  private async fromApiToken(req: Request): Promise<boolean> {
+    const bearer = /^Bearer\s+(\S+)$/i.exec(req.header('authorization') ?? '')?.[1];
+    const pat = bearer ? await this.apiTokens.resolve(bearer) : null;
+    if (!pat) throw unauthorized();
+    const routePath = (req.route as { path?: string } | undefined)?.path ?? req.path;
+    const meOnly = req.method === 'GET' && routePath === '/auth/me';
+    if (pat.grant.workspaceId && !routePath.includes(':workspaceId') && !meOnly)
+      throw forbidden('This API token only works on its workspace routes');
+    req.auth = { userId: pat.userId, sessionId: `pat:${pat.grant.id}`, token: pat.grant };
+    trace.getActiveSpan()?.setAttribute('user_id', pat.userId);
     return true;
   }
 }

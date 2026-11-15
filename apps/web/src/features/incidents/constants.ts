@@ -2,15 +2,6 @@ export const INCIDENT_POLL_MS = 8_000
 export const DETAIL_POLL_MS = 5_000
 export const LIST_LIMIT = 100
 
-export const STATUS_FILTERS = ["open", "closed", "all"] as const
-export type StatusFilter = (typeof STATUS_FILTERS)[number]
-
-export const STATUS_FILTER_LABEL: Record<StatusFilter, string> = {
-  open: "Open",
-  closed: "Closed",
-  all: "All",
-}
-
 export const SEVERITIES = ["critical", "high", "medium", "low"] as const
 export type SeverityValue = (typeof SEVERITIES)[number]
 
@@ -64,37 +55,6 @@ export const FLOW_STEPS = [
   { status: "resolved", label: "Resolved" },
 ] as const
 
-export const TRANSITIONS: Record<string, string[]> = {
-  detected: ["investigating", "needs_attention", "closed_without_fix"],
-  investigating: ["fix_proposed", "needs_attention", "closed_without_fix"],
-  fix_proposed: ["validation", "needs_attention", "closed_without_fix"],
-  validation: ["awaiting_review", "validation_failed"],
-  validation_failed: ["fix_proposed", "needs_attention", "closed_without_fix"],
-  awaiting_review: ["monitoring", "fix_proposed", "closed_without_fix"],
-  monitoring: ["resolved", "needs_attention", "verification_inconclusive"],
-  verification_inconclusive: ["monitoring", "resolved", "needs_attention"],
-  needs_attention: ["investigating", "resolved", "closed_without_fix"],
-  resolved: ["needs_attention"],
-  closed_without_fix: ["needs_attention"],
-}
-
-export const MANUAL_TRANSITION_LABEL: Record<string, string> = {
-  resolved: "Mark resolved",
-  closed_without_fix: "Close without a fix",
-  needs_attention: "Needs attention",
-}
-
-export const TIMELINE_KIND_LABEL: Record<string, string> = {
-  error: "Error",
-  created: "Created",
-  status_change: "Status",
-  investigation: "Investigation",
-  fix: "Fix",
-  verification: "Verification",
-  alert: "Alert",
-  deploy: "Deploy",
-}
-
 export const CONFIDENCE_VARIANT = { high: "success", medium: "warning", low: "default" } as const
 
 export const PR_STATUS_VARIANT = { open: "info", merged: "success", closed: "default" } as const
@@ -137,3 +97,59 @@ export const VERDICTS = [
   { value: "partly", label: "Partly right" },
   { value: "wrong", label: "Wrong" },
 ] as const
+
+export const RESPONSE_LABEL: Record<string, string> = {
+  open: "Ongoing",
+  acknowledged: "Acknowledged",
+  resolved: "Resolved",
+}
+
+export const RESPONSE_VARIANT = {
+  open: "destructive",
+  acknowledged: "warning",
+  resolved: "success",
+} as const
+
+export const STATE_FILTERS = [
+  { value: "unresolved", label: "Unresolved" },
+  { value: "open", label: "Ongoing" },
+  { value: "acknowledged", label: "Acknowledged" },
+  { value: "resolved", label: "Resolved" },
+  { value: "all", label: "All" },
+] as const
+
+export const ACTIVITY_LABEL: Record<string, string> = {
+  incident_started: "Started",
+  check_failed: "Check failed",
+  alert: "Alert",
+  error: "Error",
+  deploy: "Deploy",
+  notification: "Notified",
+  acknowledged: "Acknowledged",
+  unacknowledged: "Unacknowledged",
+  escalated: "Escalated",
+  comment: "Comment",
+  status_change: "AI status",
+  ai: "AI",
+  updated: "Updated",
+  resolved: "Resolved",
+  reopened: "Reopened",
+  post_mortem: "Post-mortem",
+}
+
+export const ACTIVITY_VARIANT: Record<
+  string,
+  "default" | "brand" | "ai" | "success" | "warning" | "destructive" | "info"
+> = {
+  check_failed: "destructive",
+  error: "destructive",
+  incident_started: "destructive",
+  notification: "info",
+  acknowledged: "warning",
+  escalated: "warning",
+  comment: "brand",
+  ai: "ai",
+  status_change: "ai",
+  resolved: "success",
+  post_mortem: "brand",
+}

@@ -1,11 +1,13 @@
 import { z } from "zod"
-import { INGEST_ENDPOINTS, SERVICES_ENDPOINTS, http } from "@/lib/api"
+import { EXPLORE_ENDPOINTS, INGEST_ENDPOINTS, SERVICES_ENDPOINTS, http } from "@/lib/api"
 import {
   businessImpactSchema,
   registeredServiceSchema,
+  serviceMapSchema,
   serviceSummarySchema,
   type BusinessImpact,
   type RegisteredService,
+  type ServiceMap,
   type ServiceSummary,
   type SetValueRequest,
 } from "../schemas"
@@ -20,6 +22,12 @@ export const servicesService = {
   registered: (workspaceId: string) =>
     http.get<RegisteredService[]>(SERVICES_ENDPOINTS.LIST(workspaceId), {
       schema: z.array(registeredServiceSchema),
+    }),
+
+  map: (workspaceId: string, range: string) =>
+    http.get<ServiceMap>(EXPLORE_ENDPOINTS.SERVICE_MAP(workspaceId), {
+      query: { range },
+      schema: serviceMapSchema,
     }),
 
   impact: (workspaceId: string, days: number) =>

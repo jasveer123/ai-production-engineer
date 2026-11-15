@@ -15,6 +15,7 @@ import {
   logQuerySchema,
   serviceSummaryQuerySchema,
   type CreateIngestTokenInput,
+  type IngestBatchView,
   type IngestOverview,
   type IngestTokenWithSecret,
   type LogSearchResult,
@@ -28,6 +29,7 @@ import { MinRole } from '../../modules/workspaces/min-role.decorator';
 import { WorkspaceAccessGuard } from '../../modules/workspaces/workspace-access.guard';
 import { IngestTokensService } from './application/ingest-tokens.service';
 import { IngestService } from './application/ingest.service';
+import { IngestReceipts } from './application/ingest-receipts.service';
 
 @Controller('workspaces/:workspaceId')
 @UseGuards(WorkspaceAccessGuard)
@@ -35,7 +37,13 @@ export class IngestController {
   constructor(
     private readonly ingest: IngestService,
     private readonly tokens: IngestTokensService,
+    private readonly receipts: IngestReceipts,
   ) {}
+
+  @Get('ingest/batches')
+  batches(@Actor() actor: ActorContext): Promise<IngestBatchView[]> {
+    return this.receipts.list(actor.workspaceId, 100);
+  }
 
   @Get('ingest')
   overview(@Actor() actor: ActorContext): Promise<IngestOverview> {

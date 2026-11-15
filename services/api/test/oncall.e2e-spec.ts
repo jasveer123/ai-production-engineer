@@ -146,4 +146,66 @@ describe('On-call schedules (e2e)', () => {
     await owner.delete(`/workspaces/${ws}/oncall/schedules/${schedule.id}`).expect(204);
     expect((await owner.get(`/workspaces/${ws}/oncall/schedules`).expect(200)).body).toEqual([]);
   });
+
+  it('accepts exactly one of many concurrent overlapping overrides', async () => {
+    const { owner, ws, anaId, boId } = await setup();
+    const schedule = (await make(owner, ws, [anaId]).expect(201)).body as ScheduleView;
+    const start = Date.now() + 2 * HOUR;
+    const attempts = await Promise.all(
+      Array.from({ length: 8 }, (_, i) =>
+        owner.post(`/workspaces/${ws}/oncall/schedules/${schedule.id}/overrides`).send({
+          userId: i % 2 ? anaId : boId,
+          startsAt: new Date(start + i * 60_000).toISOString(),
+          endsAt: new Date(start + HOUR + i * 60_000).toISOString(),
+        }),
+      ),
+    );
+    expect(attempts.filter((r) => r.status === 201)).toHaveLength(1);
+    expect(attempts.filter((r) => r.status === 409)).toHaveLength(7);
+  });
+
+  it('reports coverage with gaps and serves a revocable calendar feed', async () => {
+    const { owner, ws, anaId } = await setup();
+    const schedule = (
+      await make(owner, ws, [], {
+        timezone: 'Europe/Berlin',
+        participantIds: [],
+        layers: [
+          {
+            id: 'office',
+            name: 'Office',
+            rotation: {
+              kind: 'calendar',
+              lengthDays: 7,
+              startDate: '2026-11-02',
+              handoffTime: '09:00',
+            },
+            participantIds: [anaId],
+            restrictions: [{ days: [1, 2, 3, 4, 5], start: '09:00', end: '17:00' }],
+          },
+        ],
+      }).expect(201)
+    ).body as ScheduleView;
+    const coverage = (
+      await owner
+        .get(`/workspaces/${ws}/oncall/schedules/${schedule.id}/coverage`)
+        .query({ from: '2026-11-06T00:00:00Z', to: '2026-11-07T00:00:00Z' })
+        .expect(200)
+    ).body as { intervals: { startsAt: string }[]; gaps: { startsAt: string }[] };
+    expect(coverage.intervals.map((i) => i.startsAt)).toEqual(['2026-11-06T08:00:00.000Z']);
+    expect(coverage.gaps).toHaveLength(2);
+
+    const link = (
+      await owner
+        .post(`/workspaces/${ws}/oncall/schedules/${schedule.id}/calendar-link`)
+        .expect(200)
+    ).body as { url: string };
+    const path = new URL(link.url).pathname + new URL(link.url).search;
+    const feed = await request(app.getHttpServer()).get(path).expect(200);
+    expect(feed.text).toContain('BEGIN:VCALENDAR');
+    await owner
+      .delete(`/workspaces/${ws}/oncall/schedules/${schedule.id}/calendar-link`)
+      .expect(204);
+    await request(app.getHttpServer()).get(path).expect(404);
+  });
 });

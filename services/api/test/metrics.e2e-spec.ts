@@ -77,7 +77,10 @@ describe('Metrics and dashboards (e2e)', () => {
                   {
                     name: 'latency',
                     unit: 'ms',
-                    histogram: { dataPoints: [{ timeUnixNano: ts, count: '4', sum: 200 }] },
+                    histogram: {
+                      aggregationTemporality: 1,
+                      dataPoints: [{ timeUnixNano: ts, count: '4', sum: 200 }],
+                    },
                   },
                 ],
               },

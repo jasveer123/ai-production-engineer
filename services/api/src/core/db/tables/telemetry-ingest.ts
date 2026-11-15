@@ -29,6 +29,7 @@ export const ingestTokens = pgTable(
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    pausedAt: timestamp('paused_at', { withTimezone: true }),
     ...timestamps(),
   },
   (t) => [
@@ -61,6 +62,8 @@ export const logRecords = pgTable(
     index('log_records_workspace_ts_idx').on(t.workspaceId, t.ts),
     index('log_records_service_ts_idx').on(t.workspaceId, t.service, t.ts),
     index('log_records_trace_idx').on(t.workspaceId, t.traceId),
+    index('log_records_workspace_ts_id_idx').on(t.workspaceId, t.ts, t.id),
+    index('log_records_workspace_id_idx').on(t.workspaceId, t.id),
     uniqueIndex('log_records_dedup_key')
       .on(t.workspaceId, t.dedupKey)
       .where(sql`${t.dedupKey} is not null`),
@@ -90,6 +93,8 @@ export const spans = pgTable(
   (t) => [
     uniqueIndex('spans_key').on(t.workspaceId, t.traceId, t.spanId),
     index('spans_workspace_time_idx').on(t.workspaceId, t.startTime),
+    index('spans_workspace_service_time_idx').on(t.workspaceId, t.service, t.startTime),
+    index('spans_workspace_parent_idx').on(t.workspaceId, t.traceId, t.parentSpanId),
   ],
 );
 
@@ -132,10 +137,74 @@ export const metricPoints = pgTable(
     unit: text('unit'),
     value: doublePrecision('value').notNull(),
     attributes: jsonb('attributes').$type<Record<string, unknown>>().notNull().default({}),
+    scope: text('scope'),
+    seriesKey: text('series_key'),
+    startTs: timestamp('start_ts', { withTimezone: true }),
+    temporality: text('temporality'),
+    monotonic: boolean('monotonic'),
+    histogram: jsonb('histogram').$type<MetricHistogram>(),
   },
   (t) => [
     index('metric_points_name_ts_idx').on(t.workspaceId, t.name, t.ts),
     index('metric_points_ts_idx').on(t.ts),
+    index('metric_points_series_ts_idx').on(t.workspaceId, t.name, t.seriesKey, t.ts),
+  ],
+);
+
+export type MetricHistogram =
+  | {
+      type: 'explicit';
+      count: number;
+      sum: number | null;
+      min: number | null;
+      max: number | null;
+      bounds: number[];
+      counts: number[];
+    }
+  | {
+      type: 'exponential';
+      count: number;
+      sum: number | null;
+      min: number | null;
+      max: number | null;
+      scale: number;
+      zeroCount: number;
+      positive: { offset: number; counts: number[] };
+      negative: { offset: number; counts: number[] };
+    };
+
+export interface IngestBatchCounts {
+  received: number;
+  accepted: number;
+  rejected: number;
+}
+
+export type IngestSinkProgress = Partial<Record<'logs' | 'spans' | 'errors' | 'points', number>>;
+
+export const ingestBatches = pgTable(
+  'ingest_batches',
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    route: text('route').notNull(),
+    signal: text('signal').notNull(),
+    idempotencyKey: text('idempotency_key'),
+    state: text('state').notNull().default('processing'),
+    counts: jsonb('counts').$type<IngestBatchCounts>().notNull(),
+    sinks: jsonb('sinks').$type<IngestSinkProgress>().notNull().default({}),
+    rejections: jsonb('rejections')
+      .$type<{ index: number; code: string }[]>()
+      .notNull()
+      .default([]),
+    error: text('error'),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex('ingest_batches_idempotency_key')
+      .on(t.workspaceId, t.idempotencyKey)
+      .where(sql`${t.idempotencyKey} is not null`),
+    index('ingest_batches_workspace_created_idx').on(t.workspaceId, t.createdAt),
   ],
 );
 
@@ -146,6 +215,7 @@ export const dashboards = pgTable(
     workspaceId: workspaceRef(),
     name: text('name').notNull(),
     widgets: jsonb('widgets').$type<Record<string, unknown>[]>().notNull().default([]),
+    variables: jsonb('variables').$type<Record<string, unknown>[]>().notNull().default([]),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     ...timestamps(),
   },
@@ -174,6 +244,11 @@ export const errorGroups = pgTable(
     reopenedAt: timestamp('reopened_at', { withTimezone: true }),
     firstRelease: text('first_release'),
     assigneeId: uuid('assignee_id').references(() => users.id, { onDelete: 'set null' }),
+    applicationId: uuid('application_id'),
+    fingerprintVersion: integer('fingerprint_version').notNull().default(1),
+    snoozeUntil: timestamp('snooze_until', { withTimezone: true }),
+    snoozeRemaining: integer('snooze_remaining'),
+    resolvedInRelease: text('resolved_in_release'),
   },
   (t) => [
     uniqueIndex('error_groups_fingerprint_idx').on(t.workspaceId, t.fingerprint),
@@ -194,9 +269,15 @@ export const errorOccurrences = pgTable(
     release: text('release'),
     message: text('message').notNull(),
     externalEventId: text('external_event_id'),
+    environment: text('environment'),
+    userKey: text('user_key'),
+    rumSessionKey: text('rum_session_key'),
+    tags: jsonb('tags').$type<Record<string, string>>().notNull().default({}),
+    detail: jsonb('detail').$type<Record<string, unknown>>(),
   },
   (t) => [
     index('error_occurrences_group_idx').on(t.groupId, t.occurredAt),
+    index('error_occurrences_external_idx').on(t.workspaceId, t.externalEventId),
     uniqueIndex('error_occurrences_event_idx')
       .on(t.groupId, t.externalEventId)
       .where(sql`${t.externalEventId} is not null`),
@@ -223,6 +304,10 @@ export const rumApplications = pgTable(
     workspaceId: workspaceRef(),
     name: text('name').notNull(),
     appKey: text('app_key').notNull(),
+    replayEnabled: boolean('replay_enabled').notNull().default(false),
+    replaySampleRate: doublePrecision('replay_sample_rate').notNull().default(1),
+    maskAllText: boolean('mask_all_text').notNull().default(true),
+    blockSelectors: jsonb('block_selectors').$type<string[]>().notNull().default([]),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex('rum_applications_key_idx').on(t.appKey)],
@@ -252,6 +337,8 @@ export const rumSessions = pgTable(
     hasReplay: boolean('has_replay').notNull().default(false),
     viewportW: integer('viewport_w'),
     viewportH: integer('viewport_h'),
+    country: text('country'),
+    droppedEvents: integer('dropped_events').notNull().default(0),
   },
   (t) => [
     uniqueIndex('rum_sessions_key_idx').on(t.appId, t.sessionKey),
@@ -274,9 +361,13 @@ export const rumEvents = pgTable(
     url: text('url'),
     value: doublePrecision('value'),
     props: jsonb('props').$type<Record<string, unknown>>().notNull().default({}),
+    eventId: text('event_id'),
   },
   (t) => [
     index('rum_events_session_idx').on(t.sessionId, t.ts),
+    uniqueIndex('rum_events_event_id_idx')
+      .on(t.sessionId, t.eventId)
+      .where(sql`${t.eventId} is not null`),
     index('rum_events_app_time_idx').on(t.workspaceId, t.type, t.ts),
   ],
 );
@@ -293,6 +384,8 @@ export const rumReplay = pgTable(
     html: text('html'),
     url: text('url'),
     moves: jsonb('moves').$type<{ ts: number; t: string; x: number; y: number }[]>(),
+    seq: integer('seq'),
+    batchId: text('batch_id'),
   },
   (t) => [index('rum_replay_session_idx').on(t.sessionId, t.ts)],
 );
@@ -307,6 +400,8 @@ export const rumFunnels = pgTable(
       .references(() => rumApplications.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     steps: jsonb('steps').$type<{ kind: string; match: string; label?: string }[]>().notNull(),
+    unit: text('unit').notNull().default('session'),
+    windowMinutes: integer('window_minutes'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('rum_funnels_workspace_idx').on(t.workspaceId)],

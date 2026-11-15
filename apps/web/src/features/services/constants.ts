@@ -22,3 +22,12 @@ export const WAY_LABEL: Record<string, string> = {
   drain: "Log drain",
   syslog: "Syslog",
 }
+
+export const MAP_RANGES = [
+  { id: "15m", label: "15 min" },
+  { id: "1h", label: "1 hour" },
+  { id: "24h", label: "24 hours" },
+  { id: "7d", label: "7 days" },
+] as const
+
+export const MAP_NODE = { width: 180, height: 56, columnGap: 110, rowGap: 28, pad: 16 } as const

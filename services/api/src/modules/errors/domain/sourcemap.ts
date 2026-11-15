@@ -1,3 +1,5 @@
+import type { ErrorFrameView } from '@ape/api-contracts';
+
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 interface Segment {
@@ -12,10 +14,16 @@ export interface ParsedMap {
   sources: string[];
   names: string[];
   lines: Segment[][];
+  sourcesContent: (string | null)[];
 }
 
 export function parseSourceMap(text: string): ParsedMap {
-  const raw = JSON.parse(text) as { sources?: string[]; names?: string[]; mappings?: string };
+  const raw = JSON.parse(text) as {
+    sources?: string[];
+    names?: string[];
+    mappings?: string;
+    sourcesContent?: unknown[];
+  };
   if (!Array.isArray(raw.sources) || typeof raw.mappings !== 'string')
     throw new Error('Not a source map');
   let source = 0;
@@ -53,14 +61,17 @@ export function parseSourceMap(text: string): ParsedMap {
     }
     lines.push(segments);
   }
-  return { sources: raw.sources, names: raw.names ?? [], lines };
+  const sourcesContent = Array.isArray(raw.sourcesContent)
+    ? raw.sourcesContent.map((c) => (typeof c === 'string' ? c : null))
+    : [];
+  return { sources: raw.sources, names: raw.names ?? [], lines, sourcesContent };
 }
 
 export function originalPosition(
   map: ParsedMap,
   line: number,
   column: number,
-): { source: string; line: number; column: number; name: string | null } | null {
+): { source: string; index: number; line: number; column: number; name: string | null } | null {
   const segments = map.lines[line - 1];
   if (!segments) return null;
   let best: Segment | null = null;
@@ -71,6 +82,7 @@ export function originalPosition(
   if (!best) return null;
   return {
     source: map.sources[best.source] ?? '?',
+    index: best.source,
     line: best.line + 1,
     column: best.origCol + 1,
     name: best.name === null ? null : (map.names[best.name] ?? null),
@@ -92,4 +104,45 @@ export function symbolicateFrame(
   if (!pos) return null;
   const name = pos.name ?? fn ?? '<anonymous>';
   return `    at ${name} (${pos.source}:${pos.line}:${pos.column})`;
+}
+
+const CONTEXT_LINES = 5;
+
+export function codeContext(
+  map: ParsedMap,
+  index: number,
+  line: number,
+): { pre: string[]; line: string; post: string[] } | null {
+  const content = map.sourcesContent[index];
+  if (!content) return null;
+  const rows = content.split('\n');
+  const at = line - 1;
+  if (at < 0 || at >= rows.length) return null;
+  const cut = (s: string) => s.slice(0, 400);
+  return {
+    pre: rows.slice(Math.max(0, at - CONTEXT_LINES), at).map(cut),
+    line: cut(rows[at]!),
+    post: rows.slice(at + 1, at + 1 + CONTEXT_LINES).map(cut),
+  };
+}
+
+export function mapFrame(
+  frame: ErrorFrameView,
+  find: (file: string) => ParsedMap | null,
+): ErrorFrameView {
+  if (!frame.file || frame.line === null || frame.column === null) return frame;
+  const map = find(frame.file.split('/').pop()!.split('?')[0]!);
+  if (!map) return frame;
+  const pos = originalPosition(map, frame.line, frame.column);
+  if (!pos) return frame;
+  return {
+    ...frame,
+    function: pos.name ?? frame.function,
+    file: pos.source,
+    line: pos.line,
+    column: pos.column,
+    context: codeContext(map, pos.index, pos.line) ?? frame.context,
+    inApp: frame.inApp && !pos.source.includes('node_modules'),
+    mapped: true,
+  };
 }

@@ -16,9 +16,10 @@ import {
   Field,
   Input,
 } from "@/components/ui"
-import { AGGS } from "../constants"
+import { AGGS, CHARTS } from "../constants"
 import { useMetricLabels } from "../hooks"
-import type { MetricName, Widget } from "../schemas"
+import type { ChartType, MetricName, Widget } from "../schemas"
+import { ChoiceChips } from "./choice-chips"
 
 interface WidgetDialogProps {
   workspaceId: string
@@ -33,6 +34,7 @@ export function WidgetDialog({ workspaceId, metrics, onAdd, pending }: WidgetDia
   const [agg, setAgg] = React.useState<string>("avg")
   const [service, setService] = React.useState("")
   const [title, setTitle] = React.useState("")
+  const [chart, setChart] = React.useState<ChartType>("line")
   const [groupBy, setGroupBy] = React.useState("")
   const [filter, setFilter] = React.useState<{ key: string; value: string } | null>(null)
   const chosen = metrics.find((item) => item.name === metric)
@@ -47,6 +49,7 @@ export function WidgetDialog({ workspaceId, metrics, onAdd, pending }: WidgetDia
       title: title.trim() || chosen.name,
       metric: chosen.name,
       agg,
+      chart,
       ...(service ? { service } : {}),
       ...(groupBy ? { groupBy } : {}),
       ...(filter ? { filters: `${filter.key}=${filter.value}` } : {}),
@@ -82,7 +85,9 @@ export function WidgetDialog({ workspaceId, metrics, onAdd, pending }: WidgetDia
                     setService("")
                     setGroupBy("")
                     setFilter(null)
-                    setAgg(item.kind === "counter" ? "rate" : "avg")
+                    setAgg(
+                      item.kind === "counter" ? "rate" : item.kind === "histogram" ? "p95" : "avg"
+                    )
                   }}
                 >
                   {item.name}
@@ -104,6 +109,12 @@ export function WidgetDialog({ workspaceId, metrics, onAdd, pending }: WidgetDia
               ))}
             </div>
           </div>
+          <ChoiceChips
+            label="Show as"
+            options={CHARTS}
+            value={chart}
+            onChange={(value) => setChart(value as ChartType)}
+          />
           {chosen && chosen.services.length > 1 && (
             <div className="grid gap-2">
               <Eyebrow>Service</Eyebrow>

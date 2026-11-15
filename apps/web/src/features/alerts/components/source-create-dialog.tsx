@@ -17,14 +17,13 @@ import {
   Input,
   Spinner,
 } from "@/components/ui"
-import {
-  HEARTBEAT_GRACES,
-  HEARTBEAT_INTERVALS,
-  SOURCE_KIND_LABEL,
-  WEBHOOK_KINDS,
-} from "../constants"
+import { SOURCE_KIND_LABEL, WEBHOOK_KINDS } from "../constants"
 import { useCreateSource } from "../hooks"
+import { pairsToRecord } from "../lib"
 import type { AlertSourceWithToken } from "../schemas"
+import { DurationInput } from "./duration-input"
+import { MetadataPairs, type MetadataPair } from "./metadata-pairs"
+import { PolicySelect } from "./policy-select"
 
 interface SourceCreateDialogProps {
   workspaceId: string
@@ -42,8 +41,10 @@ export function SourceCreateDialog({
   const [open, setOpen] = React.useState(false)
   const [kind, setKind] = React.useState<string>(fixedKind ?? "http")
   const [name, setName] = React.useState("")
-  const [interval, setInterval] = React.useState<number>(HEARTBEAT_INTERVALS[1].seconds)
-  const [grace, setGrace] = React.useState<number>(HEARTBEAT_GRACES[0].seconds)
+  const [interval, setInterval] = React.useState(300)
+  const [grace, setGrace] = React.useState(60)
+  const [metadata, setMetadata] = React.useState<MetadataPair[]>([])
+  const [policyId, setPolicyId] = React.useState<string | null>(null)
   const create = useCreateSource(workspaceId)
 
   const onSubmit = (event: React.FormEvent) => {
@@ -53,7 +54,10 @@ export function SourceCreateDialog({
       {
         kind,
         name: name.trim(),
-        ...(kind === "heartbeat" ? { intervalSeconds: interval, graceSeconds: grace } : {}),
+        escalationPolicyId: policyId,
+        ...(kind === "heartbeat"
+          ? { intervalSeconds: interval, graceSeconds: grace, metadata: pairsToRecord(metadata) }
+          : {}),
       },
       {
         onSuccess: (source) => {
@@ -108,40 +112,34 @@ export function SourceCreateDialog({
           </Field>
           {kind === "heartbeat" && (
             <>
-              <div className="grid gap-2">
-                <Eyebrow>It should call every</Eyebrow>
-                <div className="flex flex-wrap gap-2">
-                  {HEARTBEAT_INTERVALS.map((item) => (
-                    <Chip
-                      key={item.seconds}
-                      type="button"
-                      selected={interval === item.seconds}
-                      onClick={() => setInterval(item.seconds)}
-                    >
-                      {item.label}
-                    </Chip>
-                  ))}
-                </div>
-              </div>
-              <div className="grid gap-2">
-                <Eyebrow>Wait this long before alerting</Eyebrow>
-                <div className="flex flex-wrap gap-2">
-                  {HEARTBEAT_GRACES.map((item) => (
-                    <Chip
-                      key={item.seconds}
-                      type="button"
-                      selected={grace === item.seconds}
-                      onClick={() => setGrace(item.seconds)}
-                    >
-                      {item.label}
-                    </Chip>
-                  ))}
-                </div>
-              </div>
+              <DurationInput
+                id="heartbeat-period"
+                label="Expect a heartbeat every"
+                seconds={interval}
+                help="At least 30 seconds."
+                onChange={setInterval}
+              />
+              <DurationInput
+                id="heartbeat-grace"
+                label="Grace period"
+                seconds={grace}
+                help="How long a late ping is tolerated before the heartbeat goes down."
+                onChange={setGrace}
+              />
+              <MetadataPairs pairs={metadata} onChange={setMetadata} />
             </>
           )}
+          <PolicySelect
+            id="source-policy"
+            workspaceId={workspaceId}
+            value={policyId}
+            onChange={setPolicyId}
+          />
           <DrawerFooter>
-            <Button type="submit" disabled={!name.trim() || create.isPending}>
+            <Button
+              type="submit"
+              disabled={!name.trim() || create.isPending || (kind === "heartbeat" && interval < 30)}
+            >
               {create.isPending && <Spinner />} Create
             </Button>
           </DrawerFooter>

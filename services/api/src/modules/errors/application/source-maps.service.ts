@@ -1,12 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, sql } from 'drizzle-orm';
-import type { SourceMapInput, SourceMapView } from '@ape/api-contracts';
+import type { ErrorExceptionView, SourceMapInput, SourceMapView } from '@ape/api-contracts';
 import { ApiException, notFound } from '../../../core/common/errors';
 import type { ActorContext } from '../../../core/common/request-context';
 import { DB } from '../../../core/db/database.module';
 import type { Database } from '../../../core/db/client';
 import { sourceMaps } from '../../../core/db/schema';
-import { parseSourceMap, symbolicateFrame } from '../domain/sourcemap';
+import { mapFrame, parseSourceMap, symbolicateFrame, type ParsedMap } from '../domain/sourcemap';
 
 @Injectable()
 export class SourceMapsService {
@@ -66,18 +66,12 @@ export class SourceMapsService {
     if (removed.length === 0) throw notFound('Source map');
   }
 
-  async symbolicate(
-    workspaceId: string,
-    release: string | null,
-    stack: string[],
-  ): Promise<string[] | null> {
-    if (!release || stack.length === 0) return null;
+  private async load(workspaceId: string, release: string): Promise<Map<string, ParsedMap>> {
     const rows = await this.db
       .select({ file: sourceMaps.file, content: sourceMaps.content })
       .from(sourceMaps)
       .where(and(eq(sourceMaps.workspaceId, workspaceId), eq(sourceMaps.release, release)));
-    if (rows.length === 0) return null;
-    const parsed = new Map<string, ReturnType<typeof parseSourceMap>>();
+    const parsed = new Map<string, ParsedMap>();
     for (const row of rows) {
       try {
         parsed.set(row.file, parseSourceMap(row.content));
@@ -85,6 +79,31 @@ export class SourceMapsService {
         continue;
       }
     }
+    return parsed;
+  }
+
+  async mapExceptions(
+    workspaceId: string,
+    release: string | null,
+    exceptions: ErrorExceptionView[],
+  ): Promise<ErrorExceptionView[]> {
+    if (!release || exceptions.every((e) => e.frames.length === 0)) return exceptions;
+    const parsed = await this.load(workspaceId, release);
+    if (parsed.size === 0) return exceptions;
+    return exceptions.map((e) => ({
+      ...e,
+      frames: e.frames.map((f) => mapFrame(f, (file) => parsed.get(file) ?? null)),
+    }));
+  }
+
+  async symbolicate(
+    workspaceId: string,
+    release: string | null,
+    stack: string[],
+  ): Promise<string[] | null> {
+    if (!release || stack.length === 0) return null;
+    const parsed = await this.load(workspaceId, release);
+    if (parsed.size === 0) return null;
     let changed = false;
     const out = stack.map((frame) => {
       const mapped = symbolicateFrame(frame, (file) => parsed.get(file) ?? null);

@@ -1,7 +1,15 @@
 import { z } from 'zod';
 import { nameSchema, uuidSchema, type IsoTimestamp, type Uuid } from '../common';
 
-export const RUM_EVENT_TYPES = ['pageview', 'error', 'click', 'vital', 'custom'] as const;
+export const RUM_EVENT_TYPES = [
+  'pageview',
+  'error',
+  'click',
+  'vital',
+  'custom',
+  'network',
+  'console',
+] as const;
 export type RumEventType = (typeof RUM_EVENT_TYPES)[number];
 export const RUM_VITALS = ['LCP', 'CLS', 'INP', 'FCP', 'TTFB'] as const;
 export const MAX_RUM_EVENTS = 200;
@@ -10,9 +18,32 @@ export const MAX_SNAPSHOT_CHARS = 1_500_000;
 export const createRumAppSchema = z.object({ name: nameSchema(80) });
 export type CreateRumAppInput = z.infer<typeof createRumAppSchema>;
 
+export const updateRumAppSchema = z
+  .object({
+    replayEnabled: z.boolean(),
+    replaySampleRate: z.number().min(0).max(1),
+    maskAllText: z.boolean(),
+    blockSelectors: z.array(z.string().trim().min(1).max(200)).max(50),
+  })
+  .partial();
+export type UpdateRumAppInput = z.infer<typeof updateRumAppSchema>;
+
+export interface RumAppSettings {
+  replayEnabled: boolean;
+  replaySampleRate: number;
+  maskAllText: boolean;
+  blockSelectors: string[];
+}
+
 const text = (max: number) => z.string().max(max);
 
 export const rumEventSchema = z.object({
+  id: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[A-Za-z0-9_-]+$/)
+    .optional(),
   ts: z.number().int().positive(),
   type: z.enum(RUM_EVENT_TYPES),
   name: text(120).default(''),
@@ -23,18 +54,39 @@ export const rumEventSchema = z.object({
 export type RumEventInput = z.infer<typeof rumEventSchema>;
 
 export const rumPayloadSchema = z.object({
-  sessionId: z.string().min(8).max(64).regex(/^[A-Za-z0-9_-]+$/),
+  sessionId: z
+    .string()
+    .min(8)
+    .max(64)
+    .regex(/^[A-Za-z0-9_-]+$/),
+  batchId: z
+    .string()
+    .min(8)
+    .max(64)
+    .regex(/^[A-Za-z0-9_-]+$/)
+    .optional(),
+  sequence: z.number().int().min(0).max(1_000_000).optional(),
+  sdkVersion: text(20).optional(),
+  dropped: z.number().int().min(0).max(1_000_000).optional(),
   userId: text(120).optional(),
   userName: text(120).optional(),
   userEmail: text(200).optional(),
   url: text(2000),
   referrer: text(2000).optional(),
-  viewport: z.object({ w: z.number().int().min(1).max(20000), h: z.number().int().min(1).max(20000) }).optional(),
+  viewport: z
+    .object({ w: z.number().int().min(1).max(20000), h: z.number().int().min(1).max(20000) })
+    .optional(),
   events: z.array(rumEventSchema).max(MAX_RUM_EVENTS).default([]),
   replay: z
     .object({
       snapshots: z
-        .array(z.object({ ts: z.number().int().positive(), html: text(MAX_SNAPSHOT_CHARS), url: text(2000).optional() }))
+        .array(
+          z.object({
+            ts: z.number().int().positive(),
+            html: text(MAX_SNAPSHOT_CHARS),
+            url: text(2000).optional(),
+          }),
+        )
         .max(5)
         .default([]),
       moves: z
@@ -60,10 +112,14 @@ export const funnelStepSchema = z.object({
   label: z.string().trim().max(80).optional(),
 });
 export type FunnelStep = z.infer<typeof funnelStepSchema>;
+export const FUNNEL_UNITS = ['session', 'user'] as const;
+export type FunnelUnit = (typeof FUNNEL_UNITS)[number];
 export const createFunnelSchema = z.object({
   appId: uuidSchema,
   name: nameSchema(80),
   steps: z.array(funnelStepSchema).min(2).max(6),
+  unit: z.enum(FUNNEL_UNITS).default('session'),
+  windowMinutes: z.number().int().min(1).max(43_200).nullable().default(null),
 });
 export type CreateFunnelInput = z.infer<typeof createFunnelSchema>;
 
@@ -71,6 +127,10 @@ export const sessionQuerySchema = z.object({
   appId: uuidSchema.optional(),
   userId: z.string().trim().min(1).max(120).optional(),
   hasErrors: z.enum(['true', 'false']).optional(),
+  browser: z.string().trim().min(1).max(60).optional(),
+  device: z.string().trim().min(1).max(60).optional(),
+  country: z.string().trim().length(2).optional(),
+  minSeconds: z.coerce.number().int().min(0).max(86_400).optional(),
   q: z.string().trim().min(1).max(200).optional(),
   minutes: z.coerce.number().int().min(5).max(43_200).default(1440),
   limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -86,6 +146,7 @@ export interface RumAppView {
   appKey: string;
   sessions24h: number;
   createdAt: IsoTimestamp;
+  settings: RumAppSettings;
 }
 
 export interface RumSessionView {
@@ -106,6 +167,8 @@ export interface RumSessionView {
   os: string | null;
   device: string | null;
   hasReplay: boolean;
+  country: string | null;
+  droppedEvents: number;
 }
 
 export interface RumEventView {
@@ -120,6 +183,20 @@ export interface RumEventView {
 
 export interface RumSessionDetail extends RumSessionView {
   events: RumEventView[];
+}
+
+export interface RumVitalRating {
+  name: string;
+  p75: number | null;
+  samples: number;
+  good: number;
+  needsImprovement: number;
+  poor: number;
+}
+
+export interface RumVitalsReport {
+  vitals: RumVitalRating[];
+  pages: { path: string; samples: number; p75: Record<string, number | null> }[];
 }
 
 export interface RumReplay {
@@ -166,10 +243,13 @@ export interface FunnelView {
   appId: Uuid;
   name: string;
   steps: FunnelStep[];
+  unit: FunnelUnit;
+  windowMinutes: number | null;
   createdAt: IsoTimestamp;
 }
 
 export interface FunnelResult {
   funnel: FunnelView;
   steps: { label: string; sessions: number; conversion: number; dropOff: number }[];
+  capped: boolean;
 }

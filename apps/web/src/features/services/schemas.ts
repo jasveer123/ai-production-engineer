@@ -50,3 +50,35 @@ export interface SetValueRequest {
   valuePerRequest: number
   currency: string
 }
+
+export const serviceRedSchema = z.object({
+  service: z.string(),
+  requests: z.number(),
+  ratePerMin: z.number(),
+  errors: z.number(),
+  errorRate: z.number(),
+  p50: z.number(),
+  p95: z.number(),
+  lastSeen: z.string(),
+})
+export type ServiceRed = z.infer<typeof serviceRedSchema>
+
+export const serviceEdgeSchema = z.object({
+  from: z.string(),
+  to: z.string(),
+  calls: z.number(),
+  errors: z.number(),
+  errorRate: z.number(),
+  avgMs: z.number(),
+  lastSeen: z.string(),
+  confidence: z.enum(["client_server", "parent_child"]),
+})
+export type ServiceEdge = z.infer<typeof serviceEdgeSchema>
+
+export const serviceMapSchema = z.object({
+  from: z.string(),
+  to: z.string(),
+  services: z.array(serviceRedSchema),
+  edges: z.array(serviceEdgeSchema),
+})
+export type ServiceMap = z.infer<typeof serviceMapSchema>

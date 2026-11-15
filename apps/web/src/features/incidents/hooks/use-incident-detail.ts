@@ -12,15 +12,6 @@ export function useIncident(workspaceId: string | undefined, id: string) {
   })
 }
 
-export function useTimeline(workspaceId: string | undefined, id: string) {
-  return useQuery({
-    queryKey: INCIDENT_QUERY_KEYS.timeline(workspaceId ?? "", id),
-    queryFn: () => incidentsService.timeline(workspaceId!, id),
-    enabled: Boolean(workspaceId),
-    refetchInterval: DETAIL_POLL_MS,
-  })
-}
-
 export function useInvestigation(workspaceId: string | undefined, id: string) {
   return useQuery({
     queryKey: INCIDENT_QUERY_KEYS.investigation(workspaceId ?? "", id),

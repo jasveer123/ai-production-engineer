@@ -4,6 +4,9 @@ import {
   approvalSchema,
   apiTokenSchema,
   apiTokenWithSecretSchema,
+  systemStatusSchema,
+  type CreateApiTokenRequest,
+  type SystemStatus,
   auditEventSchema,
   severityRuleSchema,
   invitationSchema,
@@ -91,10 +94,15 @@ export const settingsService = {
   apiTokens: () =>
     http.get<ApiToken[]>(SETTINGS_ENDPOINTS.API_TOKENS, { schema: z.array(apiTokenSchema) }),
 
-  createApiToken: (body: { name: string; expiresInDays: number | null }) =>
+  createApiToken: (body: CreateApiTokenRequest) =>
     http.post<ApiTokenWithSecret>(SETTINGS_ENDPOINTS.API_TOKENS, body, {
       schema: apiTokenWithSecretSchema,
     }),
 
   revokeApiToken: (id: string) => http.delete<void>(SETTINGS_ENDPOINTS.API_TOKEN(id)),
+
+  systemStatus: (workspaceId: string) =>
+    http.get<SystemStatus>(SETTINGS_ENDPOINTS.SYSTEM_STATUS(workspaceId), {
+      schema: systemStatusSchema,
+    }),
 }

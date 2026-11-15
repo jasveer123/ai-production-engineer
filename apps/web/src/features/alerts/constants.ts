@@ -42,31 +42,37 @@ export const SEVERITY_OPTIONS = ["critical", "high", "medium", "low"] as const
 export const ALERT_STATUS_FILTERS = ["all", "firing", "resolved"] as const
 export type AlertStatusFilter = (typeof ALERT_STATUS_FILTERS)[number]
 
-export const HEARTBEAT_INTERVALS = [
-  { seconds: 60, label: "1 minute" },
-  { seconds: 300, label: "5 minutes" },
-  { seconds: 900, label: "15 minutes" },
-  { seconds: 3600, label: "1 hour" },
-  { seconds: 86400, label: "1 day" },
-] as const
-
-export const HEARTBEAT_GRACES = [
-  { seconds: 60, label: "1 minute" },
-  { seconds: 300, label: "5 minutes" },
-  { seconds: 900, label: "15 minutes" },
+export const TIME_UNITS = [
+  { value: 1, label: "seconds" },
+  { value: 60, label: "minutes" },
+  { value: 3600, label: "hours" },
+  { value: 86400, label: "days" },
 ] as const
 
 export const HEARTBEAT_STATE_VARIANT = {
   up: "success",
+  late: "warning",
   down: "destructive",
   pending: "default",
+  paused: "warning",
 } as const
 
 export const HEARTBEAT_STATE_LABEL: Record<string, string> = {
   up: "Up",
+  late: "Late",
   down: "Down",
-  pending: "Waiting for first ping",
+  pending: "Never received",
+  paused: "Paused",
 }
+
+export const RECEIPT_VARIANT = {
+  processed: "success",
+  pending: "default",
+  rejected: "destructive",
+} as const
+
+export const SELECT_CLASS =
+  "h-10 w-full border border-line-strong bg-panel-2 px-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-brand/40"
 
 export const LOG_LEVEL_OPTIONS = ["warn", "error", "fatal", "info", "debug"] as const
 export const LOG_ALERT_SEVERITIES = ["low", "medium", "high", "critical"] as const

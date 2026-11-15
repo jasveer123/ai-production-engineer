@@ -2,14 +2,17 @@
 
 import * as React from "react"
 import { StatusStrip, StorySteps } from "@/components/shared"
-import { Chip, CodeBlock, Spinner } from "@/components/ui"
+import { Button, Chip, CodeBlock, Spinner } from "@/components/ui"
 import { ConfirmDialog } from "@/components/shared"
 import { useCurrentWorkspace } from "@/features/auth"
 import { PageHeading } from "@/features/integrations"
 import { ACTOR_ROLES } from "@/lib/constants/roles"
 import { WINDOWS } from "../constants"
-import { useDashboards, useDeleteDashboard, useMetricNames, useSaveWidgets } from "../hooks"
+import { useDashboards, useDeleteDashboard, useMetricNames, useSaveDashboard } from "../hooks"
+import { exportDashboard } from "../lib/export-dashboard"
 import { DashboardDialog } from "./dashboard-dialog"
+import { MetricAlertsPanel } from "./metric-alerts-panel"
+import { VariableBar } from "./variable-bar"
 import { WidgetCard } from "./widget-card"
 import { WidgetDialog } from "./widget-dialog"
 
@@ -22,9 +25,10 @@ export function MetricsPage() {
   const names = useMetricNames(workspace?.id)
   const [selectedId, setSelectedId] = React.useState<string | null>(null)
   const [minutes, setMinutes] = React.useState<number>(60)
+  const [values, setValues] = React.useState<Record<string, string>>({})
   const selected =
     dashboards.data?.find((item) => item.id === selectedId) ?? dashboards.data?.[0] ?? null
-  const save = useSaveWidgets(workspace?.id ?? "", selected?.id ?? "")
+  const save = useSaveDashboard(workspace?.id ?? "", selected?.id ?? "")
   const remove = useDeleteDashboard(workspace?.id ?? "")
 
   if (isPending || (workspace && dashboards.isPending)) {
@@ -39,6 +43,10 @@ export function MetricsPage() {
 
   const canEdit = ACTOR_ROLES.includes(workspace.role)
   const metrics = names.data ?? []
+  const extraFilters = (selected?.variables ?? [])
+    .filter((v) => values[v.key])
+    .map((v) => `${v.key}=${values[v.key]}`)
+    .join(",")
 
   return (
     <div className="grid min-w-0 gap-6">
@@ -90,7 +98,10 @@ export function MetricsPage() {
             <Chip
               key={item.id}
               selected={selected?.id === item.id}
-              onClick={() => setSelectedId(item.id)}
+              onClick={() => {
+                setSelectedId(item.id)
+                setValues({})
+              }}
             >
               {item.name}
             </Chip>
@@ -121,8 +132,11 @@ export function MetricsPage() {
                 workspaceId={workspace.id}
                 metrics={metrics}
                 pending={save.isPending}
-                onAdd={(widget) => save.mutate([...selected.widgets, widget])}
+                onAdd={(widget) => save.mutate({ widgets: [...selected.widgets, widget] })}
               />
+              <Button size="sm" variant="outline" onClick={() => exportDashboard(selected)}>
+                Export JSON
+              </Button>
               <ConfirmDialog
                 triggerLabel="Delete dashboard"
                 title={`Delete ${selected.name}?`}
@@ -133,6 +147,15 @@ export function MetricsPage() {
               />
             </div>
           )}
+          <VariableBar
+            workspaceId={workspace.id}
+            metric={metrics.find((m) => m.name === selected.widgets[0]?.metric)}
+            variables={selected.variables}
+            values={values}
+            canEdit={canEdit}
+            onSelect={(key, value) => setValues((prev) => ({ ...prev, [key]: value }))}
+            onChangeVariables={(variables) => save.mutate({ variables })}
+          />
           {selected.widgets.length === 0 ? (
             <p className="border border-dashed border-line p-8 text-center text-sm text-muted-foreground">
               This dashboard has no charts yet.
@@ -145,14 +168,18 @@ export function MetricsPage() {
                   workspaceId={workspace.id}
                   widget={widget}
                   minutes={minutes}
+                  extraFilters={extraFilters}
                   canEdit={canEdit}
-                  onRemove={(id) => save.mutate(selected.widgets.filter((w) => w.id !== id))}
+                  onRemove={(id) =>
+                    save.mutate({ widgets: selected.widgets.filter((w) => w.id !== id) })
+                  }
                 />
               ))}
             </div>
           )}
         </>
       )}
+      <MetricAlertsPanel workspaceId={workspace.id} canEdit={canEdit} />
     </div>
   )
 }

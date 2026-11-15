@@ -1,107 +1,138 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { and, asc, desc, eq, gt, inArray, isNull, lte, notInArray, sql } from 'drizzle-orm';
-import {
-  CLOSED_STATUSES,
-  type CreatePolicyInput,
-  type EscalationRunView,
-  type EscalationRunState,
-  type PolicyView,
-  type UpdatePolicyInput,
+import { Inject, Injectable } from '@nestjs/common';
+import { and, asc, desc, eq, inArray, ne } from 'drizzle-orm';
+import type {
+  CreatePolicyInput,
+  EscalationRunState,
+  EscalationRunView,
+  PersonChannel,
+  PolicyPreview,
+  PolicySource,
+  PolicyStepView,
+  PolicyView,
+  SimplePolicyInput,
+  UpdatePolicyInput,
 } from '@ape/api-contracts';
 import { AuditService } from '../../../core/audit/audit.service';
 import { notFound } from '../../../core/common/errors';
 import type { ActorContext } from '../../../core/common/request-context';
-import { ENV, type ApiEnv } from '../../../core/config/config.module';
 import { DB } from '../../../core/db/database.module';
-import type { Database } from '../../../core/db/client';
+import type { Database, Tx } from '../../../core/db/client';
 import {
-  escalationNotifications,
   escalationPolicies,
   escalationRuns,
   incidents,
+  notificationChannels,
   oncallSchedules,
   users,
   workspaceMembers,
+  type StoredBranch,
   type StoredStep,
 } from '../../../core/db/schema';
-import { Mailer } from '../../auth/infrastructure/mailer.service';
-import { OncallService } from '../../oncall/application/oncall.service';
-import { meetsSeverity } from '../domain/severity';
+import { DeliveryLog } from '../../notifications/application/delivery-log.service';
+import { simplePolicySteps } from '../domain/policy-selection';
+import { EscalationEngine } from './escalation-engine.service';
+import { RecipientsService } from './recipients.service';
 
 type PolicyRow = typeof escalationPolicies.$inferSelect;
-type RunRow = typeof escalationRuns.$inferSelect;
 
-const LOOKBACK_MS = 24 * 3600 * 1000;
-const LEASE_MS = 5 * 60 * 1000;
-const BATCH = 50;
 const RECENT_RUNS = 30;
 
-interface Recipient {
-  userId: string;
-  email: string;
-  name: string | null;
-}
+const allSteps = (steps: StoredStep[], branches: StoredBranch[]) => [
+  ...steps,
+  ...branches.flatMap((b) => b.steps),
+];
 
 @Injectable()
 export class EscalationService {
-  private readonly logger = new Logger(EscalationService.name);
-
   constructor(
     @Inject(DB) private readonly db: Database,
-    @Inject(ENV) private readonly env: ApiEnv,
-    private readonly mailer: Mailer,
-    private readonly oncall: OncallService,
     private readonly audit: AuditService,
+    private readonly engine: EscalationEngine,
+    private readonly recipients: RecipientsService,
+    private readonly log: DeliveryLog,
   ) {}
 
   private async labels(workspaceId: string, steps: StoredStep[]): Promise<Map<string, string>> {
-    const userIds = new Set<string>();
-    const scheduleIds = new Set<string>();
+    const ids = {
+      user: new Set<string>(),
+      schedule: new Set<string>(),
+      channel: new Set<string>(),
+    };
     for (const step of steps)
       for (const t of step.targets) {
-        if (t.userId) userIds.add(t.userId);
-        if (t.scheduleId) scheduleIds.add(t.scheduleId);
+        if (t.userId) ids.user.add(t.userId);
+        if (t.scheduleId) ids.schedule.add(t.scheduleId);
+        if (t.channelId) ids.channel.add(t.channelId);
       }
     const map = new Map<string, string>();
-    if (userIds.size) {
+    if (ids.user.size) {
       const rows = await this.db
         .select({ id: users.id, name: users.name, email: users.email })
-        .from(users)
-        .where(inArray(users.id, [...userIds]));
+        .from(workspaceMembers)
+        .innerJoin(users, eq(users.id, workspaceMembers.userId))
+        .where(
+          and(eq(workspaceMembers.workspaceId, workspaceId), inArray(users.id, [...ids.user])),
+        );
       rows.forEach((r) => map.set(`user:${r.id}`, r.name ?? r.email));
     }
-    if (scheduleIds.size) {
+    if (ids.schedule.size) {
       const rows = await this.db
         .select({ id: oncallSchedules.id, name: oncallSchedules.name })
         .from(oncallSchedules)
         .where(
           and(
             eq(oncallSchedules.workspaceId, workspaceId),
-            inArray(oncallSchedules.id, [...scheduleIds]),
+            inArray(oncallSchedules.id, [...ids.schedule]),
           ),
         );
-      rows.forEach((r) => map.set(`schedule:${r.id}`, r.name));
+      rows.forEach((r) => map.set(`schedule:${r.id}`, `On call · ${r.name}`));
+    }
+    if (ids.channel.size) {
+      const rows = await this.db
+        .select({
+          id: notificationChannels.id,
+          name: notificationChannels.name,
+          kind: notificationChannels.kind,
+        })
+        .from(notificationChannels)
+        .where(
+          and(
+            eq(notificationChannels.workspaceId, workspaceId),
+            inArray(notificationChannels.id, [...ids.channel]),
+          ),
+        );
+      rows.forEach((r) => map.set(`channel:${r.id}`, `${r.kind} · ${r.name}`));
     }
     return map;
   }
 
+  private stepViews(steps: StoredStep[], labels: Map<string, string>): PolicyStepView[] {
+    return steps.map((step) => ({
+      waitMinutes: step.waitMinutes,
+      channels: step.channels ?? (['email'] as PersonChannel[]),
+      targets: step.targets.map((t) => {
+        const key = `${t.kind}:${t.userId ?? t.scheduleId ?? t.channelId}`;
+        const label = t.kind === 'everyone' ? 'Entire team' : (labels.get(key) ?? 'Removed');
+        return { ...(t as { kind: 'everyone' }), label };
+      }),
+    }));
+  }
+
   private async toView(row: PolicyRow): Promise<PolicyView> {
-    const labels = await this.labels(row.workspaceId, row.steps);
+    const labels = await this.labels(row.workspaceId, allSteps(row.steps, row.branches));
     return {
       id: row.id,
       name: row.name,
       minSeverity: row.minSeverity,
       enabled: row.enabled,
-      steps: row.steps.map((step) => ({
-        waitMinutes: step.waitMinutes,
-        targets: step.targets.map((t) => ({
-          ...(t as { kind: 'everyone' }),
-          label:
-            t.kind === 'everyone'
-              ? 'Everyone in the workspace'
-              : (labels.get(`${t.kind}:${t.kind === 'user' ? t.userId : t.scheduleId}`) ??
-                'Removed'),
-        })),
+      isDefault: row.isDefault,
+      generated: row.generated,
+      repeatCount: row.repeatCount,
+      steps: this.stepViews(row.steps, labels),
+      branches: row.branches.map((b) => ({
+        name: b.name,
+        when: b.when,
+        steps: this.stepViews(b.steps, labels),
       })),
       createdAt: row.createdAt.toISOString(),
     };
@@ -109,22 +140,19 @@ export class EscalationService {
 
   private async requireTargets(workspaceId: string, steps: StoredStep[]): Promise<void> {
     const labels = await this.labels(workspaceId, steps);
-    const members = new Set(
-      (
-        await this.db
-          .select({ userId: workspaceMembers.userId })
-          .from(workspaceMembers)
-          .where(eq(workspaceMembers.workspaceId, workspaceId))
-      ).map((m) => m.userId),
-    );
     for (const step of steps)
       for (const t of step.targets) {
-        const ok =
-          t.kind === 'everyone' ||
-          (t.kind === 'schedule' && labels.has(`schedule:${t.scheduleId}`)) ||
-          (t.kind === 'user' && members.has(t.userId ?? ''));
-        if (!ok) throw notFound('Escalation target');
+        const id = t.userId ?? t.scheduleId ?? t.channelId;
+        if (t.kind !== 'everyone' && !labels.has(`${t.kind}:${id}`))
+          throw notFound('Escalation target');
       }
+  }
+
+  private async clearDefault(tx: Tx, workspaceId: string, keep: string): Promise<void> {
+    await tx
+      .update(escalationPolicies)
+      .set({ isDefault: false })
+      .where(and(eq(escalationPolicies.workspaceId, workspaceId), ne(escalationPolicies.id, keep)));
   }
 
   async list(actor: ActorContext): Promise<PolicyView[]> {
@@ -136,41 +164,80 @@ export class EscalationService {
     return Promise.all(rows.map((row) => this.toView(row)));
   }
 
-  async create(actor: ActorContext, input: CreatePolicyInput): Promise<PolicyView> {
+  async create(
+    actor: ActorContext,
+    input: CreatePolicyInput,
+    generated = false,
+  ): Promise<PolicyView> {
     const steps = input.steps as StoredStep[];
-    await this.requireTargets(actor.workspaceId, steps);
-    const [row] = await this.db
-      .insert(escalationPolicies)
-      .values({
-        workspaceId: actor.workspaceId,
-        name: input.name,
-        minSeverity: input.minSeverity ?? 'high',
-        enabled: input.enabled ?? true,
-        steps,
-        createdBy: actor.userId,
-      })
-      .returning();
-    await this.record(actor, 'escalation.policy_created', row!.id);
-    return this.toView(row!);
+    const branches = (input.branches ?? []) as StoredBranch[];
+    await this.requireTargets(actor.workspaceId, allSteps(steps, branches));
+    const row = await this.db.transaction(async (tx) => {
+      const [r] = await tx
+        .insert(escalationPolicies)
+        .values({
+          workspaceId: actor.workspaceId,
+          name: input.name,
+          minSeverity: input.minSeverity ?? 'high',
+          enabled: input.enabled ?? true,
+          isDefault: input.isDefault ?? false,
+          repeatCount: input.repeatCount ?? 0,
+          generated,
+          steps,
+          branches,
+          createdBy: actor.userId,
+        })
+        .returning();
+      if (r!.isDefault) await this.clearDefault(tx, actor.workspaceId, r!.id);
+      return r!;
+    });
+    await this.record(actor, 'escalation.policy_created', row.id);
+    return this.toView(row);
   }
 
   async update(actor: ActorContext, id: string, input: UpdatePolicyInput): Promise<PolicyView> {
     await this.find(actor, id);
-    if (input.steps) await this.requireTargets(actor.workspaceId, input.steps);
-    const [row] = await this.db
-      .update(escalationPolicies)
-      .set({
-        ...(input.name ? { name: input.name } : {}),
-        ...(input.minSeverity ? { minSeverity: input.minSeverity } : {}),
-        ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
-        ...(input.steps ? { steps: input.steps } : {}),
-      })
-      .where(
-        and(eq(escalationPolicies.id, id), eq(escalationPolicies.workspaceId, actor.workspaceId)),
-      )
-      .returning();
+    await this.requireTargets(actor.workspaceId, allSteps(input.steps ?? [], input.branches ?? []));
+    const row = await this.db.transaction(async (tx) => {
+      const [r] = await tx
+        .update(escalationPolicies)
+        .set({
+          ...(input.name ? { name: input.name } : {}),
+          ...(input.minSeverity ? { minSeverity: input.minSeverity } : {}),
+          ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+          ...(input.isDefault !== undefined ? { isDefault: input.isDefault } : {}),
+          ...(input.repeatCount !== undefined ? { repeatCount: input.repeatCount } : {}),
+          ...(input.steps ? { steps: input.steps } : {}),
+          ...(input.branches ? { branches: input.branches } : {}),
+        })
+        .where(
+          and(eq(escalationPolicies.id, id), eq(escalationPolicies.workspaceId, actor.workspaceId)),
+        )
+        .returning();
+      if (r!.isDefault) await this.clearDefault(tx, actor.workspaceId, r!.id);
+      return r!;
+    });
     await this.record(actor, 'escalation.policy_updated', id);
-    return this.toView(row!);
+    return this.toView(row);
+  }
+
+  async saveSimple(actor: ActorContext, input: SimplePolicyInput): Promise<PolicyView> {
+    const labels = await this.labels(actor.workspaceId, [
+      { waitMinutes: 0, targets: [input.primary] },
+    ]);
+    const who = labels.get(
+      `${input.primary.kind}:${'userId' in input.primary ? input.primary.userId : input.primary.scheduleId}`,
+    );
+    const body = {
+      name: `Primary responder: ${who ?? 'removed'}`.slice(0, 80),
+      minSeverity: 'low' as const,
+      steps: simplePolicySteps(input) as NonNullable<UpdatePolicyInput['steps']>,
+    };
+    if (input.policyId) {
+      const existing = await this.find(actor, input.policyId);
+      if (existing.generated) return this.update(actor, existing.id, body);
+    }
+    return this.create(actor, body, true);
   }
 
   async remove(actor: ActorContext, id: string): Promise<void> {
@@ -194,6 +261,33 @@ export class EscalationService {
     return row;
   }
 
+  async preview(actor: ActorContext, id: string): Promise<PolicyPreview[]> {
+    const row = await this.find(actor, id);
+    const severity = row.minSeverity;
+    const variants = [
+      { branch: null as string | null, steps: row.steps },
+      ...row.branches.map((b) => ({ branch: b.name, steps: b.steps })),
+    ];
+    return Promise.all(
+      variants.map(async (v) => ({
+        branch: v.branch,
+        steps: await Promise.all(
+          v.steps.map(async (step) => ({
+            waitMinutes: step.waitMinutes,
+            recipients: (await this.recipients.plan(actor.workspaceId, step, severity)).map(
+              (p) => ({
+                name: p.name,
+                channel: p.channel,
+                address: p.address,
+                problem: p.problem,
+              }),
+            ),
+          })),
+        ),
+      })),
+    );
+  }
+
   async runs(actor: ActorContext): Promise<EscalationRunView[]> {
     const rows = await this.db
       .select({
@@ -205,236 +299,39 @@ export class EscalationService {
       })
       .from(escalationRuns)
       .innerJoin(incidents, eq(incidents.id, escalationRuns.incidentId))
-      .innerJoin(escalationPolicies, eq(escalationPolicies.id, escalationRuns.policyId))
-      .where(eq(escalationRuns.workspaceId, actor.workspaceId))
+      .leftJoin(escalationPolicies, eq(escalationPolicies.id, escalationRuns.policyId))
+      .where(
+        and(eq(escalationRuns.workspaceId, actor.workspaceId), ne(escalationRuns.state, 'skipped')),
+      )
       .orderBy(desc(escalationRuns.startedAt))
       .limit(RECENT_RUNS);
-    if (rows.length === 0) return [];
-    const sent = await this.db
-      .select({
-        runId: escalationNotifications.runId,
-        stepIndex: escalationNotifications.stepIndex,
-        email: escalationNotifications.email,
-        name: users.name,
-        status: escalationNotifications.status,
-        error: escalationNotifications.error,
-        sentAt: escalationNotifications.sentAt,
-      })
-      .from(escalationNotifications)
-      .leftJoin(users, eq(users.id, escalationNotifications.userId))
-      .where(
-        and(
-          eq(escalationNotifications.workspaceId, actor.workspaceId),
-          inArray(
-            escalationNotifications.runId,
-            rows.map((r) => r.run.id),
-          ),
-        ),
-      )
-      .orderBy(asc(escalationNotifications.sentAt));
-    return rows.map((r) => ({
-      id: r.run.id,
-      incidentId: r.run.incidentId,
+    const deliveries = await this.log.forRuns(
+      actor.workspaceId,
+      rows.map((r) => r.run.id),
+    );
+    return rows.map(({ run, ...r }) => ({
+      id: run.id,
+      incidentId: run.incidentId,
       incidentTitle: r.title,
       severity: r.severity,
-      policyId: r.run.policyId,
-      policyName: r.policyName,
-      state: r.run.state as EscalationRunState,
-      stepsDone: r.run.stepIndex,
-      totalSteps: r.steps.length,
-      nextRunAt: r.run.nextRunAt?.toISOString() ?? null,
-      startedAt: r.run.startedAt.toISOString(),
-      finishedAt: r.run.finishedAt?.toISOString() ?? null,
-      notifications: sent
-        .filter((n) => n.runId === r.run.id)
-        .map((n) => ({
-          stepIndex: n.stepIndex,
-          email: n.email,
-          name: n.name,
-          status: n.status as 'sent' | 'failed',
-          error: n.error,
-          sentAt: n.sentAt.toISOString(),
-        })),
+      policyId: run.policyId,
+      policyName: run.policyName ?? r.policyName ?? 'Removed policy',
+      policySource: (run.policySource ?? 'legacy') as PolicySource,
+      branch: run.branchName,
+      state: run.state as EscalationRunState,
+      stepsDone: run.stepIndex,
+      totalSteps: (run.stepsSnapshot ?? r.steps ?? []).length,
+      repeatsDone: run.repeatsDone,
+      repeatCount: run.repeatCount,
+      nextRunAt: run.nextRunAt?.toISOString() ?? null,
+      startedAt: run.startedAt.toISOString(),
+      finishedAt: run.finishedAt?.toISOString() ?? null,
+      deliveries: deliveries.filter((d) => d.runId === run.id).reverse(),
     }));
   }
 
-  async tick(now = new Date()): Promise<{ started: number; stepsRun: number }> {
-    const started = await this.startRuns(now);
-    const stepsRun = await this.processDue(now);
-    return { started, stepsRun };
-  }
-
-  private async startRuns(now: Date): Promise<number> {
-    const policies = await this.db
-      .select()
-      .from(escalationPolicies)
-      .where(eq(escalationPolicies.enabled, true));
-    let created = 0;
-    for (const policy of policies) {
-      const since = new Date(Math.max(policy.createdAt.getTime(), now.getTime() - LOOKBACK_MS));
-      const candidates = await this.db
-        .select({ id: incidents.id, severity: incidents.severity })
-        .from(incidents)
-        .where(
-          and(
-            eq(incidents.workspaceId, policy.workspaceId),
-            notInArray(incidents.status, [...CLOSED_STATUSES]),
-            isNull(incidents.acknowledgedAt),
-            gt(incidents.createdAt, since),
-          ),
-        )
-        .limit(200);
-      for (const incident of candidates.filter((c) =>
-        meetsSeverity(c.severity, policy.minSeverity),
-      )) {
-        const inserted = await this.db
-          .insert(escalationRuns)
-          .values({
-            workspaceId: policy.workspaceId,
-            incidentId: incident.id,
-            policyId: policy.id,
-            nextRunAt: now,
-          })
-          .onConflictDoNothing()
-          .returning({ id: escalationRuns.id });
-        created += inserted.length;
-      }
-    }
-    return created;
-  }
-
-  private async processDue(now: Date): Promise<number> {
-    const due = await this.db
-      .select({ id: escalationRuns.id })
-      .from(escalationRuns)
-      .where(and(eq(escalationRuns.state, 'running'), lte(escalationRuns.nextRunAt, now)))
-      .limit(BATCH);
-    let stepsRun = 0;
-    for (const { id } of due) {
-      const [claimed] = await this.db
-        .update(escalationRuns)
-        .set({ nextRunAt: new Date(now.getTime() + LEASE_MS) })
-        .where(
-          and(
-            eq(escalationRuns.id, id),
-            eq(escalationRuns.state, 'running'),
-            lte(escalationRuns.nextRunAt, now),
-          ),
-        )
-        .returning();
-      if (!claimed) continue;
-      try {
-        if (await this.runStep(claimed, now)) stepsRun += 1;
-      } catch (err) {
-        this.logger.error(`Escalation run ${id} failed: ${(err as Error).message}`);
-      }
-    }
-    return stepsRun;
-  }
-
-  private async finish(run: RunRow, state: EscalationRunState, now: Date): Promise<void> {
-    await this.db
-      .update(escalationRuns)
-      .set({ state, finishedAt: now, nextRunAt: null })
-      .where(eq(escalationRuns.id, run.id));
-  }
-
-  private async runStep(run: RunRow, now: Date): Promise<boolean> {
-    const [policy] = await this.db
-      .select()
-      .from(escalationPolicies)
-      .where(eq(escalationPolicies.id, run.policyId));
-    const [incident] = await this.db
-      .select()
-      .from(incidents)
-      .where(eq(incidents.id, run.incidentId));
-    if (!policy || !incident || !policy.enabled) {
-      await this.finish(run, 'cancelled', now);
-      return false;
-    }
-    if (incident.acknowledgedAt) {
-      await this.finish(run, 'acknowledged', now);
-      return false;
-    }
-    if ((CLOSED_STATUSES as readonly string[]).includes(incident.status)) {
-      await this.finish(run, 'cancelled', now);
-      return false;
-    }
-    const step = policy.steps[run.stepIndex];
-    if (!step) {
-      await this.finish(run, 'completed', now);
-      return false;
-    }
-
-    const recipients = await this.recipients(run.workspaceId, step);
-    const link = `${this.env.WEB_URL}/incidents/${incident.id}`;
-    const next = policy.steps[run.stepIndex + 1];
-    for (const person of recipients) {
-      await this.mailer.send({
-        to: person.email,
-        subject: `[${incident.severity}] ${incident.title}`,
-        text: [
-          `${incident.title}`,
-          `Severity: ${incident.severity}. Status: ${incident.status}.`,
-          incident.serviceName ? `Service: ${incident.serviceName}` : '',
-          '',
-          `Open it and press Acknowledge: ${link}`,
-          next
-            ? `If nobody acknowledges within ${next.waitMinutes} minutes, the next people are notified.`
-            : 'This is the last step of the escalation.',
-        ]
-          .filter((line, i) => line !== '' || i > 0)
-          .join('\n'),
-      });
-      await this.db.insert(escalationNotifications).values({
-        workspaceId: run.workspaceId,
-        runId: run.id,
-        stepIndex: run.stepIndex,
-        userId: person.userId,
-        email: person.email,
-        status: 'sent',
-      });
-    }
-    await this.db
-      .update(escalationRuns)
-      .set(
-        next
-          ? {
-              stepIndex: run.stepIndex + 1,
-              nextRunAt: new Date(now.getTime() + next.waitMinutes * 60_000),
-            }
-          : { stepIndex: run.stepIndex + 1, state: 'completed', finishedAt: now, nextRunAt: null },
-      )
-      .where(eq(escalationRuns.id, run.id));
-    return true;
-  }
-
-  private async recipients(workspaceId: string, step: StoredStep): Promise<Recipient[]> {
-    const found = new Map<string, Recipient>();
-    const ids = new Set<string>();
-    let everyone = false;
-    for (const t of step.targets) {
-      if (t.kind === 'everyone') everyone = true;
-      else if (t.kind === 'user' && t.userId) ids.add(t.userId);
-      else if (t.kind === 'schedule' && t.scheduleId) {
-        const person = await this.oncall.currentOnCall(workspaceId, t.scheduleId);
-        if (person) ids.add(person.userId);
-      }
-    }
-    const rows = await this.db
-      .select({ userId: users.id, email: users.email, name: users.name })
-      .from(workspaceMembers)
-      .innerJoin(users, eq(users.id, workspaceMembers.userId))
-      .where(
-        and(
-          eq(workspaceMembers.workspaceId, workspaceId),
-          everyone
-            ? sql`true`
-            : inArray(users.id, ids.size ? [...ids] : ['00000000-0000-0000-0000-000000000000']),
-        ),
-      );
-    rows.forEach((r) => found.set(r.userId, r));
-    return [...found.values()];
+  tick(now = new Date()) {
+    return this.engine.tick(now);
   }
 
   private record(actor: ActorContext, action: string, id: string) {

@@ -29,3 +29,30 @@ export function useAlertRoutes(workspaceId: string | undefined) {
     enabled: Boolean(workspaceId),
   })
 }
+
+export function useHeartbeatDetail(workspaceId: string | undefined, id: string) {
+  return useQuery({
+    queryKey: ALERT_QUERY_KEYS.heartbeat(workspaceId ?? "", id),
+    queryFn: () => alertsService.heartbeat(workspaceId!, id),
+    enabled: Boolean(workspaceId && id),
+    refetchInterval: ALERT_POLL_MS,
+  })
+}
+
+export function useSourceAlerts(workspaceId: string | undefined, sourceId: string) {
+  return useQuery({
+    queryKey: ALERT_QUERY_KEYS.sourceAlerts(workspaceId ?? "", sourceId),
+    queryFn: () => alertsService.alerts(workspaceId!, "all", sourceId),
+    enabled: Boolean(workspaceId && sourceId),
+    refetchInterval: ALERT_POLL_MS,
+  })
+}
+
+export function useSourceReceipts(workspaceId: string, sourceId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ALERT_QUERY_KEYS.receipts(workspaceId, sourceId),
+    queryFn: () => alertsService.receipts(workspaceId, sourceId),
+    enabled,
+    refetchInterval: enabled ? ALERT_POLL_MS : false,
+  })
+}

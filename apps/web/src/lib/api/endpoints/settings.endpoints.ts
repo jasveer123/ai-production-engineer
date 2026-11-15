@@ -10,5 +10,6 @@ export const SETTINGS_ENDPOINTS = {
   API_TOKEN: (id: string) => `/auth/api-tokens/${id}`,
   USAGE: (workspaceId: string) => `/workspaces/${workspaceId}/usage`,
   LIMITS: (workspaceId: string) => `/workspaces/${workspaceId}/usage/limits`,
+  SYSTEM_STATUS: (workspaceId: string) => `/workspaces/${workspaceId}/system-status`,
   AUDIT: (workspaceId: string) => `/workspaces/${workspaceId}/audit-events`,
 } as const

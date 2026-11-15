@@ -3,14 +3,17 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, gt, isNull, or, sql } from 'drizzle-orm';
 import {
   API_TOKEN_PREFIX,
+  type ApiTokenArea,
+  type ApiTokenScope,
   type ApiTokenView,
   type ApiTokenWithSecret,
   type CreateApiTokenInput,
 } from '@ape/api-contracts';
 import { notFound } from '../../../core/common/errors';
+import type { TokenGrant } from '../domain/token-scope';
 import { DB } from '../../../core/db/database.module';
 import type { Database } from '../../../core/db/client';
-import { apiTokens } from '../../../core/db/schema';
+import { apiTokens, workspaceMembers } from '../../../core/db/schema';
 
 type Row = typeof apiTokens.$inferSelect;
 
@@ -22,6 +25,9 @@ const toView = (r: Row): ApiTokenView => ({
   id: r.id,
   name: r.name,
   prefix: r.prefix,
+  workspaceId: r.workspaceId,
+  scopes: r.scopes as ApiTokenScope[],
+  areas: r.areas as ApiTokenArea[],
   expiresAt: r.expiresAt?.toISOString() ?? null,
   lastUsedAt: r.lastUsedAt?.toISOString() ?? null,
   createdAt: r.createdAt.toISOString(),
@@ -42,12 +48,25 @@ export class ApiTokensService {
   }
 
   async create(userId: string, input: CreateApiTokenInput): Promise<ApiTokenWithSecret> {
+    const [member] = await this.db
+      .select({ id: workspaceMembers.id })
+      .from(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, input.workspaceId),
+          eq(workspaceMembers.userId, userId),
+        ),
+      );
+    if (!member) throw notFound('Workspace');
     const token = `${API_TOKEN_PREFIX}${randomBytes(24).toString('hex')}`;
     const days = input.expiresInDays === undefined ? 90 : input.expiresInDays;
     const [row] = await this.db
       .insert(apiTokens)
       .values({
         userId,
+        workspaceId: input.workspaceId,
+        scopes: [...new Set(input.scopes ?? ['read'])],
+        areas: [...new Set(input.areas ?? [])],
         name: input.name,
         prefix: token.slice(0, API_TOKEN_PREFIX.length + 6),
         tokenHash: hashOf(token),
@@ -66,7 +85,7 @@ export class ApiTokensService {
     if (rows.length === 0) throw notFound('API token');
   }
 
-  async resolve(token: string): Promise<{ userId: string; tokenId: string } | null> {
+  async resolve(token: string): Promise<{ userId: string; grant: TokenGrant } | null> {
     if (!token.startsWith(API_TOKEN_PREFIX)) return null;
     const [row] = await this.db
       .select()
@@ -84,6 +103,9 @@ export class ApiTokensService {
         .update(apiTokens)
         .set({ lastUsedAt: sql`now()` })
         .where(eq(apiTokens.id, row.id));
-    return { userId: row.userId, tokenId: row.id };
+    return {
+      userId: row.userId,
+      grant: { id: row.id, workspaceId: row.workspaceId, scopes: row.scopes, areas: row.areas },
+    };
   }
 }

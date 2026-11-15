@@ -8,7 +8,6 @@ import {
   incidentSchema,
   incidentVerificationSchema,
   pullRequestSchema,
-  timelineEntrySchema,
   type EvidenceContent,
   type FeedbackRequest,
   type FixActionRequest,
@@ -18,8 +17,6 @@ import {
   type IncidentInvestigation,
   type IncidentVerification,
   type PullRequest,
-  type TimelineEntry,
-  type TransitionRequest,
 } from "../schemas"
 
 export const incidentsService = {
@@ -35,23 +32,6 @@ export const incidentsService = {
 
   get: (workspaceId: string, id: string) =>
     http.get<Incident>(INCIDENTS_ENDPOINTS.ONE(workspaceId, id), { schema: incidentSchema }),
-
-  timeline: (workspaceId: string, id: string) =>
-    http.get<TimelineEntry[]>(INCIDENTS_ENDPOINTS.TIMELINE(workspaceId, id), {
-      schema: z.array(timelineEntrySchema),
-    }),
-
-  acknowledge: (workspaceId: string, id: string) =>
-    http.post<Incident>(
-      INCIDENTS_ENDPOINTS.ACKNOWLEDGE(workspaceId, id),
-      {},
-      { schema: incidentSchema }
-    ),
-
-  transition: (workspaceId: string, id: string, body: TransitionRequest) =>
-    http.post<Incident>(INCIDENTS_ENDPOINTS.TRANSITION(workspaceId, id), body, {
-      schema: incidentSchema,
-    }),
 
   investigation: (workspaceId: string, id: string) =>
     http.get<IncidentInvestigation>(INCIDENTS_ENDPOINTS.INVESTIGATION(workspaceId, id), {

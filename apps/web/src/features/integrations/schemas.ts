@@ -111,3 +111,20 @@ export const pullRequestSchema = z.object({
   createdAt: z.string(),
 })
 export type PullRequest = z.infer<typeof pullRequestSchema>
+
+export const sourcesOverviewSchema = z.object({
+  ingestUrl: z.string(),
+  sources: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      platform: z.string().nullable(),
+      lastUsedAt: z.string().nullable(),
+      pausedAt: z.string().nullable(),
+    })
+  ),
+  volume24h: z.array(
+    z.object({ way: z.string(), logs: z.number(), lastAt: z.string().nullable() })
+  ),
+})
+export type SourcesOverview = z.infer<typeof sourcesOverviewSchema>

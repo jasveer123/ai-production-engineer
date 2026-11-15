@@ -12,12 +12,10 @@ export function IncidentsTable({ incidents }: IncidentsTableProps) {
       <TableHeader>
         <TableRow>
           <TableHead>Incident</TableHead>
+          <TableHead>State</TableHead>
           <TableHead>Severity</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Service</TableHead>
-          <TableHead>Events</TableHead>
-          <TableHead>Started</TableHead>
-          <TableHead>Last seen</TableHead>
+          <TableHead>Length</TableHead>
+          <TableHead>Acknowledged</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>

@@ -8,6 +8,7 @@ import { usePolicies, useRuns } from "../hooks"
 import { PolicyCard } from "./policy-card"
 import { PolicyDialog } from "./policy-dialog"
 import { RunsPanel } from "./runs-panel"
+import { SimplePolicyDialog } from "./simple-policy-dialog"
 
 export function EscalationPage() {
   const { workspace, canManage, isPending } = useCurrentWorkspace()
@@ -29,7 +30,12 @@ export function EscalationPage() {
   const all = runs.data ?? []
   const active = all.filter((run) => run.state === "running")
   const unanswered = all.filter((run) => run.state === "completed")
-  const create = canManage ? <PolicyDialog workspaceId={workspace.id} /> : null
+  const create = canManage ? (
+    <div className="flex flex-wrap gap-2">
+      <SimplePolicyDialog workspaceId={workspace.id} />
+      <PolicyDialog workspaceId={workspace.id} />
+    </div>
+  ) : null
 
   return (
     <div className="grid min-w-0 gap-6">
@@ -38,8 +44,8 @@ export function EscalationPage() {
         <>
           <StatusStrip
             tone="idle"
-            headline="Nobody gets paged automatically"
-            detail="An escalation policy makes sure a serious incident is never ignored."
+            headline="High and critical incidents e-mail the whole team"
+            detail="That is the built-in fallback. Create a policy to page specific people, on-call schedules or channels step by step."
             action={create}
           />
           <StorySteps
@@ -47,9 +53,12 @@ export function EscalationPage() {
             steps={[
               {
                 title: "An incident turns serious",
-                text: "Critical and high severity incidents trigger the policy.",
+                text: "The alert source's policy is used, else the workspace default, else the whole team is e-mailed.",
               },
-              { title: "Step one is reached", text: "The person on call is emailed first." },
+              {
+                title: "Step one is reached",
+                text: "The person on call is reached by e-mail, SMS, call or push.",
+              },
               {
                 title: "No answer? It climbs",
                 text: "After the wait, the next step reaches more people until someone acknowledges.",

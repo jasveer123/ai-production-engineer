@@ -82,7 +82,8 @@ describe('Escalation (e2e)', () => {
       .body as EscalationRunView[];
     expect(runs).toHaveLength(1);
     expect(runs[0]).toMatchObject({ state: 'acknowledged', incidentId: high.id });
-    expect(runs[0]!.notifications).toHaveLength(1);
+    expect(runs[0]!.deliveries).toHaveLength(1);
+    expect(runs[0]!.deliveries[0]).toMatchObject({ channel: 'email', address: 'ana@esc.test' });
     expect(runs.some((r) => r.incidentId === low.id)).toBe(false);
   });
 
@@ -112,6 +113,25 @@ describe('Escalation (e2e)', () => {
     const runs = (await owner.get(`/workspaces/${ws}/escalation/runs`).expect(200))
       .body as EscalationRunView[];
     expect(runs[0]).toMatchObject({ state: 'completed', stepsDone: 2 });
+  });
+
+  it('falls back to e-mailing the whole team when no policy exists', async () => {
+    const { owner, ws } = await setup();
+    await owner
+      .post(`/workspaces/${ws}/incidents`)
+      .send({ title: 'Payments down', severity: 'critical' })
+      .expect(201);
+    const mailer = app.get(Mailer);
+    mailer.sent.length = 0;
+    expect(await app.get(EscalationService).tick(new Date())).toMatchObject({ started: 1 });
+    expect(mailer.sent.map((m) => m.to).sort()).toEqual([
+      'ana@esc.test',
+      'bo@esc.test',
+      'owner@esc.test',
+    ]);
+    const runs = (await owner.get(`/workspaces/${ws}/escalation/runs`).expect(200))
+      .body as EscalationRunView[];
+    expect(runs[0]).toMatchObject({ policySource: 'builtin', policyId: null });
   });
 
   it('rejects targets outside the workspace', async () => {

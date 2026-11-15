@@ -1,12 +1,11 @@
 import { randomBytes } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, gte, ilike, inArray, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, or, sql } from 'drizzle-orm';
 import type {
-  CreateFunnelInput,
   CreateRumAppInput,
-  FunnelResult,
-  FunnelView,
   RumAppView,
+  RumVitalsReport,
+  UpdateRumAppInput,
   RumEventSummary,
   RumEventType,
   RumEventView,
@@ -20,19 +19,14 @@ import { notFound } from '../../../core/common/errors';
 import type { ActorContext } from '../../../core/common/request-context';
 import { DB } from '../../../core/db/database.module';
 import type { Database } from '../../../core/db/client';
-import {
-  rumApplications,
-  rumEvents,
-  rumFunnels,
-  rumReplay,
-  rumSessions,
-} from '../../../core/db/schema';
-import { reachedPerStep } from '../domain/funnel';
+import { rumApplications, rumEvents, rumReplay, rumSessions } from '../../../core/db/schema';
+import { settingsOf } from './rum-ingest.service';
+import { vitalsReport } from './rum-vitals';
 
 type SessionRow = typeof rumSessions.$inferSelect;
 const escapeLike = (value: string) => value.replace(/[\\%_]/g, (c) => `\\${c}`);
 const TREND_BUCKETS = 24;
-const FUNNEL_EVENT_CAP = 200_000;
+type AppRow = typeof rumApplications.$inferSelect;
 
 const sessionView = (r: SessionRow, appName: string): RumSessionView => ({
   id: r.id,
@@ -52,6 +46,17 @@ const sessionView = (r: SessionRow, appName: string): RumSessionView => ({
   os: r.os,
   device: r.device,
   hasReplay: r.hasReplay,
+  country: r.country,
+  droppedEvents: r.droppedEvents,
+});
+
+const appView = (a: AppRow, sessions24h: number): RumAppView => ({
+  id: a.id,
+  name: a.name,
+  appKey: a.appKey,
+  sessions24h,
+  createdAt: a.createdAt.toISOString(),
+  settings: settingsOf(a),
 });
 
 @Injectable()
@@ -79,13 +84,7 @@ export class RumService {
       )
       .groupBy(rumSessions.appId);
     const byApp = new Map(counts.map((c) => [c.appId, c.n]));
-    return apps.map((a) => ({
-      id: a.id,
-      name: a.name,
-      appKey: a.appKey,
-      sessions24h: byApp.get(a.id) ?? 0,
-      createdAt: a.createdAt.toISOString(),
-    }));
+    return apps.map((a) => appView(a, byApp.get(a.id) ?? 0));
   }
 
   async createApp(actor: ActorContext, input: CreateRumAppInput): Promise<RumAppView> {
@@ -97,13 +96,21 @@ export class RumService {
         appKey: `rum_${randomBytes(12).toString('hex')}`,
       })
       .returning();
-    return {
-      id: row!.id,
-      name: row!.name,
-      appKey: row!.appKey,
-      sessions24h: 0,
-      createdAt: row!.createdAt.toISOString(),
-    };
+    return appView(row!, 0);
+  }
+
+  async updateApp(actor: ActorContext, id: string, input: UpdateRumAppInput): Promise<RumAppView> {
+    const [row] = await this.db
+      .update(rumApplications)
+      .set(input)
+      .where(and(eq(rumApplications.id, id), eq(rumApplications.workspaceId, actor.workspaceId)))
+      .returning();
+    if (!row) throw notFound('Application');
+    return appView(row, 0);
+  }
+
+  vitals(actor: ActorContext, q: { appId?: string; minutes: number }): Promise<RumVitalsReport> {
+    return vitalsReport(this.db, actor.workspaceId, q);
   }
 
   async removeApp(actor: ActorContext, id: string): Promise<void> {
@@ -120,6 +127,10 @@ export class RumService {
       appId?: string;
       userId?: string;
       hasErrors?: 'true' | 'false';
+      browser?: string;
+      device?: string;
+      country?: string;
+      minSeconds?: number;
       q?: string;
       minutes: number;
       limit: number;
@@ -138,6 +149,12 @@ export class RumService {
           q.userId ? eq(rumSessions.userId, q.userId) : undefined,
           q.hasErrors === 'true' ? sql`${rumSessions.errors} > 0` : undefined,
           q.hasErrors === 'false' ? sql`${rumSessions.errors} = 0` : undefined,
+          q.browser ? eq(rumSessions.browser, q.browser) : undefined,
+          q.device ? eq(rumSessions.device, q.device) : undefined,
+          q.country ? eq(rumSessions.country, q.country.toUpperCase()) : undefined,
+          q.minSeconds
+            ? sql`extract(epoch from (${rumSessions.lastSeenAt} - ${rumSessions.startedAt})) >= ${q.minSeconds}`
+            : undefined,
           text
             ? or(
                 ilike(rumSessions.entryUrl, text),
@@ -191,7 +208,7 @@ export class RumService {
       .select()
       .from(rumReplay)
       .where(eq(rumReplay.sessionId, id))
-      .orderBy(asc(rumReplay.ts), asc(rumReplay.id));
+      .orderBy(sql`${rumReplay.seq} asc nulls first`, asc(rumReplay.ts), asc(rumReplay.id));
     return {
       viewport: s.viewportW && s.viewportH ? { w: s.viewportW, h: s.viewportH } : null,
       startedAt: s.startedAt.toISOString(),
@@ -332,99 +349,5 @@ export class RumService {
       .orderBy(desc(sql`count(*)`))
       .limit(100);
     return rows.map((r) => ({ ...r, type: r.type as RumEventType }));
-  }
-
-  private funnelView(r: typeof rumFunnels.$inferSelect): FunnelView {
-    return {
-      id: r.id,
-      appId: r.appId,
-      name: r.name,
-      steps: r.steps as FunnelView['steps'],
-      createdAt: r.createdAt.toISOString(),
-    };
-  }
-
-  async listFunnels(actor: ActorContext): Promise<FunnelView[]> {
-    const rows = await this.db
-      .select()
-      .from(rumFunnels)
-      .where(eq(rumFunnels.workspaceId, actor.workspaceId))
-      .orderBy(asc(rumFunnels.createdAt));
-    return rows.map((r) => this.funnelView(r));
-  }
-
-  async createFunnel(actor: ActorContext, input: CreateFunnelInput): Promise<FunnelView> {
-    const [app] = await this.db
-      .select({ id: rumApplications.id })
-      .from(rumApplications)
-      .where(
-        and(
-          eq(rumApplications.id, input.appId),
-          eq(rumApplications.workspaceId, actor.workspaceId),
-        ),
-      );
-    if (!app) throw notFound('Application');
-    const [row] = await this.db
-      .insert(rumFunnels)
-      .values({
-        workspaceId: actor.workspaceId,
-        appId: input.appId,
-        name: input.name,
-        steps: input.steps,
-      })
-      .returning();
-    return this.funnelView(row!);
-  }
-
-  async removeFunnel(actor: ActorContext, id: string): Promise<void> {
-    const removed = await this.db
-      .delete(rumFunnels)
-      .where(and(eq(rumFunnels.id, id), eq(rumFunnels.workspaceId, actor.workspaceId)))
-      .returning({ id: rumFunnels.id });
-    if (removed.length === 0) throw notFound('Funnel');
-  }
-
-  async funnelResult(actor: ActorContext, id: string, minutes: number): Promise<FunnelResult> {
-    const [row] = await this.db
-      .select()
-      .from(rumFunnels)
-      .where(and(eq(rumFunnels.id, id), eq(rumFunnels.workspaceId, actor.workspaceId)));
-    if (!row) throw notFound('Funnel');
-    const funnel = this.funnelView(row);
-    const names = funnel.steps.filter((s) => s.kind === 'event').map((s) => s.match);
-    const events = await this.db
-      .select({
-        sessionId: rumEvents.sessionId,
-        ts: rumEvents.ts,
-        type: rumEvents.type,
-        name: rumEvents.name,
-        url: rumEvents.url,
-      })
-      .from(rumEvents)
-      .where(
-        and(
-          eq(rumEvents.appId, row.appId),
-          gte(rumEvents.ts, this.since(minutes)),
-          or(
-            eq(rumEvents.type, 'pageview'),
-            names.length ? inArray(rumEvents.name, names) : undefined,
-          ),
-        ),
-      )
-      .limit(FUNNEL_EVENT_CAP);
-    const reached = reachedPerStep(
-      funnel.steps,
-      events.map((e) => ({ ...e, ts: e.ts.getTime() })),
-    );
-    const first = reached[0] ?? 0;
-    return {
-      funnel,
-      steps: funnel.steps.map((s, i) => ({
-        label: s.label || `${s.kind === 'pageview' ? 'Visit' : 'Event'} ${s.match}`,
-        sessions: reached[i]!,
-        conversion: first ? Math.round(((reached[i] ?? 0) / first) * 1000) / 10 : 0,
-        dropOff: i === 0 ? 0 : (reached[i - 1] ?? 0) - (reached[i] ?? 0),
-      })),
-    };
   }
 }

@@ -4,6 +4,13 @@ export const ALERTS_ENDPOINTS = {
   ROTATE_SOURCE: (workspaceId: string, id: string) =>
     `/workspaces/${workspaceId}/alert-sources/${id}/rotate-token`,
   SOURCE: (workspaceId: string, id: string) => `/workspaces/${workspaceId}/alert-sources/${id}`,
+  HEARTBEAT: (workspaceId: string, id: string) =>
+    `/workspaces/${workspaceId}/alert-sources/${id}/heartbeat`,
+  RECEIPTS: (workspaceId: string, id: string) =>
+    `/workspaces/${workspaceId}/alert-sources/${id}/events`,
+  REPLAY: (workspaceId: string, id: string, receiptId: string) =>
+    `/workspaces/${workspaceId}/alert-sources/${id}/events/${receiptId}/replay`,
+  ROUTE_PREVIEW: (workspaceId: string) => `/workspaces/${workspaceId}/alert-routes/preview`,
   ROUTES: (workspaceId: string) => `/workspaces/${workspaceId}/alert-routes`,
   ROUTE: (workspaceId: string, id: string) => `/workspaces/${workspaceId}/alert-routes/${id}`,
   ROUTE_ORDER: (workspaceId: string) => `/workspaces/${workspaceId}/alert-routes/order`,

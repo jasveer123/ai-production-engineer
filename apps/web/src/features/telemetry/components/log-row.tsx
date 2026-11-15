@@ -15,9 +15,11 @@ const LEVEL_VARIANT: Record<string, "destructive" | "warning" | "default"> = {
 
 interface LogRowProps {
   line: LogLine
+  highlight?: boolean
+  actions?: React.ReactNode
 }
 
-export function LogRow({ line }: LogRowProps) {
+export function LogRow({ line, highlight, actions }: LogRowProps) {
   const [open, setOpen] = React.useState(false)
   const details = {
     service: line.service,
@@ -30,7 +32,7 @@ export function LogRow({ line }: LogRowProps) {
   }
 
   return (
-    <li>
+    <li className={cn(highlight && "bg-brand/10")}>
       <button
         type="button"
         aria-expanded={open}
@@ -58,6 +60,7 @@ export function LogRow({ line }: LogRowProps) {
           {JSON.stringify(details, null, 2)}
         </pre>
       )}
+      {open && actions && <div className="mx-3 mb-2 flex flex-wrap gap-2">{actions}</div>}
     </li>
   )
 }

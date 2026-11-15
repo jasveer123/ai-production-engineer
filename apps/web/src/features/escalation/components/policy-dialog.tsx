@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Plus, X } from "lucide-react"
+import { Plus } from "lucide-react"
 import {
   Button,
   Chip,
@@ -16,67 +16,47 @@ import {
   Field,
   Input,
   Spinner,
+  Switch,
 } from "@/components/ui"
-import { useSchedules, useWorkspaceMembers } from "@/features/oncall"
-import { SEVERITIES } from "../constants"
-import { useCreatePolicy, useUpdatePolicy } from "../hooks"
-import type { Policy, TargetRequest } from "../schemas"
+import { REPEAT_OPTIONS, SEVERITIES } from "../constants"
+import {
+  emptyStep,
+  stepsValid,
+  toBranchRequests,
+  toDraftBranches,
+  toDraftSteps,
+  toStepRequests,
+  type DraftBranch,
+  type DraftStep,
+} from "../draft"
+import { useCreatePolicy, useTargetOptions, useUpdatePolicy } from "../hooks"
+import type { Policy } from "../schemas"
+import { BranchEditor } from "./branch-editor"
+import { StepsEditor } from "./steps-editor"
 
 interface PolicyDialogProps {
   workspaceId: string
   policy?: Policy
 }
 
-interface DraftStep {
-  waitMinutes: number
-  targets: string[]
-}
-
-const EVERYONE = "everyone"
-
-const keyOfTarget = (target: Policy["steps"][number]["targets"][number]) =>
-  target.kind === "everyone" ? EVERYONE : `${target.kind}:${target.scheduleId ?? target.userId}`
-
-const toTarget = (key: string): TargetRequest => {
-  if (key === EVERYONE) return { kind: "everyone" }
-  const [kind, id] = key.split(":") as ["schedule" | "user", string]
-  return kind === "schedule" ? { kind, scheduleId: id } : { kind, userId: id }
-}
-
 export function PolicyDialog({ workspaceId, policy }: PolicyDialogProps) {
-  const schedules = useSchedules(workspaceId)
-  const members = useWorkspaceMembers(workspaceId)
+  const options = useTargetOptions(workspaceId)
   const createMutation = useCreatePolicy(workspaceId)
   const updateMutation = useUpdatePolicy(workspaceId)
   const pending = createMutation.isPending || updateMutation.isPending
   const [open, setOpen] = React.useState(false)
   const [name, setName] = React.useState(policy?.name ?? "")
   const [severity, setSeverity] = React.useState<string>(policy?.minSeverity ?? "high")
+  const [isDefault, setIsDefault] = React.useState(policy?.isDefault ?? false)
+  const [repeatCount, setRepeatCount] = React.useState(policy?.repeatCount ?? 0)
   const [steps, setSteps] = React.useState<DraftStep[]>(
-    policy?.steps.map((step) => ({
-      waitMinutes: step.waitMinutes,
-      targets: step.targets.map(keyOfTarget),
-    })) ?? [{ waitMinutes: 0, targets: [] }]
+    policy ? toDraftSteps(policy.steps) : [emptyStep(0)]
   )
-  const options = [
-    { key: EVERYONE, label: "Everyone" },
-    ...(schedules.data ?? []).map((s) => ({
-      key: `schedule:${s.id}`,
-      label: `On call · ${s.name}`,
-    })),
-    ...(members.data ?? []).map((m) => ({ key: `user:${m.userId}`, label: m.name ?? m.email })),
-  ]
-  const valid = name.trim() && steps.every((step) => step.targets.length > 0)
-
-  const patch = (index: number, change: Partial<DraftStep>) =>
-    setSteps((list) => list.map((step, i) => (i === index ? { ...step, ...change } : step)))
-
-  const toggle = (index: number, key: string) => {
-    const current = steps[index]!.targets
-    patch(index, {
-      targets: current.includes(key) ? current.filter((k) => k !== key) : [...current, key],
-    })
-  }
+  const [branches, setBranches] = React.useState<DraftBranch[]>(toDraftBranches(policy))
+  const valid =
+    name.trim() &&
+    stepsValid(steps) &&
+    branches.every((branch) => branch.name.trim() && stepsValid(branch.steps))
 
   const onSubmit = (event: React.FormEvent) => {
     event.preventDefault()
@@ -85,10 +65,10 @@ export function PolicyDialog({ workspaceId, policy }: PolicyDialogProps) {
       name: name.trim(),
       minSeverity: severity,
       enabled: policy?.enabled ?? true,
-      steps: steps.map((step) => ({
-        waitMinutes: step.waitMinutes,
-        targets: step.targets.map(toTarget),
-      })),
+      isDefault,
+      repeatCount,
+      steps: toStepRequests(steps),
+      branches: toBranchRequests(branches),
     }
     const done = { onSuccess: () => setOpen(false) }
     if (policy) updateMutation.mutate({ id: policy.id, body }, done)
@@ -113,8 +93,8 @@ export function PolicyDialog({ workspaceId, policy }: PolicyDialogProps) {
           <DrawerHeader>
             <DrawerTitle>{policy ? "Edit escalation policy" : "New escalation policy"}</DrawerTitle>
             <DrawerDescription>
-              Each step emails people. If nobody acknowledges the incident, the next step runs after
-              its wait.
+              Steps run in order until someone acknowledges. Changes apply to new incidents; running
+              escalations keep the steps they started with.
             </DrawerDescription>
           </DrawerHeader>
           <Field label="Name" htmlFor="policy-name">
@@ -127,7 +107,7 @@ export function PolicyDialog({ workspaceId, policy }: PolicyDialogProps) {
             />
           </Field>
           <div className="grid gap-2">
-            <Eyebrow>Applies to incidents at or above</Eyebrow>
+            <Eyebrow>Escalate incidents at or above</Eyebrow>
             <div className="flex flex-wrap gap-2">
               {SEVERITIES.map((item) => (
                 <Chip key={item} selected={severity === item} onClick={() => setSeverity(item)}>
@@ -136,55 +116,49 @@ export function PolicyDialog({ workspaceId, policy }: PolicyDialogProps) {
               ))}
             </div>
           </div>
-          {steps.map((step, index) => (
-            <div key={index} className="grid gap-3 border border-line p-3">
-              <div className="flex items-center justify-between gap-2">
-                <Eyebrow>Step {index + 1}</Eyebrow>
-                {steps.length > 1 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Remove step ${index + 1}`}
-                    onClick={() => setSteps((list) => list.filter((_, i) => i !== index))}
-                  >
-                    <X />
-                  </Button>
-                )}
-              </div>
-              {index > 0 && (
-                <Field label="Wait before this step (minutes)" htmlFor={`wait-${index}`}>
-                  <Input
-                    id={`wait-${index}`}
-                    type="number"
-                    min={1}
-                    max={1440}
-                    value={step.waitMinutes}
-                    onChange={(e) => patch(index, { waitMinutes: Number(e.target.value) })}
-                  />
-                </Field>
-              )}
-              <div className="flex flex-wrap gap-2">
-                {options.map((option) => (
-                  <Chip
-                    key={option.key}
-                    selected={step.targets.includes(option.key)}
-                    onClick={() => toggle(index, option.key)}
-                  >
-                    {option.label}
-                  </Chip>
-                ))}
-              </div>
+          <label className="flex items-center gap-2 text-sm">
+            <Switch size="sm" checked={isDefault} onCheckedChange={setIsDefault} />
+            Workspace default (used when the alert source does not choose a policy)
+          </label>
+          <div className="grid gap-2">
+            <Eyebrow>If nobody acknowledges after the last step, repeat</Eyebrow>
+            <div className="flex flex-wrap gap-2">
+              {REPEAT_OPTIONS.map((count) => (
+                <Chip
+                  key={count}
+                  selected={repeatCount === count}
+                  onClick={() => setRepeatCount(count)}
+                >
+                  {count === 0 ? "Never" : `${count} time${count === 1 ? "" : "s"}`}
+                </Chip>
+              ))}
             </div>
+          </div>
+          <StepsEditor id="main" steps={steps} options={options} onChange={setSteps} />
+          {branches.map((branch, index) => (
+            <BranchEditor
+              key={index}
+              index={index}
+              branch={branch}
+              options={options}
+              onChange={(next) =>
+                setBranches((list) => list.map((b, i) => (i === index ? next : b)))
+              }
+              onRemove={() => setBranches((list) => list.filter((_, i) => i !== index))}
+            />
           ))}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setSteps((list) => [...list, { waitMinutes: 5, targets: [] }])}
-          >
-            <Plus /> Add step
-          </Button>
+          {branches.length < 5 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                setBranches((list) => [...list, { name: "", when: {}, steps: [emptyStep(0)] }])
+              }
+            >
+              <Plus /> Add conditional branch
+            </Button>
+          )}
           <DrawerFooter>
             <Button type="submit" disabled={!valid || pending}>
               {pending && <Spinner />} Save policy

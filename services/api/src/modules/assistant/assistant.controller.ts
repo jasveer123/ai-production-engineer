@@ -62,6 +62,7 @@ export class AssistantController {
   }
 
   @Delete(':conversationId')
+  @MinRole('engineer')
   @HttpCode(204)
   remove(
     @Actor() actor: ActorContext,

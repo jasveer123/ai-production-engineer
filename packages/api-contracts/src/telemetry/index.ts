@@ -3,5 +3,8 @@ export * from './ingest';
 export * from './live';
 export * from './logs';
 export * from './metrics';
+export * from './metric-alerts';
+export * from './dashboard-templates';
 export * from './errors';
 export * from './rum';
+export * from './explore';

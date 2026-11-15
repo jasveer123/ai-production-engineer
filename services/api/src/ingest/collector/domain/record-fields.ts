@@ -70,22 +70,30 @@ export const ENV_KEYS = [
 export const HOST_KEYS = ['host', 'hostname', 'host.name', 'kubernetes.pod_name', 'pod'];
 export const TRACE_KEYS = ['trace_id', 'traceId', 'trace.id', 'dd.trace_id', 'otelTraceID'];
 export const SPAN_KEYS = ['span_id', 'spanId', 'span.id', 'dd.span_id', 'otelSpanID'];
-export const USED = new Set([
-  ...MESSAGE_KEYS,
-  ...LEVEL_KEYS,
-  ...TIME_KEYS,
-  ...SERVICE_KEYS.slice(0, 5),
-  'source_type',
-  ...ENV_KEYS,
-  'host',
-  'hostname',
-  ...TRACE_KEYS,
-  ...SPAN_KEYS,
-  'exception',
-  'error',
-  'stack',
-  'stacktrace',
-]);
+const FIELD_KEY_LISTS = [
+  MESSAGE_KEYS,
+  LEVEL_KEYS,
+  TIME_KEYS,
+  SERVICE_KEYS.slice(0, 5),
+  ENV_KEYS,
+  ['host', 'hostname'],
+  TRACE_KEYS,
+  SPAN_KEYS,
+];
+const ALWAYS_CONSUMED = ['source_type', 'exception', 'error', 'stack', 'stacktrace'];
+
+// Only the key that actually filled a field is dropped; unused fallbacks (e.g. `status` beside `level`) stay as attributes.
+export function consumedKeys(rec: Record<string, unknown>): Set<string> {
+  const used = new Set(ALWAYS_CONSUMED);
+  for (const keys of FIELD_KEY_LISTS) {
+    const hit = keys.find((k) => {
+      const v = pick(rec, k);
+      return v !== undefined && v !== null && v !== '';
+    });
+    if (hit) used.add(hit);
+  }
+  return used;
+}
 
 export function hexId(v: unknown, len: number): string | null {
   const s = text(v)?.toLowerCase().replace(/-/g, '');

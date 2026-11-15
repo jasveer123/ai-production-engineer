@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { ALERT_QUERY_KEYS } from "../query-keys"
 import { alertsService } from "../services"
-import type { CreateSourceRequest, RouteRequest } from "../schemas"
+import type { CreateSourceRequest, RouteRequest, UpdateSourceRequest } from "../schemas"
 
 function useRefresh(workspaceId: string) {
   const queryClient = useQueryClient()
@@ -70,5 +70,31 @@ export function useReorderRoutes(workspaceId: string) {
   return useMutation({
     mutationFn: (ids: string[]) => alertsService.reorderRoutes(workspaceId, ids),
     onSuccess: refresh,
+  })
+}
+
+export function useUpdateSource(workspaceId: string) {
+  const refresh = useRefresh(workspaceId)
+  return useMutation({
+    meta: { successMessage: "Saved" },
+    mutationFn: ({ id, body }: { id: string; body: UpdateSourceRequest }) =>
+      alertsService.updateSource(workspaceId, id, body),
+    onSuccess: refresh,
+  })
+}
+
+export function useReplayReceipt(workspaceId: string, sourceId: string) {
+  const refresh = useRefresh(workspaceId)
+  return useMutation({
+    meta: { successMessage: "Event queued again" },
+    mutationFn: (receiptId: string) => alertsService.replay(workspaceId, sourceId, receiptId),
+    onSuccess: refresh,
+  })
+}
+
+export function usePreviewRoute(workspaceId: string) {
+  return useMutation({
+    mutationFn: ({ sourceId, payload }: { sourceId: string; payload: unknown }) =>
+      alertsService.previewRoute(workspaceId, sourceId, payload),
   })
 }

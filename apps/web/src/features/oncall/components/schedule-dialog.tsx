@@ -1,11 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { ArrowDown, ArrowUp, Plus } from "lucide-react"
+import { Plus } from "lucide-react"
 import {
   Button,
-  Checkbox,
-  Chip,
   Drawer,
   DrawerContent,
   DrawerDescription,
@@ -13,46 +11,37 @@ import {
   DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
-  Eyebrow,
   Field,
   Input,
   Spinner,
 } from "@/components/ui"
-import { ROTATIONS } from "../constants"
+import { SELECT_CLASS } from "../constants"
 import { useSaveSchedule, useWorkspaceMembers } from "../hooks"
-import { fromLocalInput, toLocalInput } from "../lib"
-import type { Member, Schedule } from "../schemas"
+import { browserTimeZone, layerToRequest, newLayer, timeZones } from "../lib"
+import type { LayerRequest, Schedule } from "../schemas"
+import { LayerEditor } from "./layer-editor"
 
 interface ScheduleDialogProps {
   workspaceId: string
   schedule: Schedule | null
 }
 
-const label = (member: Member) => member.name ?? member.email
-
 export function ScheduleDialog({ workspaceId, schedule }: ScheduleDialogProps) {
   const members = useWorkspaceMembers(workspaceId)
   const save = useSaveSchedule(workspaceId)
+  const zones = React.useMemo(() => timeZones(), [])
   const [open, setOpen] = React.useState(false)
   const [name, setName] = React.useState(schedule?.name ?? "")
-  const [hours, setHours] = React.useState(schedule?.rotationHours ?? 168)
-  const [start, setStart] = React.useState(() =>
-    toLocalInput(new Date(schedule?.anchorAt ?? Date.now()))
+  const [timezone, setTimezone] = React.useState(schedule?.timezone ?? browserTimeZone())
+  const [layers, setLayers] = React.useState<LayerRequest[]>(() =>
+    schedule?.layers.length ? schedule.layers.map(layerToRequest) : [newLayer(0, timezone)]
   )
-  const [selected, setSelected] = React.useState<string[]>(
-    schedule?.participants.map((p) => p.userId) ?? []
-  )
-  const all = members.data ?? []
-  const nameOf = (id: string) => {
-    const member = all.find((m) => m.userId === id)
-    if (member) return label(member)
-    const known = schedule?.participants.find((p) => p.userId === id)
-    return known ? (known.name ?? known.email) : id
-  }
-  const valid = name.trim() && selected.length > 0
+  const valid = name.trim() && layers.every((l) => l.name.trim() && l.participantIds.length > 0)
 
-  const move = (index: number, direction: -1 | 1) =>
-    setSelected((list) => {
+  const updateLayer = (index: number, layer: LayerRequest) =>
+    setLayers((list) => list.map((l, i) => (i === index ? layer : l)))
+  const moveLayer = (index: number, direction: -1 | 1) =>
+    setLayers((list) => {
       const next = [...list]
       ;[next[index], next[index + direction]] = [next[index + direction]!, next[index]!]
       return next
@@ -62,15 +51,7 @@ export function ScheduleDialog({ workspaceId, schedule }: ScheduleDialogProps) {
     event.preventDefault()
     if (!valid) return
     save.mutate(
-      {
-        id: schedule?.id ?? null,
-        body: {
-          name: name.trim(),
-          rotationHours: hours,
-          anchorAt: fromLocalInput(start),
-          participantIds: selected,
-        },
-      },
+      { id: schedule?.id ?? null, body: { name: name.trim(), timezone, layers } },
       { onSuccess: () => setOpen(false) }
     )
   }
@@ -93,8 +74,8 @@ export function ScheduleDialog({ workspaceId, schedule }: ScheduleDialogProps) {
           <DrawerHeader>
             <DrawerTitle>{schedule ? "Edit schedule" : "New schedule"}</DrawerTitle>
             <DrawerDescription>
-              People take turns being on call, in the order below. The first turn starts at the
-              start time.
+              Handovers follow the local clock of the time zone, also across daylight saving
+              changes. Layers higher in the list win where they overlap; swaps beat every layer.
             </DrawerDescription>
           </DrawerHeader>
           <Field label="Name" htmlFor="schedule-name">
@@ -106,88 +87,42 @@ export function ScheduleDialog({ workspaceId, schedule }: ScheduleDialogProps) {
               placeholder="Primary on-call"
             />
           </Field>
-          <div className="grid gap-2">
-            <Eyebrow>Hand over</Eyebrow>
-            <div className="flex flex-wrap gap-2">
-              {ROTATIONS.map((item) => (
-                <Chip
-                  key={item.hours}
-                  type="button"
-                  selected={hours === item.hours}
-                  onClick={() => setHours(item.hours)}
-                >
-                  {item.label}
-                </Chip>
+          <Field label="Time zone" htmlFor="schedule-timezone">
+            <select
+              id="schedule-timezone"
+              className={SELECT_CLASS}
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+            >
+              {(zones.includes(timezone) ? zones : [timezone, ...zones]).map((zone) => (
+                <option key={zone} value={zone}>
+                  {zone}
+                </option>
               ))}
-            </div>
-          </div>
-          <Field label="First turn starts" htmlFor="schedule-start">
-            <Input
-              id="schedule-start"
-              type="datetime-local"
-              value={start}
-              onChange={(e) => setStart(e.target.value)}
-            />
+            </select>
           </Field>
-          <div className="grid gap-2">
-            <Eyebrow>People</Eyebrow>
-            {all.map((member) => (
-              <label key={member.userId} className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={selected.includes(member.userId)}
-                  onCheckedChange={(checked) =>
-                    setSelected((list) =>
-                      checked ? [...list, member.userId] : list.filter((id) => id !== member.userId)
-                    )
-                  }
-                />
-                {label(member)}{" "}
-                <span className="text-[0.75rem] text-muted-foreground">{member.role}</span>
-              </label>
-            ))}
-          </div>
-          {selected.length > 1 && (
-            <div className="grid gap-2">
-              <Eyebrow>Order of turns</Eyebrow>
-              <ol className="grid gap-1">
-                {selected.map((id, index) => (
-                  <li
-                    key={id}
-                    className="flex items-center justify-between gap-2 border border-line px-3 py-1.5 text-sm"
-                  >
-                    <span>
-                      <span className="mr-2 font-mono text-[0.75rem] text-muted-foreground">
-                        {index + 1}
-                      </span>
-                      {nameOf(id)}
-                    </span>
-                    <span className="flex gap-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="Move up"
-                        disabled={index === 0}
-                        onClick={() => move(index, -1)}
-                      >
-                        <ArrowUp />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="Move down"
-                        disabled={index === selected.length - 1}
-                        onClick={() => move(index, 1)}
-                      >
-                        <ArrowDown />
-                      </Button>
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
+          {layers.map((layer, index) => (
+            <LayerEditor
+              key={layer.id}
+              layer={layer}
+              index={index}
+              total={layers.length}
+              members={members.data ?? []}
+              onChange={(next) => updateLayer(index, next)}
+              onMove={(direction) => moveLayer(index, direction)}
+              onRemove={() => setLayers((list) => list.filter((_, i) => i !== index))}
+            />
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-fit"
+            disabled={layers.length >= 10}
+            onClick={() => setLayers((list) => [...list, newLayer(list.length, timezone)])}
+          >
+            <Plus /> Add layer
+          </Button>
           <DrawerFooter>
             <Button type="submit" disabled={!valid || save.isPending}>
               {save.isPending && <Spinner />} Save schedule

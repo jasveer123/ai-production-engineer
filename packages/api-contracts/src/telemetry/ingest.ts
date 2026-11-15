@@ -12,6 +12,9 @@ export const INGEST_PLATFORMS = [
   'fluent-bit',
   'javascript',
   'python',
+  'ubuntu',
+  'aws',
+  'http',
 ] as const;
 export type IngestPlatform = ValueOf<typeof INGEST_PLATFORMS>;
 
@@ -61,4 +64,27 @@ export interface IngestOverview {
   tokens: IngestToken[];
   ways: { way: IngestWay; state: StreamState; lastReceivedAt: IsoTimestamp | null }[];
   streams: IngestStream[];
+}
+
+export type IngestBatchState = 'processing' | 'completed' | 'failed';
+
+export interface IngestBatchView {
+  id: Uuid;
+  route: string;
+  signal: string;
+  idempotencyKey: string | null;
+  state: IngestBatchState;
+  counts: { received: number; accepted: number; rejected: number };
+  sinks: Partial<Record<'logs' | 'spans' | 'errors' | 'points', number>>;
+  rejections: { index: number; code: string }[];
+  error: string | null;
+  createdAt: IsoTimestamp;
+  completedAt: IsoTimestamp | null;
+}
+
+export interface IngestResult {
+  receiptId: string | null;
+  accepted: number;
+  rejected: number;
+  rejections: { index: number; code: string }[];
 }

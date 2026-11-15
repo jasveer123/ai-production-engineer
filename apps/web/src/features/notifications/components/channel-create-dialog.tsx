@@ -48,7 +48,9 @@ export function ChannelCreateDialog({ workspaceId, onCreated }: ChannelCreateDia
           ? { webhookUrl: target.trim() }
           : kind === "sms" || kind === "phone"
             ? { phone: target.trim() }
-            : { url: target.trim() }),
+            : kind === "email"
+              ? { email: target.trim() }
+              : { url: target.trim() }),
         events,
         minSeverity,
       },

@@ -25,6 +25,7 @@ export function SourcesPanel({ workspaceId, canManage, heartbeats }: SourcesPane
     (item) =>
       item.kind !== "monitor" &&
       item.kind !== "log_alert" &&
+      item.kind !== "metric_alert" &&
       (item.kind === "heartbeat") === heartbeats
   )
 
@@ -50,7 +51,7 @@ export function SourcesPanel({ workspaceId, canManage, heartbeats }: SourcesPane
           <TokenSecretNotice token={secret.token} />
           <p className="font-mono text-[0.75rem] break-all text-muted-foreground">
             {secret.kind === "heartbeat"
-              ? `curl -fsS "${secret.url}?token=${secret.token}"`
+              ? `curl -fsS -m 10 --retry 5 -o /dev/null "${secret.url}/${secret.token}"`
               : `Send alerts to ${secret.url} with the header  Authorization: Bearer ${secret.token}`}
           </p>
         </div>
@@ -66,6 +67,7 @@ export function SourcesPanel({ workspaceId, canManage, heartbeats }: SourcesPane
           {items.map((source) => (
             <SourceRow
               key={source.id}
+              workspaceId={workspaceId}
               source={source}
               canManage={canManage}
               pending={pending}

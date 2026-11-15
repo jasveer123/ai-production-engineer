@@ -95,6 +95,7 @@ export function IntegrationConnectPage({ id }: IntegrationConnectPageProps) {
           workspaceId={workspace.id}
           platform={definition.id}
           platformName={definition.name}
+          way={definition.way}
           ingestUrl={overview.ingestUrl}
           tokens={overview.tokens}
           canManage={canManage}

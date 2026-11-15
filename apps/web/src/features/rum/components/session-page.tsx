@@ -16,6 +16,8 @@ function describe(e: { type: string; name: string; url: string | null; value: nu
   if (e.type === "pageview") return `Opened ${pathOf(e.url)}`
   if (e.type === "click") return `Clicked ${e.name}`
   if (e.type === "error") return e.name
+  if (e.type === "network") return `Request failed: ${e.name}`
+  if (e.type === "console") return `Console: ${e.name}`
   if (e.type === "vital")
     return `${e.name} ${e.value === null ? "" : Math.round(e.value * 1000) / 1000}`
   return e.name
@@ -88,7 +90,17 @@ export function RumSessionPage() {
                   className="grid w-full gap-0.5 border border-line px-3 py-2 text-left text-sm hover:bg-panel-2"
                 >
                   <span className="flex items-center gap-2">
-                    <Badge variant={e.type === "error" ? "destructive" : "default"}>{e.type}</Badge>
+                    <Badge
+                      variant={
+                        e.type === "error"
+                          ? "destructive"
+                          : e.type === "network" || e.type === "console"
+                            ? "warning"
+                            : "default"
+                      }
+                    >
+                      {e.type}
+                    </Badge>
                     <span className="min-w-0 truncate">{describe(e)}</span>
                   </span>
                   <span className="font-mono text-[0.6875rem] text-muted-foreground">

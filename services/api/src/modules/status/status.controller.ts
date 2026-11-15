@@ -3,39 +3,46 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   Param,
   ParseUUIDPipe,
   Patch,
   Post,
-  Query,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import {
+  addSubscriberSchema,
   createStatusPageSchema,
-  postUpdateSchema,
-  subscribeSchema,
+  structureSchema,
   updateStatusPageSchema,
+  type AddSubscriberInput,
   type CreateStatusPageInput,
-  type PostUpdateInput,
-  type SubscribeInput,
-  type PublicStatus,
+  type NotificationView,
   type StatusPageView,
+  type StructureParsed,
+  type StructureView,
+  type SubscriberView,
   type UpdateStatusPageInput,
 } from '@ape/api-contracts';
 import { Actor } from '../../core/common/actor.decorator';
 import type { ActorContext } from '../../core/common/request-context';
 import { ZodValidationPipe } from '../../core/common/zod-validation.pipe';
-import { Public } from '../auth/public.decorator';
 import { MinRole } from '../workspaces/min-role.decorator';
 import { WorkspaceAccessGuard } from '../workspaces/workspace-access.guard';
 import { StatusService } from './application/status.service';
+import { StructureService } from './application/structure.service';
 import { SubscribersService } from './application/subscribers.service';
 
-@Controller('workspaces/:workspaceId/status-pages')
+@Controller(['workspaces/:workspaceId/status-pages', 'api/v1/workspaces/:workspaceId/status-pages'])
 @UseGuards(WorkspaceAccessGuard)
 export class StatusController {
-  constructor(private readonly status: StatusService) {}
+  constructor(
+    private readonly status: StatusService,
+    private readonly structure: StructureService,
+    private readonly subscribers: SubscribersService,
+  ) {}
 
   @Get()
   list(@Actor() actor: ActorContext): Promise<StatusPageView[]> {
@@ -49,6 +56,14 @@ export class StatusController {
     @Body(new ZodValidationPipe(createStatusPageSchema)) body: CreateStatusPageInput,
   ): Promise<StatusPageView> {
     return this.status.create(actor, body);
+  }
+
+  @Get(':pageId')
+  get(
+    @Actor() actor: ActorContext,
+    @Param('pageId', ParseUUIDPipe) id: string,
+  ): Promise<StatusPageView> {
+    return this.status.get(actor, id);
   }
 
   @Patch(':pageId')
@@ -68,17 +83,6 @@ export class StatusController {
     return this.status.remove(actor, id);
   }
 
-  @Post(':pageId/updates')
-  @MinRole('engineer')
-  @HttpCode(200)
-  postUpdate(
-    @Actor() actor: ActorContext,
-    @Param('pageId', ParseUUIDPipe) id: string,
-    @Body(new ZodValidationPipe(postUpdateSchema)) body: PostUpdateInput,
-  ): Promise<StatusPageView> {
-    return this.status.postUpdate(actor, id, body);
-  }
-
   @Post(':pageId/verify-domain')
   @MinRole('admin')
   @HttpCode(200)
@@ -89,57 +93,74 @@ export class StatusController {
     return this.status.verifyDomain(actor, id);
   }
 
-  @Delete(':pageId/updates/:updateId')
-  @MinRole('engineer')
-  @HttpCode(204)
-  removeUpdate(
+  @Get(':pageId/structure')
+  async getStructure(
     @Actor() actor: ActorContext,
     @Param('pageId', ParseUUIDPipe) id: string,
-    @Param('updateId', ParseUUIDPipe) updateId: string,
-  ): Promise<void> {
-    return this.status.removeUpdate(actor, id, updateId);
-  }
-}
-
-@Controller('public/status')
-export class PublicStatusController {
-  constructor(
-    private readonly status: StatusService,
-    private readonly subscribers: SubscribersService,
-  ) {}
-
-  @Public()
-  @Get('domain/:host')
-  byDomain(@Param('host') host: string): Promise<PublicStatus> {
-    return this.status.publicByDomain(host);
+  ): Promise<StructureView> {
+    return this.structure.view(await this.status.find(actor, id));
   }
 
-  @Public()
-  @Get('subscriptions/confirm')
-  confirm(@Query('token') token: string): Promise<{ page: string }> {
-    return this.subscribers.confirm(token ?? '');
+  @Put(':pageId/structure')
+  @MinRole('admin')
+  async saveStructure(
+    @Actor() actor: ActorContext,
+    @Param('pageId', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(structureSchema)) body: StructureParsed,
+  ): Promise<StructureView> {
+    const page = await this.status.find(actor, id);
+    await this.structure.save(page, body);
+    return this.structure.view(page);
   }
 
-  @Public()
-  @Get('subscriptions/unsubscribe')
-  unsubscribe(@Query('token') token: string): Promise<{ page: string }> {
-    return this.subscribers.unsubscribe(token ?? '');
+  @Get(':pageId/subscribers')
+  @MinRole('admin')
+  async listSubscribers(
+    @Actor() actor: ActorContext,
+    @Param('pageId', ParseUUIDPipe) id: string,
+  ): Promise<SubscriberView[]> {
+    return this.subscribers.list((await this.status.find(actor, id)).id);
   }
 
-  @Public()
-  @Post(':slug/subscribe')
+  @Get(':pageId/subscribers.csv')
+  @MinRole('admin')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="subscribers.csv"')
+  async exportSubscribers(
+    @Actor() actor: ActorContext,
+    @Param('pageId', ParseUUIDPipe) id: string,
+  ): Promise<string> {
+    return this.subscribers.csv((await this.status.find(actor, id)).id);
+  }
+
+  @Post(':pageId/subscribers')
+  @MinRole('admin')
   @HttpCode(202)
-  async subscribe(
-    @Param('slug') slug: string,
-    @Body(new ZodValidationPipe(subscribeSchema)) body: SubscribeInput,
+  async addSubscriber(
+    @Actor() actor: ActorContext,
+    @Param('pageId', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(addSubscriberSchema)) body: AddSubscriberInput,
   ): Promise<{ ok: true }> {
-    await this.subscribers.subscribe(slug.toLowerCase(), body.email);
+    await this.subscribers.enroll(await this.status.find(actor, id), body.email);
     return { ok: true };
   }
 
-  @Public()
-  @Get(':slug')
-  view(@Param('slug') slug: string): Promise<PublicStatus> {
-    return this.status.publicView(slug.toLowerCase());
+  @Delete(':pageId/subscribers/:subscriberId')
+  @MinRole('admin')
+  @HttpCode(204)
+  async removeSubscriber(
+    @Actor() actor: ActorContext,
+    @Param('pageId', ParseUUIDPipe) id: string,
+    @Param('subscriberId', ParseUUIDPipe) subscriberId: string,
+  ): Promise<void> {
+    await this.subscribers.remove((await this.status.find(actor, id)).id, subscriberId);
+  }
+
+  @Get(':pageId/notifications')
+  async notifications(
+    @Actor() actor: ActorContext,
+    @Param('pageId', ParseUUIDPipe) id: string,
+  ): Promise<NotificationView[]> {
+    return this.subscribers.notifications((await this.status.find(actor, id)).id);
   }
 }

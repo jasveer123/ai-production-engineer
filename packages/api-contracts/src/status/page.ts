@@ -3,8 +3,10 @@ import { nameSchema, uuidSchema, type IsoTimestamp, type Uuid } from '../common'
 
 export const MAX_COMPONENTS = 30;
 export const HISTORY_DAYS = 90;
-export const UPDATE_STATES = ['investigating', 'identified', 'monitoring', 'resolved'] as const;
-export type UpdateState = (typeof UPDATE_STATES)[number];
+export const PAGE_THEMES = ['system', 'light', 'dark'] as const;
+export const HEADER_LAYOUTS = ['logo_and_name', 'logo_only', 'name_only'] as const;
+export type PageTheme = (typeof PAGE_THEMES)[number];
+export type HeaderLayout = (typeof HEADER_LAYOUTS)[number];
 
 export const slugSchema = z
   .string()
@@ -13,6 +15,13 @@ export const slugSchema = z
   .min(3)
   .max(40)
   .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Use lowercase letters, numbers and single dashes');
+
+export const webUrlSchema = z
+  .string()
+  .trim()
+  .max(500)
+  .url()
+  .regex(/^https?:\/\//i, 'Use an http or https address');
 
 export const createStatusPageSchema = z.object({
   name: nameSchema(80),
@@ -27,61 +36,47 @@ export const domainSchema = z
   .trim()
   .toLowerCase()
   .max(253)
-  .regex(/^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/, 'Enter a domain like status.example.com');
+  .regex(
+    /^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/,
+    'Enter a domain like status.example.com',
+  );
 
-export const subscribeSchema = z.object({ email: z.string().trim().toLowerCase().email().max(254) });
+export const subscribeSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+});
 export type SubscribeInput = z.infer<typeof subscribeSchema>;
 
 export const updateStatusPageSchema = z.object({
   name: nameSchema(80).optional(),
+  slug: slugSchema.optional(),
   description: z.string().trim().max(300).nullable().optional(),
   monitorIds: z.array(uuidSchema).max(MAX_COMPONENTS).optional(),
   customDomain: domainSchema.nullable().optional(),
+  logoUrl: webUrlSchema.nullable().optional(),
+  logoDarkUrl: webUrlSchema.nullable().optional(),
+  homepageUrl: webUrlSchema.nullable().optional(),
+  contactUrl: webUrlSchema.nullable().optional(),
+  theme: z.enum(PAGE_THEMES).optional(),
+  headerLayout: z.enum(HEADER_LAYOUTS).optional(),
+  password: z.string().min(8).max(200).nullable().optional(),
+  hideFromSearch: z.boolean().optional(),
 });
 export type UpdateStatusPageInput = z.infer<typeof updateStatusPageSchema>;
 
-export const postUpdateSchema = z.object({
-  title: nameSchema(120),
-  body: z.string().trim().max(2000).default(''),
-  state: z.enum(UPDATE_STATES),
-});
-export type PostUpdateInput = z.input<typeof postUpdateSchema>;
+export const pageAccessSchema = z.object({ password: z.string().min(1).max(200) });
+export type PageAccessInput = z.infer<typeof pageAccessSchema>;
 
-export type OverallStatus = 'operational' | 'degraded' | 'outage';
-export type ComponentState = 'up' | 'down' | 'pending';
-
-export interface StatusDay {
-  date: string;
-  uptime: number | null;
+export interface PageBranding {
+  logoUrl: string | null;
+  logoDarkUrl: string | null;
+  homepageUrl: string | null;
+  contactUrl: string | null;
+  theme: PageTheme;
+  headerLayout: HeaderLayout;
+  hideFromSearch: boolean;
 }
 
-export interface StatusComponent {
-  name: string;
-  state: ComponentState;
-  uptime: number | null;
-  days: StatusDay[];
-}
-
-export interface StatusUpdateView {
-  id: Uuid;
-  title: string;
-  body: string;
-  state: UpdateState;
-  auto: boolean;
-  createdAt: IsoTimestamp;
-}
-
-export interface PublicStatus {
-  slug: string;
-  name: string;
-  description: string | null;
-  overall: OverallStatus;
-  components: StatusComponent[];
-  updates: StatusUpdateView[];
-  generatedAt: IsoTimestamp;
-}
-
-export interface StatusPageView {
+export interface StatusPageView extends PageBranding {
   id: Uuid;
   name: string;
   slug: string;
@@ -90,7 +85,9 @@ export interface StatusPageView {
   customDomain: string | null;
   domainToken: string | null;
   domainVerified: boolean;
+  cnameTarget: string;
+  isPrivate: boolean;
   subscribers: number;
-  updates: StatusUpdateView[];
+  openReports: number;
   createdAt: IsoTimestamp;
 }

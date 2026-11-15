@@ -46,6 +46,11 @@ describe('Real user monitoring (e2e)', () => {
       await owner.post(`/workspaces/${ws}/rum/apps`).send({ name: 'Shop' }).expect(201)
     ).body as RumAppView;
     expect(rumApp.appKey).toMatch(/^rum_[a-f0-9]{24}$/);
+    // Replay is opt-in per app and masks text by default; this app opts out of masking.
+    await owner
+      .patch(`/workspaces/${ws}/rum/apps/${rumApp.id}`)
+      .send({ replayEnabled: true, maskAllText: false })
+      .expect(200);
 
     await request(app.getHttpServer())
       .options(`/v1/rum/${rumApp.appKey}`)

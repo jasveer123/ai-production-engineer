@@ -1,5 +1,5 @@
 import { Controller, HttpStatus, Post, Req, Res } from '@nestjs/common';
-import type { IngestWay } from '@ape/api-contracts';
+import type { IngestResult, IngestWay } from '@ape/api-contracts';
 import type { Request, Response } from 'express';
 import { Public } from '../../modules/auth/public.decorator';
 import { ApiException } from '../../core/common/errors';
@@ -11,13 +11,17 @@ import {
   type Defaults,
 } from './domain/formats';
 import { IngestTokensService } from './application/ingest-tokens.service';
-import { prometheusToPoints } from './domain/prometheus';
+import { prometheusTextToBatch, prometheusToBatch } from './domain/prometheus';
+import { jsonMetricsToBatch } from './domain/json-metrics';
+import { metricsToBatch, otlpPartialSuccess } from './domain/otlp-metrics';
+import { Writer } from './domain/protobuf-writer';
+import { acceptedOf, type ReceiptOptions } from './application/ingest-receipts.service';
 import { snappyDecode } from './domain/snappy';
-import { logsToBatch, metricsToBatch, tracesToBatch } from './domain/otlp';
+import { logsToBatch, tracesToBatch } from './domain/otlp';
 import { decodeLogs, decodeMetrics, decodeTraces } from './domain/protobuf';
 import { logplexToBatch } from './domain/syslog-format';
 import { TelemetryStore } from './application/telemetry-store.service';
-import { emptyBatch, type Batch } from './domain/types';
+import type { Batch } from './domain/types';
 
 export function ingestTokenOf(req: Request): string | null {
   const auth = req.header('authorization');
@@ -65,6 +69,8 @@ export class CollectorController {
   ) {}
 
   private async workspace(req: Request): Promise<string> {
+    const cached = (req as Request & { apeWorkspace?: string }).apeWorkspace;
+    if (cached) return cached;
     const ws = await this.tokens.resolve(ingestTokenOf(req));
     if (!ws)
       throw new ApiException(
@@ -72,6 +78,7 @@ export class CollectorController {
         'invalid_token',
         'Missing or unknown ingest token',
       );
+    (req as Request & { apeWorkspace?: string }).apeWorkspace = ws;
     return ws;
   }
 
@@ -106,32 +113,68 @@ export class CollectorController {
     return { service: q(req, 'service'), environment: q(req, 'env') ?? q(req, 'environment') };
   }
 
-  private otlpOk(req: Request, res: Response): void {
-    if (isProtobuf(req)) res.status(200).type('application/x-protobuf').send(Buffer.alloc(0));
-    else res.status(200).json({ partialSuccess: {} });
+  private opts(req: Request, route: string, signal: ReceiptOptions['signal']): ReceiptOptions {
+    const key =
+      req.header('idempotency-key') ?? req.header('x-batch-id') ?? q(req, 'batch_id') ?? null;
+    return { route, signal, idempotencyKey: key?.trim() || null };
+  }
+
+  private async otlp(req: Request, res: Response, batch: Batch, opts: ReceiptOptions) {
+    const ws = await this.workspace(req);
+    const written = await this.store.write(ws, batch, opts);
+    if (written.receiptId) res.setHeader('x-ape-receipt-id', written.receiptId);
+    const outcome = otlpPartialSuccess(opts.signal, batch);
+    if (isProtobuf(req)) {
+      const body = outcome
+        ? new Writer()
+            .message(1, new Writer().uint(1, batch.rejected).string(2, outcome.errorMessage))
+            .finish()
+        : Buffer.alloc(0);
+      res.status(200).type('application/x-protobuf').send(Buffer.from(body));
+    } else res.status(200).json({ partialSuccess: outcome ?? {} });
+  }
+
+  private async custom(req: Request, res: Response, batch: Batch, opts: ReceiptOptions) {
+    const ws = await this.workspace(req);
+    const written = await this.store.write(ws, batch, opts);
+    const result: IngestResult & { stored: number; errors: number } = {
+      receiptId: written.receiptId,
+      accepted: acceptedOf(batch),
+      rejected: batch.rejected,
+      rejections: batch.rejections,
+      stored: opts.signal === 'logs' ? written.logs : batch.points.length,
+      errors: batch.errors.length,
+    };
+    res.status(202).json(result);
   }
 
   @Public()
   @Post('traces')
   async traces(@Req() req: Request, @Res() res: Response): Promise<void> {
-    const ws = await this.workspace(req);
-    const way = wayOf(req, 'otlp');
+    await this.workspace(req);
     const batch = this.decode(() =>
       tracesToBatch(
         (isProtobuf(req) ? decodeTraces(this.body(req)) : this.json(req)) as Parameters<
           typeof tracesToBatch
         >[0],
-        way,
+        wayOf(req, 'otlp'),
       ),
     );
-    await this.store.write(ws, batch);
-    this.otlpOk(req, res);
+    await this.otlp(req, res, batch, this.opts(req, 'otlp', 'traces'));
   }
 
   @Public()
   @Post('metrics')
   async metrics(@Req() req: Request, @Res() res: Response): Promise<void> {
-    const ws = await this.workspace(req);
+    await this.workspace(req);
+    const text = isProtobuf(req) ? '' : this.body(req).toString('utf8');
+    if (/text\/plain|openmetrics/i.test(req.header('content-type') ?? ''))
+      return this.prometheusPush(req, res);
+    if (/^\s*\[/.test(text) || /^\s*\{\s*"name"/.test(text)) {
+      const batch = this.plain(() => jsonMetricsToBatch(text, this.defaults(req)));
+      batch.way = wayOf(req, 'http');
+      return this.custom(req, res, batch, this.opts(req, 'http', 'metrics'));
+    }
     const batch = this.decode(() =>
       metricsToBatch(
         (isProtobuf(req) ? decodeMetrics(this.body(req)) : this.json(req)) as Parameters<
@@ -140,8 +183,7 @@ export class CollectorController {
       ),
     );
     batch.way = wayOf(req, 'otlp');
-    await this.store.write(ws, batch);
-    this.otlpOk(req, res);
+    await this.otlp(req, res, batch, this.opts(req, 'otlp', 'metrics'));
   }
 
   @Public()
@@ -151,17 +193,31 @@ export class CollectorController {
     const batch = this.decode(() => {
       const raw = this.body(req);
       const encoding = (req.header('content-encoding') ?? 'snappy').toLowerCase();
-      const buf = encoding === 'snappy' ? snappyDecode(raw) : raw;
-      return { ...emptyBatch('http'), points: prometheusToPoints(buf) };
+      return prometheusToBatch(encoding === 'snappy' ? snappyDecode(raw) : raw);
     });
-    await this.store.write(ws, batch);
+    const written = await this.store.write(
+      ws,
+      batch,
+      this.opts(req, 'prometheus_write', 'metrics'),
+    );
+    if (written.receiptId) res.setHeader('x-ape-receipt-id', written.receiptId);
+    if (batch.rejected > 0 && batch.points.length === 0)
+      throw new ApiException(HttpStatus.BAD_REQUEST, 'invalid_body', batch.rejectReason ?? '');
     res.status(204).send();
+  }
+
+  @Public()
+  @Post('prometheus/push')
+  async prometheusPush(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.workspace(req);
+    const batch = prometheusTextToBatch(this.body(req).toString('utf8'));
+    await this.custom(req, res, batch, this.opts(req, 'prometheus_push', 'metrics'));
   }
 
   @Public()
   @Post('logs')
   async logs(@Req() req: Request, @Res() res: Response): Promise<void> {
-    const ws = await this.workspace(req);
+    await this.workspace(req);
     if (isProtobuf(req)) {
       const batch = this.decode(() =>
         logsToBatch(
@@ -169,22 +225,17 @@ export class CollectorController {
           wayOf(req, 'otlp'),
         ),
       );
-      await this.store.write(ws, batch);
-      return this.otlpOk(req, res);
+      return this.otlp(req, res, batch, this.opts(req, 'otlp', 'logs'));
     }
     const text = this.body(req).toString('utf8');
     if (/^\s*\{\s*"resourceLogs"/.test(text)) {
       const batch = this.decode(() =>
         logsToBatch(this.json(req) as Parameters<typeof logsToBatch>[0], wayOf(req, 'otlp')),
       );
-      await this.store.write(ws, batch);
-      return this.otlpOk(req, res);
+      return this.otlp(req, res, batch, this.opts(req, 'otlp', 'logs'));
     }
     const batch = this.plain(() => jsonLogsToBatch(text, wayOf(req, 'http'), this.defaults(req)));
-    const written = await this.store.write(ws, batch);
-    res
-      .status(202)
-      .json({ accepted: batch.logs.length, stored: written.logs, errors: batch.errors.length });
+    await this.custom(req, res, batch, this.opts(req, 'http', 'logs'));
   }
 
   @Public()
@@ -195,8 +246,8 @@ export class CollectorController {
       sdkErrorsToBatch(this.body(req).toString('utf8'), this.defaults(req)),
     );
     batch.way = wayOf(req, 'http');
-    await this.store.write(ws, batch);
-    res.status(202).json({ accepted: batch.errors.length });
+    const written = await this.store.write(ws, batch, this.opts(req, 'http', 'errors'));
+    res.status(202).json({ accepted: batch.errors.length, receiptId: written.receiptId });
   }
 
   @Public()
@@ -211,7 +262,7 @@ export class CollectorController {
       const batch = this.plain(() =>
         logplexToBatch(text, req.header('logplex-frame-id') ?? null, this.defaults(req)),
       );
-      await this.store.write(ws, batch);
+      await this.store.write(ws, batch, this.opts(req, 'logplex', 'logs'));
 
       res.status(204).setHeader('Content-Length', '0');
       res.end();
@@ -219,7 +270,7 @@ export class CollectorController {
     }
     const batch = this.plain(() => vercelToBatch(text, this.defaults(req)));
     batch.way = wayOf(req, 'drain');
-    await this.store.write(ws, batch);
+    await this.store.write(ws, batch, this.opts(req, 'drain', 'logs'));
     res.status(200).json({ accepted: batch.logs.length });
   }
 

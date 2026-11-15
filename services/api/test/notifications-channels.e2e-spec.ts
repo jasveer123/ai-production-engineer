@@ -1,7 +1,7 @@
 import { createServer, type IncomingHttpHeaders, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { INestApplication } from '@nestjs/common';
-import type { NotificationChannel, NotificationDelivery } from '@ape/api-contracts';
+import type { DeliveryAttemptView, NotificationChannel } from '@ape/api-contracts';
 import type { App } from 'supertest/types';
 import { OutboxPublisher } from '../src/core/temporal/outbox-publisher.service';
 import { TemporalService } from '../src/core/temporal/temporal.service';
@@ -92,7 +92,8 @@ describe('SMS, phone and push channels (e2e)', () => {
     expect(push.body).toContain('Checkout');
 
     const deliveries = (await owner.get(`/workspaces/${ws}/notifications/deliveries`).expect(200))
-      .body as NotificationDelivery[];
-    expect(deliveries.map((d) => d.status)).toEqual(['sent', 'sent', 'sent']);
+      .body as DeliveryAttemptView[];
+    expect(deliveries).toHaveLength(3);
+    for (const d of deliveries) expect(['delivered', 'provider_accepted']).toContain(d.state);
   });
 });

@@ -3,11 +3,13 @@
 import * as React from "react"
 import Link from "next/link"
 import { Video } from "lucide-react"
-import { Badge, Chip, Input, Spinner } from "@/components/ui"
+import { Badge, Spinner } from "@/components/ui"
 import { ROUTES } from "@/lib/constants/routes"
 import { formatRelativeTime } from "@/lib/format/relative-time"
 import { useRumSessions } from "../hooks"
 import { formatDuration, pathOf, whoIs } from "../lib"
+import type { SessionFilters as Filters } from "../schemas"
+import { SessionFilters } from "./session-filters"
 
 interface SessionsPanelProps {
   workspaceId: string
@@ -17,24 +19,29 @@ interface SessionsPanelProps {
 }
 
 export function SessionsPanel({ workspaceId, appId, minutes, userId }: SessionsPanelProps) {
-  const [hasErrors, setHasErrors] = React.useState(false)
-  const [q, setQ] = React.useState("")
-  const sessions = useRumSessions(workspaceId, { appId, minutes, hasErrors, q: q.trim(), userId })
+  const [filters, setFilters] = React.useState<Filters>({
+    appId,
+    minutes,
+    hasErrors: false,
+    q: "",
+    browser: "",
+    device: "",
+    country: "",
+    minSeconds: 0,
+  })
+  const query = {
+    ...filters,
+    q: filters.q.trim(),
+    browser: filters.browser.trim(),
+    appId,
+    minutes,
+    userId,
+  }
+  const sessions = useRumSessions(workspaceId, query)
 
   return (
     <div className="grid gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Chip selected={hasErrors} onClick={() => setHasErrors((v) => !v)}>
-          Only sessions with errors
-        </Chip>
-        <Input
-          aria-label="Search sessions"
-          className="w-64"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search by user or page"
-        />
-      </div>
+      <SessionFilters value={filters} onChange={setFilters} />
       {sessions.isPending ? (
         <Spinner className="size-5" />
       ) : (sessions.data ?? []).length === 0 ? (
@@ -63,6 +70,8 @@ export function SessionsPanel({ workspaceId, appId, minutes, userId }: SessionsP
                 <p className="text-[0.8125rem] text-muted-foreground">
                   {pathOf(s.entryUrl)} · {s.pageViews} pages · {s.clicks} clicks ·{" "}
                   {formatDuration(s.durationSeconds)} · {s.browser ?? "browser"} on {s.os ?? "?"} ·{" "}
+                  {s.country ? `${s.country} · ` : ""}
+                  {s.droppedEvents > 0 ? `${s.droppedEvents} events lost · ` : ""}
                   {formatRelativeTime(s.lastSeenAt)}
                 </p>
               </Link>

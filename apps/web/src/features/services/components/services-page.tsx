@@ -8,6 +8,7 @@ import type { StatusFilter } from "../constants"
 import { useBusinessImpact, useRegisteredServices, useServiceSummary } from "../hooks"
 import { buildServiceRows } from "../lib"
 import { ServicesFilters } from "./services-filters"
+import { ServiceMapSection } from "./service-map-section"
 import { ServicesKpis } from "./services-kpis"
 import { ServicesTable } from "./services-table"
 
@@ -74,6 +75,7 @@ export function ServicesPage() {
       ) : (
         <ServicesTable workspaceId={workspace.id} rows={visible} canManage={canManage} />
       )}
+      <ServiceMapSection workspaceId={workspace.id} />
     </div>
   )
 }

@@ -25,4 +25,14 @@ export const INCIDENT_QUERY_KEYS = {
   fixes: (workspaceId: string, id: string) => ["incidents", workspaceId, "fixes", id],
   verification: (workspaceId: string, id: string) => ["incidents", workspaceId, "verification", id],
   pullRequests: (workspaceId: string) => ["incidents", workspaceId, "pull-requests"],
+  filtered: (workspaceId: string, filters: object) => [
+    "incidents",
+    workspaceId,
+    "filtered",
+    filters,
+  ],
+  activity: (workspaceId: string, id: string) => ["incidents", workspaceId, "activity", id],
+  context: (workspaceId: string, id: string) => ["incidents", workspaceId, "context", id],
+  policies: (workspaceId: string) => ["incidents", workspaceId, "policies"],
+  members: (workspaceId: string) => ["incidents", workspaceId, "members"],
 } as const

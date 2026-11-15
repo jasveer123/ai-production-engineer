@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq, gte, sql } from 'drizzle-orm';
 import type {
   CreateDashboardInput,
+  DashboardVariable,
   DashboardView,
   DashboardWidget,
   MetricAgg,
@@ -17,6 +18,8 @@ import type { ActorContext } from '../../../core/common/request-context';
 import { DB } from '../../../core/db/database.module';
 import type { Database } from '../../../core/db/client';
 import { dashboards, metricPoints } from '../../../core/db/schema';
+import type { Grid } from '../domain/series-engine';
+import { MetricQueryService } from './metric-query.service';
 
 type DashboardRow = typeof dashboards.$inferSelect;
 
@@ -30,13 +33,31 @@ const NAMES_WINDOW_MS = 7 * 24 * 3600 * 1000;
 const toView = (row: DashboardRow): DashboardView => ({
   id: row.id,
   name: row.name,
-  widgets: row.widgets as unknown as DashboardWidget[],
+  widgets: (row.widgets as unknown as DashboardWidget[]).map((w) => ({
+    ...w,
+    chart: w.chart ?? 'line',
+  })),
+  variables: row.variables as unknown as DashboardVariable[],
   createdAt: row.createdAt.toISOString(),
 });
 
+interface SeriesQuery {
+  name: string;
+  agg: MetricAgg;
+  minutes: number;
+  service?: string;
+  groupBy?: string;
+  filters?: string;
+  from?: string;
+  to?: string;
+}
+
 @Injectable()
 export class MetricsService {
-  constructor(@Inject(DB) private readonly db: Database) {}
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    private readonly query: MetricQueryService,
+  ) {}
 
   async names(actor: ActorContext): Promise<MetricName[]> {
     const since = new Date(Date.now() - NAMES_WINDOW_MS);
@@ -75,98 +96,33 @@ export class MetricsService {
     return [...byKey].slice(0, MAX_LABEL_KEYS).map(([key, values]) => ({ key, values }));
   }
 
-  private conditions(
-    actor: ActorContext,
-    q: { name: string; service?: string; filters?: string },
-    from: Date,
-  ) {
-    const filters = (q.filters ?? '')
-      .split(',')
-      .map((pair) => pair.split('='))
-      .filter((p): p is [string, string] => p.length === 2 && Boolean(p[0]?.trim()))
-      .slice(0, 5);
-    return and(
-      eq(metricPoints.workspaceId, actor.workspaceId),
-      eq(metricPoints.name, q.name),
-      gte(metricPoints.ts, from),
-      q.service ? eq(metricPoints.service, q.service) : undefined,
-      ...filters.map(([k, v]) =>
-        k.trim() === 'service'
-          ? eq(metricPoints.service, v.trim())
-          : k.trim() === 'environment'
-            ? eq(metricPoints.environment, v.trim())
-            : sql`${metricPoints.attributes}->>${k.trim()} = ${v.trim()}`,
-      ),
-    );
-  }
-
-  async series(
-    actor: ActorContext,
-    q: {
-      name: string;
-      agg: MetricAgg;
-      minutes: number;
-      service?: string;
-      groupBy?: string;
-      filters?: string;
-    },
-    now = new Date(),
-  ): Promise<MetricSeries> {
-    const windowMs = q.minutes * 60_000;
-    const from = new Date(now.getTime() - windowMs);
-    const bucketSec = windowMs / BUCKETS / 1000;
-    const bucket = sql<number>`least(${BUCKETS - 1}, floor(extract(epoch from (${metricPoints.ts} - ${from.toISOString()}::timestamptz)) / ${bucketSec}))::int`;
-    const value: Record<MetricAgg, ReturnType<typeof sql<number>>> = {
-      avg: sql<number>`avg(${metricPoints.value})`,
-      max: sql<number>`max(${metricPoints.value})`,
-      min: sql<number>`min(${metricPoints.value})`,
-      sum: sql<number>`sum(${metricPoints.value})`,
-      count: sql<number>`count(*)`,
-      rate: sql<number>`greatest(0, max(${metricPoints.value}) - min(${metricPoints.value})) / ${bucketSec}`,
+  async series(actor: ActorContext, q: SeriesQuery, now = new Date()): Promise<MetricSeries> {
+    const to = q.to ? new Date(q.to) : now;
+    const from = q.from ? new Date(q.from) : new Date(to.getTime() - q.minutes * 60_000);
+    const grid: Grid = {
+      from: from.getTime(),
+      bucketMs: Math.max(1000, (to.getTime() - from.getTime()) / BUCKETS),
+      buckets: BUCKETS,
     };
-    const where = this.conditions(actor, q, from);
-    const fill = (rows: { bucket: number; value: number }[]): MetricBucket[] => {
-      const byIndex = new Map(rows.map((r) => [r.bucket, Number(r.value)]));
-      return Array.from({ length: BUCKETS }, (_, i) => ({
-        at: new Date(from.getTime() + i * bucketSec * 1000).toISOString(),
-        value: byIndex.get(i) ?? null,
+    const result = await this.query.run(actor.workspaceId, { ...q, metric: q.name }, grid);
+    const fill = (values: (number | null)[] | undefined): MetricBucket[] =>
+      Array.from({ length: BUCKETS }, (_, i) => ({
+        at: new Date(grid.from + i * grid.bucketMs).toISOString(),
+        value: values?.[i] ?? null,
       }));
-    };
-    const rows = await this.db
-      .select({
-        bucket,
-        value: value[q.agg],
-        unit: sql<string | null>`max(${metricPoints.unit})`,
-      })
-      .from(metricPoints)
-      .where(where)
-      .groupBy(sql`1`);
-    const result: MetricSeries = {
+    const series: MetricSeries = {
       name: q.name,
       agg: q.agg,
-      unit: rows[0]?.unit ?? null,
-      buckets: fill(rows),
+      unit: result.unit,
+      buckets: fill(result.total),
+      ...(result.truncated ? { truncated: true } : {}),
     };
-    if (q.groupBy) {
-      const key = q.groupBy;
-      const groupExpr =
-        key === 'service'
-          ? sql<string>`${metricPoints.service}`
-          : key === 'environment'
-            ? sql<string>`${metricPoints.environment}`
-            : sql<string>`coalesce(${metricPoints.attributes}->>${key}, '(none)')`;
-      const grouped = await this.db
-        .select({ bucket, group: groupExpr, value: value[q.agg] })
-        .from(metricPoints)
-        .where(where)
-        .groupBy(sql`1`, sql`2`);
-      const names = [...new Set(grouped.map((g) => g.group))].sort().slice(0, MAX_GROUPS);
-      result.groups = names.map((group) => ({
-        key: group,
-        buckets: fill(grouped.filter((g) => g.group === group)),
-      }));
-    }
-    return result;
+    if (q.groupBy)
+      series.groups = [...result.groups.keys()]
+        .sort()
+        .slice(0, MAX_GROUPS)
+        .map((key) => ({ key, buckets: fill(result.groups.get(key)) }));
+    return series;
   }
 
   async listDashboards(actor: ActorContext): Promise<DashboardView[]> {
@@ -185,6 +141,7 @@ export class MetricsService {
         workspaceId: actor.workspaceId,
         name: input.name,
         widgets: input.widgets ?? [],
+        variables: input.variables ?? [],
         createdBy: actor.userId,
       })
       .returning();
@@ -201,6 +158,7 @@ export class MetricsService {
       .set({
         ...(input.name ? { name: input.name } : {}),
         ...(input.widgets ? { widgets: input.widgets } : {}),
+        ...(input.variables ? { variables: input.variables } : {}),
       })
       .where(and(eq(dashboards.id, id), eq(dashboards.workspaceId, actor.workspaceId)))
       .returning();

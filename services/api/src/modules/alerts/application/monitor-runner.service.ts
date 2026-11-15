@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ENV, type ApiEnv } from '../../../core/config/config.module';
 import { LogAlertsService } from './log-alerts.service';
+import { MonitorExecutor } from './monitor-executor.service';
 import { MonitorsService } from './monitors.service';
 
 const PURGE_EVERY_MS = 60 * 60 * 1000;
@@ -20,6 +21,7 @@ export class MonitorRunner implements OnApplicationBootstrap, OnApplicationShutd
   constructor(
     @Inject(ENV) private readonly env: ApiEnv,
     private readonly monitors: MonitorsService,
+    private readonly executor: MonitorExecutor,
     private readonly logAlerts: LogAlertsService,
   ) {}
 
@@ -43,7 +45,9 @@ export class MonitorRunner implements OnApplicationBootstrap, OnApplicationShutd
     if (this.running) return;
     this.running = true;
     try {
-      await this.monitors.runDue();
+      await this.executor.runDue();
+      // Expiry lookups are slow (TLS, RDAP); claiming moves their next run forward, so they may overlap ticks.
+      void this.executor.runExpiryChecks().catch((err: unknown) => this.logger.error(err));
       await this.logAlerts.runDue();
     } catch (err) {
       this.logger.error(err);

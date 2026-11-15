@@ -56,6 +56,7 @@ export const outbox = pgTable(
     nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
     publishedAt: timestamp('published_at', { withTimezone: true }),
     lastError: text('last_error'),
+    leaseOwner: text('lease_owner'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

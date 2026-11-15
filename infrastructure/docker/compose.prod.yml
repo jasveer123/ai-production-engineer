@@ -95,16 +95,24 @@ services:
       timeout: 3s
       retries: 10
 
-  # Stage 1 uses the single-node dev server persisted on the data volume. Stage 2 moves
-  # Temporal to a Postgres-backed deployment (see ADR-026).
+  # Persistent Temporal on the shared Postgres (databases `temporal` and `temporal_visibility`).
+  # See docs/runbooks/temporal-persistent.md.
   temporal:
     <<: [*restart, *logging]
-    image: temporalio/temporal:1.9.1
-    user: root
-    command: ['server', 'start-dev', '--ip', '0.0.0.0', '--db-filename', '/data/temporal.db']
+    image: temporalio/auto-setup:1.28.1
+    environment:
+      DB: postgres12
+      DB_PORT: '5432'
+      POSTGRES_SEEDS: postgres
+      POSTGRES_USER: ape
+      POSTGRES_PWD: ${POSTGRES_PASSWORD}
+      DEFAULT_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
+      DEFAULT_NAMESPACE_RETENTION: 7d
+      SKIP_DEFAULT_NAMESPACE_CREATION: 'false'
     ports: ['${PRIVATE_IP}:7233:7233']
-    volumes: [/srv/ape/data/temporal:/data]
-    mem_limit: 384m
+    depends_on:
+      postgres: { condition: service_healthy }
+    mem_limit: 640m
 
   jaeger:
     <<: [*restart, *logging]

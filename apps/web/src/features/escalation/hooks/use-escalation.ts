@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ESCALATION_POLL_MS } from "../constants"
 import { escalationService } from "../services"
-import type { PolicyRequest } from "../schemas"
+import type { PolicyRequest, SimplePolicyRequest } from "../schemas"
 
 const keyOf = (workspaceId: string, part: string) => ["escalation", workspaceId, part]
 
@@ -19,6 +19,14 @@ export function useRuns(workspaceId: string | undefined) {
     queryFn: () => escalationService.runs(workspaceId!),
     enabled: Boolean(workspaceId),
     refetchInterval: ESCALATION_POLL_MS,
+  })
+}
+
+export function usePolicyPreview(workspaceId: string, id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: keyOf(workspaceId, `preview:${id}`),
+    queryFn: () => escalationService.preview(workspaceId, id),
+    enabled,
   })
 }
 
@@ -61,6 +69,15 @@ export function useDeletePolicy(workspaceId: string) {
   return useMutation({
     meta: { successMessage: "Policy deleted" },
     mutationFn: (id: string) => escalationService.remove(workspaceId, id),
+    onSuccess: refresh,
+  })
+}
+
+export function useSaveSimplePolicy(workspaceId: string) {
+  const refresh = useRefresh(workspaceId)
+  return useMutation({
+    meta: { successMessage: "Policy saved" },
+    mutationFn: (body: SimplePolicyRequest) => escalationService.saveSimple(workspaceId, body),
     onSuccess: refresh,
   })
 }

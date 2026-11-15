@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { MONITOR_POLL_MS } from "../constants"
 import { monitorsService } from "../services"
-import type { CreateMonitorRequest, UpdateMonitorRequest } from "../schemas"
+import type { BulkCreateRequest, CreateMonitorRequest, UpdateMonitorRequest } from "../schemas"
 
 const keyOf = (workspaceId: string, ...rest: string[]) => ["monitors", workspaceId, ...rest]
 
@@ -40,6 +40,7 @@ export function useCreateMonitor(workspaceId: string) {
 export function useUpdateMonitor(workspaceId: string) {
   const refresh = useRefresh(workspaceId)
   return useMutation({
+    meta: { successMessage: "Monitor saved" },
     mutationFn: ({ id, body }: { id: string; body: UpdateMonitorRequest }) =>
       monitorsService.update(workspaceId, id, body),
     onSuccess: refresh,
@@ -61,5 +62,20 @@ export function useCheckNow(workspaceId: string) {
     meta: { successMessage: "Checked" },
     mutationFn: (id: string) => monitorsService.check(workspaceId, id),
     onSuccess: refresh,
+  })
+}
+
+export function useBulkCreateMonitors(workspaceId: string) {
+  const refresh = useRefresh(workspaceId)
+  return useMutation({
+    mutationFn: (body: BulkCreateRequest) => monitorsService.bulkCreate(workspaceId, body),
+    onSuccess: refresh,
+  })
+}
+
+export function useSendTestAlert(workspaceId: string) {
+  return useMutation({
+    meta: { successMessage: "Test alert sent" },
+    mutationFn: (id: string) => monitorsService.testAlert(workspaceId, id),
   })
 }

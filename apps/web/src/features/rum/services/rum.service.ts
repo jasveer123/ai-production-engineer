@@ -10,9 +10,13 @@ import {
   sessionDetailSchema,
   sessionSchema,
   userSchema,
+  vitalsReportSchema,
   type Funnel,
   type FunnelResult,
-  type FunnelStep,
+  type NewFunnel,
+  type RumAppSettings,
+  type RumVitalsReport,
+  type SessionFilters,
   type RumApp,
   type RumEventSummary,
   type RumOverview,
@@ -34,17 +38,28 @@ export const rumService = {
   createApp: (ws: string, name: string) =>
     http.post<RumApp>(RUM_ENDPOINTS.APPS(ws), { name }, { schema: appSchema }),
   removeApp: (ws: string, id: string) => http.delete<void>(RUM_ENDPOINTS.APP(ws, id)),
+  updateApp: (ws: string, id: string, body: Partial<RumAppSettings>) =>
+    http.patch<RumApp>(RUM_ENDPOINTS.APP(ws, id), body, { schema: appSchema }),
+  vitals: (ws: string, r: Range) =>
+    http.get<RumVitalsReport>(RUM_ENDPOINTS.VITALS(ws), {
+      query: query(r),
+      schema: vitalsReportSchema,
+    }),
 
   overview: (ws: string, r: Range) =>
     http.get<RumOverview>(RUM_ENDPOINTS.OVERVIEW(ws), { query: query(r), schema: overviewSchema }),
 
-  sessions: (ws: string, r: Range & { hasErrors?: boolean; q?: string; userId?: string }) =>
+  sessions: (ws: string, r: SessionFilters) =>
     http.get<RumSession[]>(RUM_ENDPOINTS.SESSIONS(ws), {
       query: {
-        ...query(r),
+        ...query({ appId: r.appId || undefined, minutes: r.minutes }),
         ...(r.hasErrors ? { hasErrors: "true" } : {}),
         ...(r.q ? { q: r.q } : {}),
         ...(r.userId ? { userId: r.userId } : {}),
+        ...(r.browser ? { browser: r.browser } : {}),
+        ...(r.device ? { device: r.device } : {}),
+        ...(r.country.length === 2 ? { country: r.country } : {}),
+        ...(r.minSeconds > 0 ? { minSeconds: r.minSeconds } : {}),
       },
       schema: z.array(sessionSchema),
     }),
@@ -63,7 +78,7 @@ export const rumService = {
 
   funnels: (ws: string) =>
     http.get<Funnel[]>(RUM_ENDPOINTS.FUNNELS(ws), { schema: z.array(funnelSchema) }),
-  createFunnel: (ws: string, body: { appId: string; name: string; steps: FunnelStep[] }) =>
+  createFunnel: (ws: string, body: NewFunnel) =>
     http.post<Funnel>(RUM_ENDPOINTS.FUNNELS(ws), body, { schema: funnelSchema }),
   removeFunnel: (ws: string, id: string) => http.delete<void>(RUM_ENDPOINTS.FUNNEL(ws, id)),
   funnelResult: (ws: string, id: string, minutes: number) =>

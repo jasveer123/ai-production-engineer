@@ -23,6 +23,9 @@ export const INTEGRATION_ID = {
   FLUENT_BIT: "fluent-bit",
   JAVASCRIPT: "javascript",
   PYTHON: "python",
+  UBUNTU: "ubuntu",
+  AWS: "aws",
+  HTTP: "http",
 } as const
 
 export type IntegrationId = (typeof INTEGRATION_ID)[keyof typeof INTEGRATION_ID]

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { Badge, Button, CodeBlock, Eyebrow, Input, Spinner } from "@/components/ui"
-import { useSetDomain, useVerifyDomain } from "../hooks"
+import { useUpdatePage, useVerifyDomain } from "../hooks"
 import type { StatusPage } from "../schemas"
 
 interface DomainPanelProps {
@@ -11,12 +11,12 @@ interface DomainPanelProps {
 }
 
 export function DomainPanel({ workspaceId, page }: DomainPanelProps) {
-  const setDomain = useSetDomain(workspaceId, page.id)
+  const setDomain = useUpdatePage(workspaceId, page.id, "Domain saved")
   const verify = useVerifyDomain(workspaceId, page.id)
   const [draft, setDraft] = React.useState("")
 
   return (
-    <section className="grid gap-2" aria-label="Custom domain">
+    <section className="grid max-w-2xl gap-2" aria-label="Custom domain">
       <Eyebrow>Custom domain</Eyebrow>
       {page.customDomain ? (
         <div className="grid gap-2">
@@ -29,9 +29,11 @@ export function DomainPanel({ workspaceId, page }: DomainPanelProps) {
           {!page.domainVerified && (
             <>
               <p className="text-[0.8125rem] text-muted-foreground">
-                Add this DNS record, point the domain at this app, then verify.
+                Add both DNS records at your DNS provider, wait for them to appear, then verify.
               </p>
-              <CodeBlock>{`TXT  _pramaan.${page.customDomain}  pramaan-verify=${page.domainToken}`}</CodeBlock>
+              <CodeBlock>
+                {`CNAME  ${page.customDomain}  ${page.cnameTarget}\nTXT    _pramaan.${page.customDomain}  pramaan-verify=${page.domainToken}`}
+              </CodeBlock>
             </>
           )}
           <div className="flex gap-2">
@@ -44,7 +46,7 @@ export function DomainPanel({ workspaceId, page }: DomainPanelProps) {
               size="xs"
               variant="outline"
               disabled={setDomain.isPending}
-              onClick={() => setDomain.mutate(null)}
+              onClick={() => setDomain.mutate({ customDomain: null })}
             >
               Remove domain
             </Button>
@@ -56,7 +58,8 @@ export function DomainPanel({ workspaceId, page }: DomainPanelProps) {
           className="flex flex-wrap gap-2"
           onSubmit={(event) => {
             event.preventDefault()
-            if (draft.trim()) setDomain.mutate(draft.trim(), { onSuccess: () => setDraft("") })
+            if (draft.trim())
+              setDomain.mutate({ customDomain: draft.trim() }, { onSuccess: () => setDraft("") })
           }}
         >
           <Input

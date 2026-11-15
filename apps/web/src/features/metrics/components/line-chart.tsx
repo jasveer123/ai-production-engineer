@@ -7,6 +7,7 @@ import type { MetricSeries } from "../schemas"
 
 interface LineChartProps {
   series: MetricSeries
+  area?: boolean
 }
 
 const TOKENS = [
@@ -21,11 +22,14 @@ const TOKENS = [
 ]
 const HEIGHT = 128
 
-export function LineChart({ series }: LineChartProps) {
+export function LineChart({ series, area = false }: LineChartProps) {
   const canvas = React.useRef<HTMLCanvasElement>(null)
   const wrap = React.useRef<HTMLDivElement>(null)
   const [hovered, setHovered] = React.useState<number | null>(null)
-  const groups = React.useMemo(() => series.groups ?? [], [series.groups])
+  const groups = React.useMemo(
+    () => series.groups ?? [{ key: series.name, buckets: series.buckets }],
+    [series.groups, series.name, series.buckets]
+  )
   const length = groups[0]?.buckets.length ?? 0
   const max = Math.max(1e-9, ...groups.flatMap((g) => g.buckets.map((b) => b.value ?? 0)))
 
@@ -60,6 +64,14 @@ export function LineChart({ series }: LineChartProps) {
         pen = true
       })
       ctx.stroke()
+      if (!area) return
+      ctx.fillStyle = colors[gi % colors.length]!
+      ctx.globalAlpha = 0.15
+      group.buckets.forEach((b, i) => {
+        if (b.value !== null)
+          ctx.fillRect(x(i) - width / length / 2, y(b.value), width / length, HEIGHT - y(b.value))
+      })
+      ctx.globalAlpha = 1
     })
     if (hovered !== null) {
       ctx.strokeStyle = colors[6]!
@@ -69,7 +81,7 @@ export function LineChart({ series }: LineChartProps) {
       ctx.lineTo(x(hovered), HEIGHT)
       ctx.stroke()
     }
-  }, [groups, hovered, length, max])
+  }, [area, groups, hovered, length, max])
 
   const active = hovered === null ? null : hovered
   const left = active === null ? 0 : ((active + 0.5) / Math.max(1, length)) * 100
@@ -120,17 +132,19 @@ export function LineChart({ series }: LineChartProps) {
           </div>
         )}
       </div>
-      <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[0.75rem]">
-        {groups.map((group, gi) => (
-          <li key={group.key} className="flex items-center gap-1.5">
-            <span
-              className="size-2 rounded-full"
-              style={{ background: `var(${TOKENS[gi % TOKENS.length]})` }}
-            />
-            {group.key}
-          </li>
-        ))}
-      </ul>
+      {series.groups && (
+        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[0.75rem]">
+          {groups.map((group, gi) => (
+            <li key={group.key} className="flex items-center gap-1.5">
+              <span
+                className="size-2 rounded-full"
+                style={{ background: `var(${TOKENS[gi % TOKENS.length]})` }}
+              />
+              {group.key}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

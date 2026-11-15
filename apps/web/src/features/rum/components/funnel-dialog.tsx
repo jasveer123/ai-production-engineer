@@ -30,6 +30,8 @@ export function FunnelDialog({ workspaceId }: FunnelDialogProps) {
   const [open, setOpen] = React.useState(false)
   const [name, setName] = React.useState("")
   const [appId, setAppId] = React.useState("")
+  const [unit, setUnit] = React.useState<"session" | "user">("session")
+  const [windowMinutes, setWindowMinutes] = React.useState("")
   const [steps, setSteps] = React.useState<FunnelStep[]>([
     { kind: "pageview", match: "" },
     { kind: "event", match: "" },
@@ -57,6 +59,8 @@ export function FunnelDialog({ workspaceId }: FunnelDialogProps) {
                 appId: app,
                 name: name.trim(),
                 steps: steps.map((s) => ({ ...s, match: s.match.trim() })),
+                unit,
+                windowMinutes: Number(windowMinutes) > 0 ? Math.round(Number(windowMinutes)) : null,
               },
               { onSuccess: () => setOpen(false) }
             )
@@ -86,6 +90,25 @@ export function FunnelDialog({ workspaceId }: FunnelDialogProps) {
               ))}
             </div>
           )}
+          <div className="flex flex-wrap gap-2">
+            <Chip selected={unit === "session"} onClick={() => setUnit("session")}>
+              Count sessions
+            </Chip>
+            <Chip selected={unit === "user"} onClick={() => setUnit("user")}>
+              Count users across sessions
+            </Chip>
+          </div>
+          <Field label="Finish within (minutes, optional)" htmlFor="funnel-window">
+            <Input
+              id="funnel-window"
+              type="number"
+              min={1}
+              max={43200}
+              value={windowMinutes}
+              onChange={(e) => setWindowMinutes(e.target.value)}
+              placeholder="No limit"
+            />
+          </Field>
           {steps.map((step, index) => (
             <div key={index} className="grid gap-2 border border-line p-3">
               <div className="flex items-center justify-between">

@@ -64,3 +64,27 @@ export function useRemoveOverride(workspaceId: string) {
     onSuccess: refresh,
   })
 }
+
+export function useCoverage(workspaceId: string, scheduleId: string, days: number) {
+  return useQuery({
+    queryKey: [...keyOf(workspaceId, "coverage"), scheduleId, days],
+    queryFn: () => {
+      const from = new Date()
+      from.setSeconds(0, 0)
+      const to = new Date(from.getTime() + days * 86_400_000)
+      return oncallService.coverage(workspaceId, scheduleId, from.toISOString(), to.toISOString())
+    },
+    refetchInterval: ONCALL_POLL_MS,
+  })
+}
+
+export function useCalendarLink(workspaceId: string) {
+  const refresh = useRefresh(workspaceId)
+  return useMutation({
+    mutationFn: ({ id, enable }: { id: string; enable: boolean }) =>
+      enable
+        ? oncallService.enableCalendar(workspaceId, id)
+        : oncallService.revokeCalendar(workspaceId, id).then(() => null),
+    onSuccess: refresh,
+  })
+}

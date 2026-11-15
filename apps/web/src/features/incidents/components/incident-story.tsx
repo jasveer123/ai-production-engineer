@@ -1,10 +1,10 @@
 "use client"
 
 import type { Incident } from "../schemas"
+import { ActivityTimeline } from "./activity-timeline"
 import { FixPanel } from "./fix-panel"
 import { InvestigationPanel } from "./investigation-panel"
 import { StoryChapter, type ChapterState } from "./story-chapter"
-import { TimelineList } from "./timeline-list"
 import { VerificationPanel } from "./verification-panel"
 
 interface IncidentStoryProps {
@@ -32,7 +32,7 @@ export function chapterStates(
 function summaries(incident: Incident, states: ChapterState[]) {
   const since = new Date(incident.firstSeenAt).toLocaleString()
   return [
-    `${incident.eventCount.toLocaleString()} events since ${since}. Here is what we saw, in order.`,
+    `Everything since ${since}, oldest first: checks, alerts, who was notified, who responded, and the team's comments.`,
     states[1] === "active"
       ? "The AI is reading the logs, errors and code to find the cause. Every claim points to evidence."
       : "This is what the AI found, with the evidence behind each claim.",
@@ -56,7 +56,7 @@ export function IncidentStory({ workspaceId, incident, canAct }: IncidentStoryPr
   return (
     <ol aria-label="Incident story" className="grid">
       <StoryChapter index={1} title="What happened" summary={text[0]!} state={states[0]}>
-        <TimelineList workspaceId={workspaceId} incidentId={incident.id} />
+        <ActivityTimeline workspaceId={workspaceId} incidentId={incident.id} canAct={canAct} />
       </StoryChapter>
       <StoryChapter index={2} title="Why it happened" summary={text[1]!} state={states[1]}>
         <InvestigationPanel workspaceId={workspaceId} incident={incident} canAct={canAct} />

@@ -1,13 +1,13 @@
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, gt, inArray } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, lt } from 'drizzle-orm';
 import {
   MAX_OVERRIDE_DAYS,
   type CreateOverrideInput,
   type CreateScheduleInput,
   type OncallNow,
   type OncallPerson,
-  type OncallShift,
   type OverrideView,
+  type ScheduleCoverage,
   type ScheduleView,
   type UpdateScheduleInput,
 } from '@ape/api-contracts';
@@ -16,8 +16,21 @@ import { ApiException, notFound } from '../../../core/common/errors';
 import type { ActorContext } from '../../../core/common/request-context';
 import { DB } from '../../../core/db/database.module';
 import type { Database } from '../../../core/db/client';
-import { oncallOverrides, oncallSchedules, users, workspaceMembers } from '../../../core/db/schema';
-import { onCallAt, shiftsBetween, type Shift } from '../domain/shifts';
+import {
+  oncallOverrides,
+  oncallSchedules,
+  users,
+  workspaceMembers,
+  type StoredLayer,
+} from '../../../core/db/schema';
+import {
+  participantIdsOf,
+  resolveCoverage,
+  rulesOf,
+  storedLayers,
+  toShift,
+  type ResolvedCoverage,
+} from './schedule-evaluator';
 
 type ScheduleRow = typeof oncallSchedules.$inferSelect;
 type OverrideRow = typeof oncallOverrides.$inferSelect;
@@ -43,8 +56,9 @@ export class OncallService {
   }
 
   private async requireMembers(workspaceId: string, ids: string[]): Promise<void> {
-    const found = await this.people(workspaceId, [...new Set(ids)]);
-    if (found.size !== new Set(ids).size)
+    const unique = [...new Set(ids)];
+    const found = await this.people(workspaceId, unique);
+    if (found.size !== unique.length)
       throw new ApiException(
         HttpStatus.BAD_REQUEST,
         'not_a_member',
@@ -52,93 +66,89 @@ export class OncallService {
       );
   }
 
-  private async find(actor: ActorContext, id: string): Promise<ScheduleRow> {
+  async find(workspaceId: string, id: string): Promise<ScheduleRow> {
     const [row] = await this.db
       .select()
       .from(oncallSchedules)
-      .where(and(eq(oncallSchedules.id, id), eq(oncallSchedules.workspaceId, actor.workspaceId)));
+      .where(and(eq(oncallSchedules.id, id), eq(oncallSchedules.workspaceId, workspaceId)));
     if (!row) throw notFound('Schedule');
     return row;
   }
 
-  private shiftView(shift: Shift, people: Map<string, OncallPerson>): OncallShift | null {
-    const person = people.get(shift.userId);
-    return person
-      ? {
-          person,
-          startsAt: shift.startsAt.toISOString(),
-          endsAt: shift.endsAt.toISOString(),
-          override: shift.override,
-        }
-      : null;
-  }
-
-  private async build(
-    workspaceId: string,
-    rows: ScheduleRow[],
-    now = new Date(),
-  ): Promise<ScheduleView[]> {
-    if (rows.length === 0) return [];
-    const overrides = await this.db
+  private overridesIn(workspaceId: string, ids: string[], from: Date, to: Date) {
+    return this.db
       .select()
       .from(oncallOverrides)
       .where(
         and(
           eq(oncallOverrides.workspaceId, workspaceId),
-          inArray(
-            oncallOverrides.scheduleId,
-            rows.map((r) => r.id),
-          ),
-          gt(oncallOverrides.endsAt, now),
+          inArray(oncallOverrides.scheduleId, ids),
+          gt(oncallOverrides.endsAt, from),
+          lt(oncallOverrides.startsAt, to),
         ),
       )
       .orderBy(asc(oncallOverrides.startsAt));
-    const ids = new Set<string>();
-    rows.forEach((r) => r.participants.forEach((id) => ids.add(id)));
-    overrides.forEach((o) => ids.add(o.userId));
-    const people = await this.people(workspaceId, [...ids]);
-    const until = new Date(now.getTime() + UPCOMING_DAYS * DAY_MS);
+  }
 
-    return rows.map((row) => {
-      const mine = overrides.filter((o) => o.scheduleId === row.id);
-      const windows = mine.map((o) => ({
-        userId: o.userId,
-        startsAt: o.startsAt,
-        endsAt: o.endsAt,
-      }));
-      const rotation = {
-        anchorAt: row.anchorAt,
-        rotationHours: row.rotationHours,
-        participants: row.participants.filter((id) => people.has(id)),
-      };
-      const current = onCallAt(rotation, windows, now);
-      const upcoming = shiftsBetween(rotation, windows, now, until)
-        .map((shift) => this.shiftView(shift, people))
-        .filter((shift): shift is OncallShift => shift !== null);
-      return {
-        id: row.id,
-        name: row.name,
-        rotationHours: row.rotationHours,
-        anchorAt: row.anchorAt.toISOString(),
-        participants: rotation.participants.map((id) => people.get(id)!),
-        current: current ? this.shiftView(current, people) : null,
-        upcoming,
-        overrides: mine.flatMap((o: OverrideRow): OverrideView[] => {
-          const person = people.get(o.userId);
-          return person
-            ? [
-                {
-                  id: o.id,
-                  person,
-                  startsAt: o.startsAt.toISOString(),
-                  endsAt: o.endsAt.toISOString(),
-                },
-              ]
-            : [];
-        }),
-        createdAt: row.createdAt.toISOString(),
-      };
-    });
+  async evaluate(workspaceId: string, row: ScheduleRow, from: Date, to: Date) {
+    const rules = rulesOf(row);
+    const overrides = await this.overridesIn(workspaceId, [row.id], from, to);
+    const ids = [...participantIdsOf(rules), ...overrides.map((o) => o.userId)];
+    const people = await this.people(workspaceId, [...new Set(ids)]);
+    return { rules, overrides, people, ...resolveCoverage(rules, overrides, people, { from, to }) };
+  }
+
+  private view(
+    row: ScheduleRow,
+    data: ResolvedCoverage & { overrides: OverrideRow[]; people: Map<string, OncallPerson> },
+    now: Date,
+  ): ScheduleView {
+    const rules = rulesOf(row);
+    const first = data.intervals[0];
+    const person = (id: string) => data.people.get(id);
+    return {
+      id: row.id,
+      name: row.name,
+      timezone: row.timezone,
+      rotationHours: row.rotationHours,
+      anchorAt: row.anchorAt.toISOString(),
+      layers: rules.layers.map((l) => ({
+        id: l.id,
+        name: l.name,
+        rotation: l.rotation,
+        participants: l.participants.flatMap((id) => person(id) ?? []),
+        restrictions: l.restrictions,
+      })),
+      participants: participantIdsOf(rules).flatMap((id) => person(id) ?? []),
+      current: first && first.startsAt === now.toISOString() ? toShift(first) : null,
+      upcoming: data.intervals.map(toShift),
+      gaps: data.gaps,
+      overrides: data.overrides.flatMap((o): OverrideView[] => {
+        const p = person(o.userId);
+        return p
+          ? [
+              {
+                id: o.id,
+                person: p,
+                startsAt: o.startsAt.toISOString(),
+                endsAt: o.endsAt.toISOString(),
+              },
+            ]
+          : [];
+      }),
+      calendarEnabled: Boolean(row.calendarTokenHash),
+      createdAt: row.createdAt.toISOString(),
+    };
+  }
+
+  private async build(workspaceId: string, row: ScheduleRow, now = new Date()) {
+    const data = await this.evaluate(
+      workspaceId,
+      row,
+      now,
+      new Date(now.getTime() + UPCOMING_DAYS * DAY_MS),
+    );
+    return this.view(row, data, now);
   }
 
   async list(actor: ActorContext): Promise<ScheduleView[]> {
@@ -147,7 +157,8 @@ export class OncallService {
       .from(oncallSchedules)
       .where(eq(oncallSchedules.workspaceId, actor.workspaceId))
       .orderBy(asc(oncallSchedules.createdAt));
-    return this.build(actor.workspaceId, rows);
+    const now = new Date();
+    return Promise.all(rows.map((r) => this.build(actor.workspaceId, r, now)));
   }
 
   async now(actor: ActorContext): Promise<OncallNow[]> {
@@ -161,48 +172,91 @@ export class OncallService {
       .from(oncallSchedules)
       .where(and(eq(oncallSchedules.id, scheduleId), eq(oncallSchedules.workspaceId, workspaceId)));
     if (!row) return null;
-    const [view] = await this.build(workspaceId, [row]);
-    return view?.current?.person ?? null;
+    const now = new Date();
+    const { intervals } = await this.evaluate(workspaceId, row, now, new Date(now.getTime() + 1));
+    return intervals[0]?.person ?? null;
+  }
+
+  async coverage(actor: ActorContext, id: string, from: Date, to: Date): Promise<ScheduleCoverage> {
+    const row = await this.find(actor.workspaceId, id);
+    const { intervals, gaps } = await this.evaluate(actor.workspaceId, row, from, to);
+    return {
+      scheduleId: row.id,
+      timezone: row.timezone,
+      from: from.toISOString(),
+      to: to.toISOString(),
+      intervals,
+      gaps,
+    };
+  }
+
+  private layersFrom(
+    input: CreateScheduleInput | UpdateScheduleInput,
+    fallback?: ScheduleRow,
+  ): StoredLayer[] {
+    if (input.layers?.length) return storedLayers(input.layers);
+    if (!input.participantIds?.length && fallback) return fallback.layers;
+    return [
+      {
+        id: 'default',
+        name: 'Rotation',
+        rotation: {
+          kind: 'elapsed',
+          hours: input.rotationHours ?? fallback?.rotationHours ?? 168,
+          anchorAt: input.anchorAt ?? fallback?.anchorAt.toISOString() ?? new Date().toISOString(),
+        },
+        participants: [...new Set(input.participantIds ?? [])],
+        restrictions: [],
+      },
+    ];
   }
 
   async create(actor: ActorContext, input: CreateScheduleInput): Promise<ScheduleView> {
-    const participantIds = [...new Set(input.participantIds)];
-    await this.requireMembers(actor.workspaceId, participantIds);
+    const layers = this.layersFrom(input);
+    const participants = [...new Set(layers.flatMap((l) => l.participants))];
+    await this.requireMembers(actor.workspaceId, participants);
     const [row] = await this.db
       .insert(oncallSchedules)
       .values({
         workspaceId: actor.workspaceId,
         name: input.name,
+        timezone: input.timezone ?? 'UTC',
+        layers,
         rotationHours: input.rotationHours ?? 168,
         anchorAt: input.anchorAt ? new Date(input.anchorAt) : new Date(),
-        participants: participantIds,
+        participants,
         createdBy: actor.userId,
       })
       .returning();
     await this.record(actor, 'oncall.schedule_created', row!.id);
-    return (await this.build(actor.workspaceId, [row!]))[0]!;
+    return this.build(actor.workspaceId, row!);
   }
 
   async update(actor: ActorContext, id: string, input: UpdateScheduleInput): Promise<ScheduleView> {
-    await this.find(actor, id);
-    if (input.participantIds)
-      await this.requireMembers(actor.workspaceId, [...new Set(input.participantIds)]);
+    const current = await this.find(actor.workspaceId, id);
+    const touchesLayers = Boolean(
+      input.layers || input.participantIds || input.rotationHours || input.anchorAt,
+    );
+    const layers = touchesLayers ? this.layersFrom(input, current) : current.layers;
+    const participants = [...new Set(layers.flatMap((l) => l.participants))];
+    if (touchesLayers) await this.requireMembers(actor.workspaceId, participants);
     const [row] = await this.db
       .update(oncallSchedules)
       .set({
         ...(input.name ? { name: input.name } : {}),
+        ...(input.timezone ? { timezone: input.timezone } : {}),
         ...(input.rotationHours ? { rotationHours: input.rotationHours } : {}),
         ...(input.anchorAt ? { anchorAt: new Date(input.anchorAt) } : {}),
-        ...(input.participantIds ? { participants: [...new Set(input.participantIds)] } : {}),
+        ...(touchesLayers ? { layers, participants } : {}),
       })
       .where(and(eq(oncallSchedules.id, id), eq(oncallSchedules.workspaceId, actor.workspaceId)))
       .returning();
     await this.record(actor, 'oncall.schedule_updated', id);
-    return (await this.build(actor.workspaceId, [row!]))[0]!;
+    return this.build(actor.workspaceId, row!);
   }
 
   async remove(actor: ActorContext, id: string): Promise<void> {
-    await this.find(actor, id);
+    await this.find(actor.workspaceId, id);
     await this.db
       .delete(oncallSchedules)
       .where(and(eq(oncallSchedules.id, id), eq(oncallSchedules.workspaceId, actor.workspaceId)));
@@ -214,7 +268,6 @@ export class OncallService {
     scheduleId: string,
     input: CreateOverrideInput,
   ): Promise<ScheduleView> {
-    const schedule = await this.find(actor, scheduleId);
     await this.requireMembers(actor.workspaceId, [input.userId]);
     const startsAt = new Date(input.startsAt);
     const endsAt = new Date(input.endsAt);
@@ -224,49 +277,62 @@ export class OncallService {
         'override_too_long',
         `An override can last at most ${MAX_OVERRIDE_DAYS} days`,
       );
-    const clash = await this.db
-      .select({
-        id: oncallOverrides.id,
-        startsAt: oncallOverrides.startsAt,
-        endsAt: oncallOverrides.endsAt,
-      })
-      .from(oncallOverrides)
-      .where(and(eq(oncallOverrides.scheduleId, scheduleId), gt(oncallOverrides.endsAt, startsAt)));
-    if (clash.some((o) => o.startsAt < endsAt))
-      throw new ApiException(
-        HttpStatus.CONFLICT,
-        'override_overlaps',
-        'Another override already covers part of this time',
-      );
-    await this.db.insert(oncallOverrides).values({
-      workspaceId: actor.workspaceId,
-      scheduleId,
-      userId: input.userId,
-      startsAt,
-      endsAt,
-      createdBy: actor.userId,
+    const schedule = await this.db.transaction(async (tx) => {
+      // Locking the schedule row serialises override writers, so two overlapping requests cannot both pass the check.
+      const [locked] = await tx
+        .select()
+        .from(oncallSchedules)
+        .where(
+          and(
+            eq(oncallSchedules.id, scheduleId),
+            eq(oncallSchedules.workspaceId, actor.workspaceId),
+          ),
+        )
+        .for('update');
+      if (!locked) throw notFound('Schedule');
+      const [clash] = await tx
+        .select({ id: oncallOverrides.id })
+        .from(oncallOverrides)
+        .where(
+          and(
+            eq(oncallOverrides.scheduleId, scheduleId),
+            gt(oncallOverrides.endsAt, startsAt),
+            lt(oncallOverrides.startsAt, endsAt),
+          ),
+        )
+        .limit(1);
+      if (clash)
+        throw new ApiException(
+          HttpStatus.CONFLICT,
+          'override_overlaps',
+          'Another override already covers part of this time',
+        );
+      await tx.insert(oncallOverrides).values({
+        workspaceId: actor.workspaceId,
+        scheduleId,
+        userId: input.userId,
+        startsAt,
+        endsAt,
+        createdBy: actor.userId,
+      });
+      return locked;
     });
     await this.record(actor, 'oncall.override_created', scheduleId, { userId: input.userId });
-    return (await this.build(actor.workspaceId, [schedule]))[0]!;
+    return this.build(actor.workspaceId, schedule);
   }
 
   async removeOverride(actor: ActorContext, overrideId: string): Promise<void> {
     const [row] = await this.db
-      .select()
-      .from(oncallOverrides)
-      .where(
-        and(eq(oncallOverrides.id, overrideId), eq(oncallOverrides.workspaceId, actor.workspaceId)),
-      );
-    if (!row) throw notFound('Override');
-    await this.db
       .delete(oncallOverrides)
       .where(
         and(eq(oncallOverrides.id, overrideId), eq(oncallOverrides.workspaceId, actor.workspaceId)),
-      );
+      )
+      .returning({ scheduleId: oncallOverrides.scheduleId });
+    if (!row) throw notFound('Override');
     await this.record(actor, 'oncall.override_deleted', row.scheduleId);
   }
 
-  private record(actor: ActorContext, action: string, id: string, metadata = {}) {
+  record(actor: ActorContext, action: string, id: string, metadata = {}) {
     return this.audit.record({
       workspaceId: actor.workspaceId,
       actorId: actor.userId,

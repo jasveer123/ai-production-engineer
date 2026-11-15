@@ -131,6 +131,15 @@ export const apiTokens = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    workspaceId: uuid('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }),
+    scopes: text('scopes')
+      .array()
+      .notNull()
+      .default(sql`'{read,write}'::text[]`),
+    areas: text('areas')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     name: text('name').notNull(),
     prefix: text('prefix').notNull(),
     tokenHash: text('token_hash').notNull(),
@@ -142,5 +151,6 @@ export const apiTokens = pgTable(
   (t) => [
     uniqueIndex('api_tokens_hash_idx').on(t.tokenHash),
     index('api_tokens_user_idx').on(t.userId),
+    index('api_tokens_workspace_idx').on(t.workspaceId),
   ],
 );

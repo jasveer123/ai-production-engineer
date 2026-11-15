@@ -1,2 +1,5 @@
 export * from "./components"
 export { SEVERITY_VARIANT, STATUS_LABEL, type SeverityValue } from "./constants"
+export { useMemberOptions, usePolicyOptions } from "./hooks"
+export { OptionSelect } from "./components/option-select"
+export { formatSpan } from "./lib"

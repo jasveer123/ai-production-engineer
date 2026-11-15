@@ -1,7 +1,9 @@
 import { z } from "zod"
 import { ONCALL_ENDPOINTS, http } from "@/lib/api"
 import {
+  coverageSchema,
   memberSchema,
+  type Coverage,
   scheduleSchema,
   type Member,
   type OverrideRequest,
@@ -36,4 +38,18 @@ export const oncallService = {
 
   removeOverride: (workspaceId: string, id: string) =>
     http.delete<void>(ONCALL_ENDPOINTS.OVERRIDE(workspaceId, id)),
+
+  coverage: (workspaceId: string, id: string, from: string, to: string) =>
+    http.get<Coverage>(ONCALL_ENDPOINTS.COVERAGE(workspaceId, id), {
+      query: { from, to },
+      schema: coverageSchema,
+    }),
+
+  enableCalendar: (workspaceId: string, id: string) =>
+    http.post<{ url: string }>(ONCALL_ENDPOINTS.CALENDAR_LINK(workspaceId, id), undefined, {
+      schema: z.object({ url: z.string() }),
+    }),
+
+  revokeCalendar: (workspaceId: string, id: string) =>
+    http.delete<void>(ONCALL_ENDPOINTS.CALENDAR_LINK(workspaceId, id)),
 }

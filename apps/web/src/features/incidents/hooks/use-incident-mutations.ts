@@ -1,34 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { INCIDENT_QUERY_KEYS } from "../query-keys"
 import { incidentsService } from "../services"
-import type {
-  FeedbackRequest,
-  FixActionRequest,
-  IncidentActionRequest,
-  TransitionRequest,
-} from "../schemas"
+import type { FeedbackRequest, FixActionRequest, IncidentActionRequest } from "../schemas"
 
 function useRefresh(workspaceId: string) {
   const queryClient = useQueryClient()
   return () => queryClient.invalidateQueries({ queryKey: INCIDENT_QUERY_KEYS.all(workspaceId) })
-}
-
-export function useTransition(workspaceId: string, id: string) {
-  const refresh = useRefresh(workspaceId)
-  return useMutation({
-    meta: { successMessage: "Status updated" },
-    mutationFn: (body: TransitionRequest) => incidentsService.transition(workspaceId, id, body),
-    onSuccess: refresh,
-  })
-}
-
-export function useAcknowledge(workspaceId: string, id: string) {
-  const refresh = useRefresh(workspaceId)
-  return useMutation({
-    meta: { successMessage: "Acknowledged" },
-    mutationFn: () => incidentsService.acknowledge(workspaceId, id),
-    onSuccess: refresh,
-  })
 }
 
 export function useIncidentAction(workspaceId: string, id: string) {

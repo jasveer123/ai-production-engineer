@@ -6,6 +6,7 @@ import {
   DEFAULT_SERVICE,
   emptyBatch,
   isErrorLevel,
+  reject,
   levelFromSeverityNumber,
   parseDate,
   stackLines,
@@ -24,8 +25,8 @@ type AnyValue = {
   kvlistValue?: { values?: KeyValue[] };
   bytesValue?: string;
 };
-type KeyValue = { key?: string; value?: AnyValue };
-type Resource = { attributes?: KeyValue[] };
+export type KeyValue = { key?: string; value?: AnyValue };
+export type Resource = { attributes?: KeyValue[] };
 
 export function anyValue(v: AnyValue | undefined): unknown {
   if (!v) return null;
@@ -48,7 +49,7 @@ export function attributesOf(kvs: KeyValue[] | undefined): Record<string, unknow
 const str = (v: unknown): string | null =>
   typeof v === 'string' && v.trim() ? v.trim() : typeof v === 'number' ? String(v) : null;
 
-function resourceInfo(resource: Resource | undefined) {
+export function resourceInfo(resource: Resource | undefined) {
   const a = attributesOf(resource?.attributes);
   return {
     service: (str(a['service.name']) ?? DEFAULT_SERVICE).slice(0, 100),
@@ -71,7 +72,7 @@ function id(v: unknown, bytes: number): string | null {
   return h;
 }
 
-const nanosToDate = (v: unknown, fallback?: Date) =>
+export const nanosToDate = (v: unknown, fallback?: Date) =>
   parseDate(typeof v === 'string' || typeof v === 'number' ? Number(v) / 1e6 : undefined, fallback);
 
 const isNanos = (v: unknown): v is string | number =>
@@ -139,7 +140,7 @@ interface TracesRequest {
   }[];
 }
 
-type ResourceInfo = ReturnType<typeof resourceInfo>;
+export type ResourceInfo = ReturnType<typeof resourceInfo>;
 
 function spanEntries(
   s: OtlpSpan,
@@ -198,14 +199,25 @@ function spanEntries(
   };
 }
 
+const MAX_SPANS = 10_000;
+const MAX_LOG_RECORDS = 10_000;
+
 export function tracesToBatch(req: TracesRequest, way: Batch['way'] = 'otlp'): Batch {
   const batch = emptyBatch(way);
   for (const rs of req.resourceSpans ?? []) {
     const res = resourceInfo(rs.resource);
     for (const ss of rs.scopeSpans ?? []) {
       for (const s of ss.spans ?? []) {
+        batch.received += 1;
+        if (batch.spans.length >= MAX_SPANS) {
+          reject(batch, `limit_exceeded: at most ${MAX_SPANS} spans per request`);
+          continue;
+        }
         const entries = spanEntries(s, res);
-        if (!entries) continue;
+        if (!entries) {
+          reject(batch, 'invalid_id: span has a missing or malformed traceId/spanId');
+          continue;
+        }
         batch.spans.push(entries.span);
         if (entries.error) batch.errors.push(entries.error);
       }
@@ -297,6 +309,11 @@ export function logsToBatch(req: LogsRequest, way: Batch['way'] = 'otlp'): Batch
     const res = resourceInfo(rl.resource);
     for (const sl of rl.scopeLogs ?? []) {
       for (const r of sl.logRecords ?? []) {
+        batch.received += 1;
+        if (batch.logs.length >= MAX_LOG_RECORDS) {
+          reject(batch, `limit_exceeded: at most ${MAX_LOG_RECORDS} log records per request`);
+          continue;
+        }
         const { log, error } = logEntries(r, res);
         batch.logs.push(log);
         if (error) batch.errors.push(error);
@@ -333,78 +350,4 @@ function errorFromLog(input: ErrorFromLogInput): ErrorInput {
     release: res.release,
     attributes: {},
   };
-}
-
-interface OtlpPoint {
-  attributes?: KeyValue[];
-  timeUnixNano?: string | number;
-  asDouble?: number;
-  asInt?: string | number;
-  count?: string | number;
-  sum?: number;
-}
-
-interface OtlpMetric {
-  name?: string;
-  unit?: string;
-  gauge?: { dataPoints?: OtlpPoint[] };
-  sum?: { dataPoints?: OtlpPoint[]; isMonotonic?: boolean };
-  histogram?: { dataPoints?: OtlpPoint[] };
-}
-
-interface MetricsRequest {
-  resourceMetrics?: { resource?: Resource; scopeMetrics?: { metrics?: unknown[] }[] }[];
-}
-
-const MAX_POINTS = 5000;
-
-function pointsOf(m: OtlpMetric, res: ResourceInfo): Batch['points'] {
-  const name = typeof m.name === 'string' ? m.name.slice(0, 200) : '';
-  if (!name) return [];
-  const unit = m.unit ? m.unit.slice(0, 40) : null;
-  const make = (
-    kind: Batch['points'][number]['kind'],
-    points: OtlpPoint[] | undefined,
-    pick: (p: OtlpPoint) => number | null,
-  ) =>
-    (points ?? []).flatMap((p) => {
-      const value = pick(p);
-      if (value === null || !Number.isFinite(value)) return [];
-      return [
-        {
-          ts: nanosToDate(p.timeUnixNano),
-          service: res.service,
-          environment: res.environment,
-          name,
-          kind,
-          unit,
-          value,
-          attributes: Object.fromEntries(Object.entries(attributesOf(p.attributes)).slice(0, 20)),
-        },
-      ];
-    });
-  const number = (p: OtlpPoint) =>
-    p.asDouble !== undefined ? p.asDouble : p.asInt !== undefined ? Number(p.asInt) : null;
-  if (m.gauge) return make('gauge', m.gauge.dataPoints, number);
-  if (m.sum) return make(m.sum.isMonotonic ? 'counter' : 'sum', m.sum.dataPoints, number);
-  if (m.histogram)
-    return make('histogram', m.histogram.dataPoints, (p) =>
-      p.sum !== undefined && Number(p.count) > 0 ? p.sum / Number(p.count) : null,
-    );
-  return [];
-}
-
-export function metricsToBatch(req: MetricsRequest): Batch {
-  const batch = emptyBatch('otlp');
-  for (const rm of req.resourceMetrics ?? []) {
-    const res = resourceInfo(rm.resource);
-    const count = (rm.scopeMetrics ?? []).reduce((n, sm) => n + (sm.metrics?.length ?? 0), 0);
-    if (count > 0)
-      batch.metrics.push({ service: res.service, environment: res.environment, count });
-    for (const sm of rm.scopeMetrics ?? [])
-      for (const m of sm.metrics ?? [])
-        if (batch.points.length < MAX_POINTS) batch.points.push(...pointsOf(m as OtlpMetric, res));
-  }
-  batch.points.length = Math.min(batch.points.length, MAX_POINTS);
-  return batch;
 }

@@ -4,14 +4,15 @@ import { X } from "lucide-react"
 import { Badge, Button, Eyebrow } from "@/components/ui"
 import { ConfirmDialog } from "@/components/shared"
 import { formatDateTime } from "@/lib/format/relative-time"
-import { ROTATIONS, SHOWN_SHIFTS } from "../constants"
+import { SHOWN_SHIFTS } from "../constants"
 import { useDeleteSchedule, useRemoveOverride } from "../hooks"
-import { timeLeft } from "../lib"
+import { describeRestriction, describeRotation, timeLeft } from "../lib"
 import type { Schedule } from "../schemas"
 import { OverrideDialog } from "./override-dialog"
 import { PersonBadge } from "./person-badge"
 import { ScheduleDialog } from "./schedule-dialog"
-import { TimelineStrip } from "./timeline-strip"
+import { CalendarLink } from "./calendar-link"
+import { CoveragePreview } from "./coverage-preview"
 
 interface ScheduleCardProps {
   workspaceId: string
@@ -23,9 +24,6 @@ interface ScheduleCardProps {
 export function ScheduleCard({ workspaceId, schedule, canManage, canSwap }: ScheduleCardProps) {
   const remove = useDeleteSchedule(workspaceId)
   const removeOverride = useRemoveOverride(workspaceId)
-  const rotation =
-    ROTATIONS.find((item) => item.hours === schedule.rotationHours)?.label ??
-    `Every ${schedule.rotationHours} hours`
   const index = (userId: string) =>
     Math.max(
       0,
@@ -37,7 +35,7 @@ export function ScheduleCard({ workspaceId, schedule, canManage, canSwap }: Sche
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="font-heading text-lg font-semibold">{schedule.name}</h2>
-          <Badge>{rotation}</Badge>
+          <Badge>{schedule.timezone}</Badge>
         </div>
         <div className="flex flex-wrap gap-2">
           {canSwap && <OverrideDialog workspaceId={workspaceId} scheduleId={schedule.id} />}
@@ -71,13 +69,42 @@ export function ScheduleCard({ workspaceId, schedule, canManage, canSwap }: Sche
             </p>
           </>
         ) : (
-          <p className="text-sm text-muted-foreground">Nobody. Add people to this schedule.</p>
+          <p className="text-sm text-muted-foreground">
+            {schedule.participants.length > 0
+              ? "Nobody right now. This is a gap outside the schedule's hours."
+              : "Nobody. Add people to this schedule."}
+          </p>
         )}
       </div>
       <div className="grid gap-2">
-        <Eyebrow>Next two weeks</Eyebrow>
-        <TimelineStrip shifts={schedule.upcoming} participants={schedule.participants} />
+        <Eyebrow>Next four weeks</Eyebrow>
+        <CoveragePreview
+          workspaceId={workspaceId}
+          scheduleId={schedule.id}
+          participants={schedule.participants}
+        />
       </div>
+      <div className="grid gap-1.5">
+        <Eyebrow>Layers, highest precedence first</Eyebrow>
+        <ul className="grid gap-1 text-[0.8125rem]">
+          {schedule.layers.map((layer) => (
+            <li key={layer.id} className="flex flex-wrap gap-x-2 text-muted-foreground">
+              <span className="font-medium text-text">{layer.name}</span>
+              <span>{describeRotation(layer.rotation)}</span>
+              {layer.restrictions.map((r) => (
+                <span key={`${r.start}-${r.days.join()}`}>{describeRestriction(r)}</span>
+              ))}
+            </li>
+          ))}
+        </ul>
+      </div>
+      {canManage && (
+        <CalendarLink
+          workspaceId={workspaceId}
+          scheduleId={schedule.id}
+          enabled={schedule.calendarEnabled}
+        />
+      )}
       <div className="grid gap-2">
         <Eyebrow>Upcoming shifts</Eyebrow>
         <ul className="grid gap-1.5">

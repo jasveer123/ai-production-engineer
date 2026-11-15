@@ -45,6 +45,13 @@ function FunnelCard({
           />
         )}
       </div>
+      <p className="text-[0.75rem] text-muted-foreground">
+        Counting {result.data.funnel.unit === "user" ? "users" : "sessions"}
+        {result.data.funnel.windowMinutes
+          ? ` that finish within ${result.data.funnel.windowMinutes} minutes`
+          : ""}
+        {result.data.capped ? " · approximate, the event limit was reached" : ""}
+      </p>
       <ol className="grid gap-2">
         {result.data.steps.map((step, i) => (
           <li key={i} className="grid gap-1">

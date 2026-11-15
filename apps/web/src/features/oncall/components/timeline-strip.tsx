@@ -1,17 +1,30 @@
 import { cn } from "@/lib/utils"
 import { formatDateTime } from "@/lib/format/relative-time"
 import { colorFor, displayName } from "../lib"
-import type { Person, Shift } from "../schemas"
+import type { Gap, Person } from "../schemas"
 
-interface TimelineStripProps {
-  shifts: Shift[]
-  participants: Person[]
+interface TimelineBlock {
+  person: Person | null
+  startsAt: string
+  endsAt: string
+  override: boolean
 }
 
-export function TimelineStrip({ shifts, participants }: TimelineStripProps) {
-  if (shifts.length === 0) return null
-  const start = new Date(shifts[0]!.startsAt).getTime()
-  const end = new Date(shifts[shifts.length - 1]!.endsAt).getTime()
+interface TimelineStripProps {
+  shifts: { person: Person; startsAt: string; endsAt: string; override: boolean }[]
+  gaps: Gap[]
+  participants: Person[]
+  label: string
+}
+
+export function TimelineStrip({ shifts, gaps, participants, label }: TimelineStripProps) {
+  const blocks: TimelineBlock[] = [
+    ...shifts,
+    ...gaps.map((gap) => ({ ...gap, person: null, override: false })),
+  ].sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+  if (blocks.length === 0) return null
+  const start = new Date(blocks[0]!.startsAt).getTime()
+  const end = Math.max(...blocks.map((b) => new Date(b.endsAt).getTime()))
   const total = Math.max(1, end - start)
 
   return (
@@ -19,24 +32,26 @@ export function TimelineStrip({ shifts, participants }: TimelineStripProps) {
       <div
         className="flex h-5 w-full overflow-hidden border border-line"
         role="img"
-        aria-label="Who is on call over the next two weeks"
+        aria-label={label}
       >
-        {shifts.map((shift) => {
-          const index = Math.max(
-            0,
-            participants.findIndex((p) => p.userId === shift.person.userId)
-          )
+        {blocks.map((block) => {
+          const index = block.person
+            ? Math.max(
+                0,
+                participants.findIndex((p) => p.userId === block.person!.userId)
+              )
+            : 0
           const width =
-            ((new Date(shift.endsAt).getTime() - new Date(shift.startsAt).getTime()) / total) * 100
-
+            ((new Date(block.endsAt).getTime() - new Date(block.startsAt).getTime()) / total) * 100
+          const who = block.person ? displayName(block.person) : "Nobody on call"
           return (
             <span
-              key={`${shift.startsAt}-${shift.person.userId}`}
-              title={`${displayName(shift.person)}${shift.override ? " (swap)" : ""}\n${formatDateTime(shift.startsAt)} to ${formatDateTime(shift.endsAt)}`}
+              key={`${block.startsAt}-${block.person?.userId ?? "gap"}`}
+              title={`${who}${block.override ? " (swap)" : ""}\n${formatDateTime(block.startsAt)} to ${formatDateTime(block.endsAt)}`}
               className={cn(
-                colorFor(index),
+                block.person ? colorFor(index) : "bg-danger/20",
                 "block h-full border-r border-panel",
-                shift.override && "opacity-60"
+                block.override && "opacity-60"
               )}
               style={{ width: `${width}%` }}
             />
@@ -50,6 +65,12 @@ export function TimelineStrip({ shifts, participants }: TimelineStripProps) {
             {displayName(person)}
           </li>
         ))}
+        {gaps.length > 0 && (
+          <li className="flex items-center gap-1.5">
+            <span className="size-2.5 bg-danger/20" aria-hidden />
+            Nobody on call
+          </li>
+        )}
       </ul>
     </div>
   )

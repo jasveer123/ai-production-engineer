@@ -1,47 +1,45 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import dns from 'node:dns/promises';
-import { and, asc, desc, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm';
-import {
-  HISTORY_DAYS,
-  type ComponentState,
-  type CreateStatusPageInput,
-  type OverallStatus,
-  type PostUpdateInput,
-  type PublicStatus,
-  type StatusComponent,
-  type StatusPageView,
-  type StatusUpdateView,
-  type UpdateState,
-  type UpdateStatusPageInput,
+import { and, asc, count, eq, isNull, ne } from 'drizzle-orm';
+import type {
+  CreateStatusPageInput,
+  HeaderLayout,
+  PageTheme,
+  StatusPageView,
+  UpdateStatusPageInput,
 } from '@ape/api-contracts';
 import { ApiException, notFound } from '../../../core/common/errors';
 import type { ActorContext } from '../../../core/common/request-context';
-import { SubscribersService } from './subscribers.service';
+import { ENV, type ApiEnv } from '../../../core/config/config.module';
 import { DB } from '../../../core/db/database.module';
 import type { Database } from '../../../core/db/client';
-import {
-  integrations,
-  monitorChecks,
-  statusPageMonitors,
-  statusPages,
-  statusUpdates,
-} from '../../../core/db/schema';
+import { statusPageMonitors, statusPages, statusReports } from '../../../core/db/schema';
+import { hashPassword } from '../../auth/domain/password';
+import { StructureService } from './structure.service';
+import { SubscribersService } from './subscribers.service';
 
-type PageRow = typeof statusPages.$inferSelect;
-type UpdateRow = typeof statusUpdates.$inferSelect;
+export type PageRow = typeof statusPages.$inferSelect;
 
-const DAY = 24 * 3600 * 1000;
-const PUBLIC_UPDATES = 20;
-
-const toUpdate = (row: UpdateRow): StatusUpdateView => ({
-  id: row.id,
-  title: row.title,
-  body: row.body,
-  state: row.state as UpdateState,
-  auto: row.auto,
-  createdAt: row.createdAt.toISOString(),
+export const brandingOf = (row: PageRow) => ({
+  logoUrl: row.logoUrl,
+  logoDarkUrl: row.logoDarkUrl,
+  homepageUrl: row.homepageUrl,
+  contactUrl: row.contactUrl,
+  theme: row.theme as PageTheme,
+  headerLayout: row.headerLayout as HeaderLayout,
+  hideFromSearch: row.hideFromSearch,
 });
+
+const BRANDING_KEYS = [
+  'logoUrl',
+  'logoDarkUrl',
+  'homepageUrl',
+  'contactUrl',
+  'theme',
+  'headerLayout',
+  'hideFromSearch',
+] as const;
 
 @Injectable()
 export class StatusService {
@@ -49,65 +47,40 @@ export class StatusService {
 
   constructor(
     @Inject(DB) private readonly db: Database,
+    @Inject(ENV) private readonly env: ApiEnv,
     private readonly subscribers: SubscribersService,
+    private readonly structure: StructureService,
   ) {}
 
-  private async monitorIds(pageId: string): Promise<string[]> {
-    const rows = await this.db
+  private async toView(row: PageRow): Promise<StatusPageView> {
+    const monitors = await this.db
       .select({ id: statusPageMonitors.monitorId })
       .from(statusPageMonitors)
-      .where(eq(statusPageMonitors.pageId, pageId))
+      .where(eq(statusPageMonitors.pageId, row.id))
       .orderBy(asc(statusPageMonitors.position));
-    return rows.map((r) => r.id);
-  }
-
-  private async toView(row: PageRow): Promise<StatusPageView> {
-    const updates = await this.db
-      .select()
-      .from(statusUpdates)
-      .where(eq(statusUpdates.pageId, row.id))
-      .orderBy(desc(statusUpdates.createdAt))
-      .limit(PUBLIC_UPDATES);
+    const [open] = await this.db
+      .select({ n: count() })
+      .from(statusReports)
+      .where(and(eq(statusReports.pageId, row.id), isNull(statusReports.resolvedAt)));
     return {
       id: row.id,
       name: row.name,
       slug: row.slug,
       description: row.description,
-      monitorIds: await this.monitorIds(row.id),
+      monitorIds: monitors.map((m) => m.id),
       customDomain: row.customDomain,
       domainToken: row.customDomain ? row.domainToken : null,
       domainVerified: Boolean(row.domainVerifiedAt),
+      cnameTarget: new URL(this.env.WEB_URL).hostname,
+      isPrivate: Boolean(row.passwordHash),
       subscribers: await this.subscribers.count(row.id),
-      updates: updates.map(toUpdate),
+      openReports: open?.n ?? 0,
       createdAt: row.createdAt.toISOString(),
+      ...brandingOf(row),
     };
   }
 
-  private async setMonitors(actor: ActorContext, pageId: string, ids: string[]): Promise<void> {
-    const unique = [...new Set(ids)];
-    if (unique.length) {
-      const owned = await this.db
-        .select({ id: integrations.id })
-        .from(integrations)
-        .where(
-          and(
-            eq(integrations.workspaceId, actor.workspaceId),
-            inArray(integrations.id, unique),
-            sql`${integrations.config}->>'kind' = 'monitor'`,
-          ),
-        );
-      if (owned.length !== unique.length) throw notFound('Monitor');
-    }
-    await this.db.transaction(async (tx) => {
-      await tx.delete(statusPageMonitors).where(eq(statusPageMonitors.pageId, pageId));
-      if (unique.length)
-        await tx
-          .insert(statusPageMonitors)
-          .values(unique.map((monitorId, position) => ({ pageId, monitorId, position })));
-    });
-  }
-
-  private async find(actor: ActorContext, id: string): Promise<PageRow> {
+  async find(actor: ActorContext, id: string): Promise<PageRow> {
     const [row] = await this.db
       .select()
       .from(statusPages)
@@ -125,13 +98,21 @@ export class StatusService {
     return Promise.all(rows.map((row) => this.toView(row)));
   }
 
-  async create(actor: ActorContext, input: CreateStatusPageInput): Promise<StatusPageView> {
-    const slug = input.slug.trim().toLowerCase();
+  async get(actor: ActorContext, id: string): Promise<StatusPageView> {
+    return this.toView(await this.find(actor, id));
+  }
+
+  private async assertSlugFree(slug: string, exceptId?: string) {
     const [taken] = await this.db
       .select({ id: statusPages.id })
       .from(statusPages)
-      .where(eq(statusPages.slug, slug));
+      .where(and(eq(statusPages.slug, slug), exceptId ? ne(statusPages.id, exceptId) : undefined));
     if (taken) throw new ApiException(409, 'slug_taken', 'That address is already used');
+  }
+
+  async create(actor: ActorContext, input: CreateStatusPageInput): Promise<StatusPageView> {
+    const slug = input.slug.trim().toLowerCase();
+    await this.assertSlugFree(slug);
     const [row] = await this.db
       .insert(statusPages)
       .values({
@@ -141,8 +122,24 @@ export class StatusService {
         description: input.description || null,
       })
       .returning();
-    await this.setMonitors(actor, row!.id, input.monitorIds ?? []);
+    await this.structure.fromMonitors(row!, input.monitorIds ?? []);
     return this.toView(row!);
+  }
+
+  private async domainPatch(current: PageRow, domain: string | null | undefined) {
+    if (domain === undefined || domain === current.customDomain) return {};
+    if (domain) {
+      const [taken] = await this.db
+        .select({ id: statusPages.id })
+        .from(statusPages)
+        .where(eq(statusPages.customDomain, domain));
+      if (taken) throw new ApiException(409, 'domain_taken', 'That domain is already used');
+    }
+    return {
+      customDomain: domain,
+      domainToken: domain ? randomBytes(12).toString('hex') : null,
+      domainVerifiedAt: null,
+    };
   }
 
   async update(
@@ -151,58 +148,33 @@ export class StatusService {
     input: UpdateStatusPageInput,
   ): Promise<StatusPageView> {
     const current = await this.find(actor, id);
-    let domainPatch = {};
-    if (input.customDomain !== undefined && input.customDomain !== current.customDomain) {
-      if (input.customDomain) {
-        const [taken] = await this.db
-          .select({ id: statusPages.id })
-          .from(statusPages)
-          .where(eq(statusPages.customDomain, input.customDomain));
-        if (taken) throw new ApiException(409, 'domain_taken', 'That domain is already used');
-      }
-      domainPatch = {
-        customDomain: input.customDomain,
-        domainToken: input.customDomain ? randomBytes(12).toString('hex') : null,
-        domainVerifiedAt: null,
-      };
-    }
+    if (input.slug && input.slug !== current.slug) await this.assertSlugFree(input.slug, id);
+    const branding = Object.fromEntries(
+      BRANDING_KEYS.filter((k) => input[k] !== undefined).map((k) => [k, input[k]]),
+    );
     const [row] = await this.db
       .update(statusPages)
       .set({
         ...(input.name ? { name: input.name } : {}),
+        ...(input.slug ? { slug: input.slug } : {}),
         ...(input.description !== undefined ? { description: input.description || null } : {}),
-        ...domainPatch,
+        ...(input.password !== undefined
+          ? { passwordHash: input.password ? await hashPassword(input.password) : null }
+          : {}),
+        ...branding,
+        ...(await this.domainPatch(current, input.customDomain)),
       })
-      .where(eq(statusPages.id, id))
+      .where(and(eq(statusPages.id, id), eq(statusPages.workspaceId, actor.workspaceId)))
       .returning();
-    if (input.monitorIds) await this.setMonitors(actor, id, input.monitorIds);
+    if (input.monitorIds) await this.structure.fromMonitors(row!, input.monitorIds);
     return this.toView(row!);
   }
 
   async remove(actor: ActorContext, id: string): Promise<void> {
     await this.find(actor, id);
-    await this.db.delete(statusPages).where(eq(statusPages.id, id));
-  }
-
-  async postUpdate(
-    actor: ActorContext,
-    id: string,
-    input: PostUpdateInput,
-  ): Promise<StatusPageView> {
-    const page = await this.find(actor, id);
-    await this.db.insert(statusUpdates).values({
-      workspaceId: actor.workspaceId,
-      pageId: id,
-      title: input.title,
-      body: input.body ?? '',
-      state: input.state,
-    });
-    await this.subscribers.notify(id, {
-      title: input.title,
-      body: input.body ?? '',
-      state: input.state,
-    });
-    return this.toView(page);
+    await this.db
+      .delete(statusPages)
+      .where(and(eq(statusPages.id, id), eq(statusPages.workspaceId, actor.workspaceId)));
   }
 
   async verifyDomain(actor: ActorContext, id: string): Promise<StatusPageView> {
@@ -228,95 +200,5 @@ export class StatusService {
       .where(eq(statusPages.id, id))
       .returning();
     return this.toView(row!);
-  }
-
-  async publicByDomain(host: string): Promise<PublicStatus> {
-    const [page] = await this.db
-      .select()
-      .from(statusPages)
-      .where(
-        and(
-          eq(statusPages.customDomain, host.toLowerCase()),
-          isNotNull(statusPages.domainVerifiedAt),
-        ),
-      );
-    if (!page) throw notFound('Status page');
-    return this.build(page);
-  }
-
-  async removeUpdate(actor: ActorContext, id: string, updateId: string): Promise<void> {
-    await this.find(actor, id);
-    await this.db
-      .delete(statusUpdates)
-      .where(and(eq(statusUpdates.id, updateId), eq(statusUpdates.pageId, id)));
-  }
-
-  async publicView(slug: string, now = new Date()): Promise<PublicStatus> {
-    const [page] = await this.db.select().from(statusPages).where(eq(statusPages.slug, slug));
-    if (!page) throw notFound('Status page');
-    return this.build(page, now);
-  }
-
-  private async build(page: PageRow, now = new Date()): Promise<PublicStatus> {
-    const ids = await this.monitorIds(page.id);
-    const monitors = ids.length
-      ? await this.db.select().from(integrations).where(inArray(integrations.id, ids))
-      : [];
-    const since = new Date(now.getTime() - (HISTORY_DAYS - 1) * DAY);
-    since.setUTCHours(0, 0, 0, 0);
-    const buckets = ids.length
-      ? await this.db
-          .select({
-            monitorId: monitorChecks.monitorId,
-            day: sql<string>`to_char(date_trunc('day', ${monitorChecks.checkedAt} at time zone 'UTC'), 'YYYY-MM-DD')`,
-            total: sql<number>`count(*)::int`,
-            ok: sql<number>`(count(*) filter (where ${monitorChecks.ok}))::int`,
-          })
-          .from(monitorChecks)
-          .where(and(inArray(monitorChecks.monitorId, ids), gte(monitorChecks.checkedAt, since)))
-          .groupBy(monitorChecks.monitorId, sql`2`)
-      : [];
-
-    const dates = Array.from({ length: HISTORY_DAYS }, (_, i) =>
-      new Date(since.getTime() + i * DAY).toISOString().slice(0, 10),
-    );
-    const components: StatusComponent[] = ids.flatMap((id) => {
-      const monitor = monitors.find((m) => m.id === id);
-      if (!monitor) return [];
-      const config = monitor.config as { state?: ComponentState };
-      const mine = buckets.filter((b) => b.monitorId === id);
-      const total = mine.reduce((sum, b) => sum + b.total, 0);
-      const okCount = mine.reduce((sum, b) => sum + b.ok, 0);
-      return [
-        {
-          name: monitor.name,
-          state: config.state ?? 'pending',
-          uptime: total ? Math.round((okCount / total) * 10_000) / 100 : null,
-          days: dates.map((date) => {
-            const b = mine.find((x) => x.day === date);
-            return { date, uptime: b ? Math.round((b.ok / b.total) * 10_000) / 100 : null };
-          }),
-        },
-      ];
-    });
-
-    const down = components.filter((c) => c.state === 'down').length;
-    const overall: OverallStatus =
-      down === 0 ? 'operational' : down === components.length ? 'outage' : 'degraded';
-    const updates = await this.db
-      .select()
-      .from(statusUpdates)
-      .where(eq(statusUpdates.pageId, page.id))
-      .orderBy(desc(statusUpdates.createdAt))
-      .limit(PUBLIC_UPDATES);
-    return {
-      slug: page.slug,
-      name: page.name,
-      description: page.description,
-      overall,
-      components,
-      updates: updates.map(toUpdate),
-      generatedAt: now.toISOString(),
-    };
   }
 }

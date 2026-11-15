@@ -1,5 +1,12 @@
 import { z } from "zod"
 
+export const personSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable(),
+  email: z.string(),
+})
+export type Person = z.infer<typeof personSchema>
+
 export const incidentSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -17,22 +24,19 @@ export const incidentSchema = z.object({
   version: z.number(),
   acknowledgedAt: z.string().nullable(),
   createdAt: z.string(),
+  responseState: z.enum(["open", "acknowledged", "resolved"]),
+  acknowledgedBy: personSchema.nullable(),
+  resolvedAt: z.string().nullable(),
+  resolvedBy: personSchema.nullable(),
+  resolutionOrigin: z.string().nullable(),
+  resolutionReason: z.string().nullable(),
+  assignee: personSchema.nullable(),
+  monitorId: z.string().nullable(),
+  metadata: z.record(z.string(), z.string()).nullable(),
+  postMortem: z.string().nullable(),
+  postMortemUpdatedAt: z.string().nullable(),
 })
 export type Incident = z.infer<typeof incidentSchema>
-
-export const timelineEntrySchema = z.object({
-  id: z.string(),
-  at: z.string(),
-  source: z.string(),
-  kind: z.string(),
-  summary: z.string().nullable().optional(),
-  actorEmail: z.string().nullable().optional(),
-  sourceUrl: z.string().nullable().optional(),
-  commitSha: z.string().optional(),
-  version: z.string().nullable().optional(),
-  environment: z.string().optional(),
-})
-export type TimelineEntry = z.infer<typeof timelineEntrySchema>
 
 export const evidenceRefSchema = z.object({
   id: z.string(),
@@ -182,12 +186,6 @@ export const incidentVerificationSchema = z.object({
   phase: z.string().nullable(),
 })
 export type IncidentVerification = z.infer<typeof incidentVerificationSchema>
-
-export interface TransitionRequest {
-  to: string
-  expectedVersion: number
-  reason?: string
-}
 
 export interface IncidentActionRequest {
   action: "investigate" | "approve_reproduction" | "dismiss"

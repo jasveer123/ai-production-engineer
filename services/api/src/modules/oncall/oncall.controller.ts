@@ -8,14 +8,21 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   createOverrideSchema,
+  coverageQuerySchema,
   createScheduleSchema,
   updateScheduleSchema,
   type CreateOverrideInput,
+  type CalendarLink,
+  type CoverageQuery,
   type CreateScheduleInput,
+  type ScheduleCoverage,
   type OncallNow,
   type ScheduleView,
   type UpdateScheduleInput,
@@ -25,12 +32,46 @@ import type { ActorContext } from '../../core/common/request-context';
 import { ZodValidationPipe } from '../../core/common/zod-validation.pipe';
 import { MinRole } from '../workspaces/min-role.decorator';
 import { WorkspaceAccessGuard } from '../workspaces/workspace-access.guard';
+import { Public } from '../auth/public.decorator';
+import { CalendarService } from './application/calendar.service';
 import { OncallService } from './application/oncall.service';
 
-@Controller('workspaces/:workspaceId/oncall')
+@Controller(['workspaces/:workspaceId/oncall', 'api/v1/workspaces/:workspaceId/oncall'])
 @UseGuards(WorkspaceAccessGuard)
 export class OncallController {
-  constructor(private readonly oncall: OncallService) {}
+  constructor(
+    private readonly oncall: OncallService,
+    private readonly calendar: CalendarService,
+  ) {}
+
+  @Get('schedules/:scheduleId/coverage')
+  coverage(
+    @Actor() actor: ActorContext,
+    @Param('scheduleId', ParseUUIDPipe) id: string,
+    @Query(new ZodValidationPipe(coverageQuerySchema)) q: CoverageQuery,
+  ): Promise<ScheduleCoverage> {
+    return this.oncall.coverage(actor, id, new Date(q.from), new Date(q.to));
+  }
+
+  @Post('schedules/:scheduleId/calendar-link')
+  @MinRole('admin')
+  @HttpCode(200)
+  enableCalendar(
+    @Actor() actor: ActorContext,
+    @Param('scheduleId', ParseUUIDPipe) id: string,
+  ): Promise<CalendarLink> {
+    return this.calendar.enable(actor, id);
+  }
+
+  @Delete('schedules/:scheduleId/calendar-link')
+  @MinRole('admin')
+  @HttpCode(204)
+  revokeCalendar(
+    @Actor() actor: ActorContext,
+    @Param('scheduleId', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    return this.calendar.revoke(actor, id);
+  }
 
   @Get('schedules')
   list(@Actor() actor: ActorContext): Promise<ScheduleView[]> {
@@ -89,5 +130,23 @@ export class OncallController {
     @Param('overrideId', ParseUUIDPipe) id: string,
   ): Promise<void> {
     return this.oncall.removeOverride(actor, id);
+  }
+}
+
+@Controller('public/oncall')
+export class OncallCalendarController {
+  constructor(private readonly calendar: CalendarService) {}
+
+  @Public()
+  @Get(':scheduleId/calendar.ics')
+  async feed(
+    @Param('scheduleId') id: string,
+    @Query('token') token: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<string> {
+    const body = await this.calendar.feed(id, typeof token === 'string' ? token : undefined);
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    return body;
   }
 }

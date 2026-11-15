@@ -135,3 +135,11 @@ export function useRevokeApiToken() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["settings", "api-tokens"] }),
   })
 }
+
+export function useSystemStatus(workspaceId: string) {
+  return useQuery({
+    queryKey: ["settings", workspaceId, "system-status"],
+    queryFn: () => settingsService.systemStatus(workspaceId),
+    refetchInterval: 30_000,
+  })
+}

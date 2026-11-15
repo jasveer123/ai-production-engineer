@@ -1,11 +1,10 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import type {
   CreateNotificationChannelInput,
   NotificationChannel,
   NotificationChannelWithSecret,
-  NotificationDelivery,
   NotificationEvent,
   NotificationTestResult,
   UpdateNotificationChannelInput,
@@ -16,10 +15,14 @@ import type { ActorContext } from '../../core/common/request-context';
 import { ENV, type ApiEnv } from '../../core/config/config.module';
 import { DB } from '../../core/db/database.module';
 import type { Database } from '../../core/db/client';
-import { notificationChannels, notificationDeliveries } from '../../core/db/schema';
+import { notificationChannels } from '../../core/db/schema';
 import { SecretStore } from '../../core/secrets/secret-store.service';
-import { maskPhone, maskTarget } from './domain/messages';
-import { NotificationDispatcher } from './application/notification-dispatcher.service';
+import { maskTarget, testNotification } from './domain/messages';
+import {
+  channelDisplay,
+  NotificationDispatcher,
+} from './application/notification-dispatcher.service';
+import { testResultOf } from './application/contact-methods.service';
 import type { ChannelRow } from './infrastructure/notification-sender.service';
 import { checkOutboundUrl, UnsafeUrlError } from '../../core/common/outbound-url';
 
@@ -45,9 +48,7 @@ export class NotificationsService {
           ? slackUrl
             ? maskTarget('slack', slackUrl)
             : 'hooks.slack.com/services/…'
-          : r.kind === 'sms' || r.kind === 'phone'
-            ? maskPhone(r.url ?? '')
-            : maskTarget('webhook', r.url ?? ''),
+          : channelDisplay(r),
       events: r.events as NotificationEvent[],
       minSeverity: r.minSeverity,
       enabled: r.enabled,
@@ -117,9 +118,9 @@ export class NotificationsService {
         `A workspace can have at most ${MAX_CHANNELS} notification channels`,
       );
     }
-    const phone = 'phone' in input ? input.phone : null;
+    const direct = 'phone' in input ? input.phone : 'email' in input ? input.email : null;
     const target =
-      input.kind === 'slack' ? input.webhookUrl : phone ? null : (input as { url: string }).url;
+      input.kind === 'slack' ? input.webhookUrl : direct ? null : (input as { url: string }).url;
     if (target) {
       try {
         await checkOutboundUrl(target, { allowPrivate: this.env.NODE_ENV !== 'production' });
@@ -142,7 +143,7 @@ export class NotificationsService {
           workspaceId: actor.workspaceId,
           kind: input.kind,
           name: input.name,
-          url: phone ?? (input.kind === 'slack' ? null : (input as { url: string }).url),
+          url: direct ?? (input.kind === 'slack' ? null : (input as { url: string }).url),
           secretReference,
           events: [...new Set(input.events)],
           minSeverity: input.minSeverity ?? 'low',
@@ -206,23 +207,12 @@ export class NotificationsService {
 
   async test(actor: ActorContext, id: string): Promise<NotificationTestResult> {
     const row = await this.find(actor, id);
-    const incidentId = randomUUID();
-    const result = await this.dispatcher.deliver(row, {
-      type: 'incident.detected',
-      key: `test:${randomUUID()}`,
-      occurredAt: new Date().toISOString(),
-      summary: 'This is a test notification from AI Production Engineer.',
-      url: `${this.env.WEB_URL}/w/${actor.workspaceId}/settings`,
-      incident: {
-        id: incidentId,
-        workspaceId: actor.workspaceId,
-        title: 'Test notification',
-        severity: 'low',
-        status: 'detected',
-        serviceName: null,
-        environment: null,
-      },
-    });
+    const key = `test:${randomUUID()}`;
+    const sent = await this.dispatcher.deliverOnce(
+      row,
+      testNotification(actor.workspaceId, key, `${this.env.WEB_URL}/notifications`),
+    );
+    const result = testResultOf(sent);
     await this.audit.record({
       workspaceId: actor.workspaceId,
       actorId: actor.userId,
@@ -231,34 +221,8 @@ export class NotificationsService {
       resourceId: id,
       outcome: result.ok ? 'success' : 'failure',
       correlationId: actor.correlationId,
-      metadata: { status: result.status, error: result.error },
+      metadata: { state: result.state, status: result.status, error: result.error },
     });
-    return { ok: result.ok, status: result.status, error: result.error };
-  }
-
-  async deliveries(actor: ActorContext, limit = 50): Promise<NotificationDelivery[]> {
-    const rows = await this.db
-      .select({ d: notificationDeliveries, channelName: notificationChannels.name })
-      .from(notificationDeliveries)
-      .innerJoin(
-        notificationChannels,
-        eq(notificationChannels.id, notificationDeliveries.channelId),
-      )
-      .where(eq(notificationDeliveries.workspaceId, actor.workspaceId))
-      .orderBy(desc(notificationDeliveries.updatedAt))
-      .limit(limit);
-    return rows.map(({ d, channelName }) => ({
-      id: d.id,
-      channelId: d.channelId,
-      channelName,
-      eventType: d.eventType,
-      incidentId: d.incidentId,
-      status: d.status as NotificationDelivery['status'],
-      attempts: d.attempts,
-      responseStatus: d.responseStatus,
-      error: d.error,
-      createdAt: d.createdAt.toISOString(),
-      sentAt: d.sentAt?.toISOString() ?? null,
-    }));
+    return result;
   }
 }

@@ -12,6 +12,11 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import {
+  createErrorAppSchema,
+  updateErrorAppSchema,
+  type CreateErrorAppInput,
+  type ErrorAppView,
+  type UpdateErrorAppInput,
   errorListQuerySchema,
   sourceMapSchema,
   updateErrorSchema,
@@ -27,6 +32,7 @@ import type { ActorContext } from '../../core/common/request-context';
 import { ZodValidationPipe } from '../../core/common/zod-validation.pipe';
 import { MinRole } from '../workspaces/min-role.decorator';
 import { WorkspaceAccessGuard } from '../workspaces/workspace-access.guard';
+import { ErrorAppsService } from './application/error-apps.service';
 import { ErrorsService } from './application/errors.service';
 import { SourceMapsService } from './application/source-maps.service';
 
@@ -92,5 +98,42 @@ export class SourceMapsController {
   @HttpCode(204)
   remove(@Actor() actor: ActorContext, @Param('mapId', ParseUUIDPipe) id: string): Promise<void> {
     return this.maps.remove(actor, id);
+  }
+}
+
+@Controller('workspaces/:workspaceId/error-applications')
+@UseGuards(WorkspaceAccessGuard)
+export class ErrorAppsController {
+  constructor(private readonly apps: ErrorAppsService) {}
+
+  @Get()
+  list(@Actor() actor: ActorContext): Promise<ErrorAppView[]> {
+    return this.apps.list(actor);
+  }
+
+  @Post()
+  @MinRole('admin')
+  create(
+    @Actor() actor: ActorContext,
+    @Body(new ZodValidationPipe(createErrorAppSchema)) body: CreateErrorAppInput,
+  ): Promise<ErrorAppView> {
+    return this.apps.create(actor, body);
+  }
+
+  @Patch(':appId')
+  @MinRole('admin')
+  update(
+    @Actor() actor: ActorContext,
+    @Param('appId', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(updateErrorAppSchema)) body: UpdateErrorAppInput,
+  ): Promise<ErrorAppView> {
+    return this.apps.update(actor, id, body);
+  }
+
+  @Delete(':appId')
+  @MinRole('admin')
+  @HttpCode(204)
+  remove(@Actor() actor: ActorContext, @Param('appId', ParseUUIDPipe) id: string): Promise<void> {
+    return this.apps.remove(actor, id);
   }
 }

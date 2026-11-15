@@ -2,33 +2,33 @@
 
 import * as React from "react"
 import Link from "next/link"
-import {
-  Badge,
-  Chip,
-  Input,
-  Spinner,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui"
+import { Badge, Spinner, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui"
 import { StatusStrip } from "@/components/shared"
 import { useCurrentWorkspace } from "@/features/auth"
 import { PageHeading } from "@/features/integrations"
 import { ROUTES } from "@/lib/constants/routes"
 import { formatRelativeTime } from "@/lib/format/relative-time"
-import { STATUS_FILTERS, STATUS_VARIANT } from "../constants"
+import { STATUS_VARIANT } from "../constants"
 import { ACTOR_ROLES } from "@/lib/constants/roles"
-import { useErrors } from "../hooks"
+import { useErrorApps, useErrors } from "../hooks"
+import type { ErrorFilters as Filters } from "../schemas"
+import { ApplicationsPanel } from "./applications-panel"
+import { ErrorFilters } from "./error-filters"
 import { ReleasesPanel } from "./releases-panel"
 import { SourceMapsPanel } from "./source-maps-panel"
 
 export function ErrorsPage() {
-  const { workspace, isPending } = useCurrentWorkspace()
-  const [status, setStatus] = React.useState<string>("unresolved")
-  const [q, setQ] = React.useState("")
-  const [assignee, setAssignee] = React.useState("all")
-  const errors = useErrors(workspace?.id, status, q.trim(), assignee)
+  const { workspace, canManage, isPending } = useCurrentWorkspace()
+  const [filters, setFilters] = React.useState<Filters>({
+    status: "unresolved",
+    q: "",
+    assignee: "all",
+    applicationId: "",
+    environment: "",
+    release: "",
+  })
+  const errors = useErrors(workspace?.id, filters)
+  const apps = useErrorApps(workspace?.id)
 
   if (isPending) {
     return (
@@ -42,7 +42,10 @@ export function ErrorsPage() {
 
   const items = errors.data ?? []
   const events = items.reduce((n, item) => n + item.count, 0)
-  const regressed = items.filter((item) => item.reopenedAt && item.status === "unresolved").length
+  const regressed = items.filter(
+    (item) => item.status === "regressed" || (item.reopenedAt && item.status === "unresolved")
+  ).length
+  const users = items.reduce((n, item) => n + item.usersAffected, 0)
   const unassigned = items.filter((item) => !item.assignee).length
   const lastSeen = items[0]?.lastSeenAt
 
@@ -53,6 +56,7 @@ export function ErrorsPage() {
         <TabsList>
           <TabsTrigger value="issues">Issues</TabsTrigger>
           <TabsTrigger value="releases">Releases</TabsTrigger>
+          <TabsTrigger value="apps">Applications</TabsTrigger>
           <TabsTrigger value="maps">Source maps</TabsTrigger>
         </TabsList>
         <TabsContent value="issues" className="grid gap-6 pt-5">
@@ -73,41 +77,12 @@ export function ErrorsPage() {
             stats={[
               { label: "Issues", value: items.length },
               { label: "Events", value: events.toLocaleString() },
+              { label: "Users affected", value: users.toLocaleString() },
               { label: "Unassigned", value: unassigned },
               { label: "Last seen", value: lastSeen ? formatRelativeTime(lastSeen) : "-" },
             ]}
           />
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap gap-2">
-              {STATUS_FILTERS.map((item) => (
-                <Chip
-                  key={item.value}
-                  selected={status === item.value}
-                  onClick={() => setStatus(item.value)}
-                >
-                  {item.label}
-                </Chip>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {[
-                ["all", "Anyone"],
-                ["me", "Assigned to me"],
-                ["none", "Unassigned"],
-              ].map(([value, label]) => (
-                <Chip key={value} selected={assignee === value} onClick={() => setAssignee(value!)}>
-                  {label}
-                </Chip>
-              ))}
-            </div>
-            <Input
-              aria-label="Search errors"
-              className="w-64"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search errors"
-            />
-          </div>
+          <ErrorFilters value={filters} apps={apps.data ?? []} onChange={setFilters} />
           {errors.isPending ? (
             <div className="grid place-items-center py-12">
               <Spinner className="size-5" />
@@ -130,15 +105,17 @@ export function ErrorsPage() {
                       <Badge variant={STATUS_VARIANT[item.status] ?? "default"}>
                         {item.reopenedAt && item.status === "unresolved"
                           ? "regressed"
-                          : item.status}
+                          : item.status === "snoozed" && item.snoozeRemaining
+                            ? `snoozed for ${item.snoozeRemaining} events`
+                            : item.status}
                       </Badge>
                     </div>
                     <p className="text-[0.8125rem] text-muted-foreground">
                       {item.service} · {item.environment}
                       {item.assignee
                         ? ` · ${item.assignee.name ?? item.assignee.email}`
-                        : ""} · {item.count.toLocaleString()} events · last seen{" "}
-                      {formatRelativeTime(item.lastSeenAt)}
+                        : ""} · {item.count.toLocaleString()} events · {item.usersAffected} users ·
+                      last seen {formatRelativeTime(item.lastSeenAt)}
                     </p>
                   </Link>
                 </li>
@@ -148,6 +125,9 @@ export function ErrorsPage() {
         </TabsContent>
         <TabsContent value="releases" className="pt-5">
           <ReleasesPanel workspaceId={workspace.id} />
+        </TabsContent>
+        <TabsContent value="apps" className="pt-5">
+          <ApplicationsPanel workspaceId={workspace.id} canManage={canManage} />
         </TabsContent>
         <TabsContent value="maps" className="pt-5">
           <SourceMapsPanel

@@ -2,6 +2,8 @@ import { z } from 'zod';
 import type { Severity } from '@ape/api-contracts';
 
 import { PermanentIngestError } from '../../../ingest/ingestion/domain/normalize';
+import { parseMetricAlert } from './metric-alert-parser';
+import { parseMonitor } from './monitor-parser';
 import {
   date,
   firstDefined,
@@ -16,20 +18,12 @@ import {
   tagLabels,
   text,
   url,
+  type ParsedAlert,
 } from './parser-utils';
 
 export { mapSeverity };
 
-export interface ParsedAlert {
-  dedupKey: string;
-  status: 'firing' | 'resolved';
-  title: string;
-  description: string | null;
-  severity: Severity;
-  labels: Record<string, string>;
-  sourceUrl: string | null;
-  occurredAt: Date;
-}
+export type { ParsedAlert };
 
 const MAX_ALERTS_PER_REQUEST = 100;
 
@@ -306,39 +300,26 @@ function parseElasticsearch(payload: unknown, now: Date): ParsedAlert[] {
 }
 
 function parseHeartbeat(payload: unknown, now: Date): ParsedAlert[] {
-  const p = payload as { status?: string; name?: string; lastPingAt?: string | null };
+  const p = payload as {
+    status?: string;
+    name?: string;
+    lastPingAt?: string | null;
+    cause?: string | null;
+    occurredAt?: string;
+  };
   const name = text(p?.name, 200) ?? 'heartbeat';
   const firing = p?.status !== 'resolved';
+  const last = p?.lastPingAt ? `Last ping at ${p.lastPingAt}.` : 'No ping has been received yet.';
   return [
     {
       dedupKey: 'heartbeat',
       status: firing ? 'firing' : 'resolved',
-      title: `Heartbeat "${name}" ${firing ? 'missed' : 'resumed'}`,
-      description: p?.lastPingAt
-        ? `Last ping at ${p.lastPingAt}.`
-        : 'No ping has been received yet.',
+      title: `Heartbeat "${name}" ${firing ? 'is down' : 'recovered'}`,
+      description: firing ? (text(p?.cause, 2000) ?? last) : last,
       severity: 'high',
       labels: { heartbeat: name },
       sourceUrl: null,
-      occurredAt: now,
-    },
-  ];
-}
-
-function parseMonitor(payload: unknown, now: Date): ParsedAlert[] {
-  const p = payload as { status?: string; name?: string; target?: string; reason?: string };
-  const name = text(p?.name, 200) ?? 'monitor';
-  const firing = p?.status !== 'resolved';
-  return [
-    {
-      dedupKey: 'monitor',
-      status: firing ? 'firing' : 'resolved',
-      title: `Monitor "${name}" is ${firing ? 'down' : 'back up'}`,
-      description: text(p?.reason, 500),
-      severity: 'high',
-      labels: { monitor: name, ...(p?.target ? { target: text(p.target, 300) ?? '' } : {}) },
-      sourceUrl: null,
-      occurredAt: now,
+      occurredAt: date(p?.occurredAt, now),
     },
   ];
 }
@@ -393,6 +374,8 @@ export function parseAlerts(kind: string, payload: unknown, now = new Date()): P
       return parseMonitor(payload, now);
     case 'log_alert':
       return parseLogAlert(payload, now);
+    case 'metric_alert':
+      return parseMetricAlert(payload, now);
     default:
       throw new PermanentIngestError('unknown_source', `No alert parser for "${kind}"`);
   }

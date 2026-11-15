@@ -1,7 +1,8 @@
 "use client"
 
 import { Eyebrow } from "@/components/ui"
-import { useRevokeToken, useRotateToken } from "../hooks"
+import { useRevokeToken, useRotateToken, useSources } from "../hooks"
+import { formatCount } from "../lib"
 import type { IngestToken } from "../schemas"
 import type { TokenSecret } from "../types"
 import { TokenCreateForm } from "./token-create-form"
@@ -12,6 +13,7 @@ interface TokenPanelProps {
   workspaceId: string
   platform: string
   platformName: string
+  way: string
   ingestUrl: string
   tokens: IngestToken[]
   canManage: boolean
@@ -23,6 +25,7 @@ export function TokenPanel({
   workspaceId,
   platform,
   platformName,
+  way,
   ingestUrl,
   tokens,
   canManage,
@@ -34,7 +37,12 @@ export function TokenPanel({
   const activeTokens = tokens.filter((token) => !token.revokedAt)
   const sources = activeTokens.filter((token) => token.platform === platform)
   const older = activeTokens.filter((token) => !token.platform)
-  const pending = rotate.isPending || revoke.isPending
+  const { sources: overview, setPaused } = useSources(workspaceId)
+  const pending = rotate.isPending || revoke.isPending || setPaused.isPending
+  const pausedAt = (id: string) =>
+    overview.data?.sources.find((source) => source.id === id)?.pausedAt ?? null
+  const volume = overview.data?.volume24h.find((item) => item.way === way)
+  const onTogglePause = (id: string) => setPaused.mutate({ id, paused: !pausedAt(id) })
 
   const onRotate = (id: string) =>
     rotate.mutate(id, { onSuccess: (rotated) => onSecretChange({ id, token: rotated.token }) })
@@ -49,6 +57,9 @@ export function TokenPanel({
         <p className="text-[0.8125rem] leading-5 text-muted-foreground">
           A source is one {platformName} connection with its own token. Keep the token private.
         </p>
+        <p className="text-[0.8125rem] text-muted-foreground">
+          Received through {way} in the last 24 hours: {formatCount(volume?.logs ?? 0)} logs
+        </p>
       </div>
       {secret && <TokenSecretNotice token={secret.token} />}
       {sources.length > 0 && (
@@ -61,6 +72,8 @@ export function TokenPanel({
               ingestUrl={ingestUrl}
               canManage={canManage}
               pending={pending}
+              pausedAt={pausedAt(token.id)}
+              onTogglePause={onTogglePause}
               onRotate={onRotate}
               onRevoke={onRevoke}
             />
@@ -95,6 +108,8 @@ export function TokenPanel({
                 ingestUrl={ingestUrl}
                 canManage={canManage}
                 pending={pending}
+                pausedAt={pausedAt(token.id)}
+                onTogglePause={onTogglePause}
                 onRotate={onRotate}
                 onRevoke={onRevoke}
               />

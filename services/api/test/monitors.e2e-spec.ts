@@ -4,7 +4,7 @@ import type { INestApplication } from '@nestjs/common';
 import type { AlertView, MonitorDetail, MonitorView } from '@ape/api-contracts';
 import request from 'supertest';
 import type { App } from 'supertest/types';
-import { MonitorsService } from '../src/modules/alerts/application/monitors.service';
+import { MonitorExecutor } from '../src/modules/alerts/application/monitor-executor.service';
 import { IngestionProcessor } from '../src/ingest/ingestion/application/ingestion.processor';
 import { createTestApp, createWorkspace, loginAs, resetDatabase } from './helpers';
 
@@ -47,7 +47,8 @@ describe('Uptime monitors (e2e)', () => {
       url,
       keyword: 'hello',
       intervalSeconds: 30,
-      confirmations: 1,
+      confirmationSeconds: 0,
+      recoverySeconds: 0,
       ...extra,
     });
 
@@ -56,8 +57,8 @@ describe('Uptime monitors (e2e)', () => {
     const created = (await create(owner, ws).expect(201)).body as MonitorView;
     expect(created.state).toBe('pending');
 
-    expect(await app.get(MonitorsService).runDue()).toBe(1);
-    expect(await app.get(MonitorsService).runDue()).toBe(0);
+    expect(await app.get(MonitorExecutor).runDue()).toBe(1);
+    expect(await app.get(MonitorExecutor).runDue()).toBe(0);
     let list = (await owner.get(`/workspaces/${ws}/monitors`).expect(200)).body as MonitorView[];
     expect(list[0]).toMatchObject({ state: 'up', lastStatusCode: 200 });
 
@@ -85,14 +86,16 @@ describe('Uptime monitors (e2e)', () => {
     expect(list[0]!.state).toBe('up');
   });
 
-  it('waits for the confirmation checks before declaring a monitor down', async () => {
+  it('waits for the confirmation period before declaring a monitor down', async () => {
     const { owner, ws } = await setup();
-    const created = (await create(owner, ws, { confirmations: 2 }).expect(201)).body as MonitorView;
+    const created = (await create(owner, ws, { confirmationSeconds: 1 }).expect(201))
+      .body as MonitorView;
     await owner.post(`/workspaces/${ws}/monitors/${created.id}/check`).expect(200);
     status = 503;
     const first = (await owner.post(`/workspaces/${ws}/monitors/${created.id}/check`).expect(200))
       .body as MonitorDetail;
     expect(first.state).toBe('up');
+    await new Promise((resolve) => setTimeout(resolve, 1100));
     const second = (await owner.post(`/workspaces/${ws}/monitors/${created.id}/check`).expect(200))
       .body as MonitorDetail;
     expect(second.state).toBe('down');
@@ -125,7 +128,7 @@ describe('Uptime monitors (e2e)', () => {
     const tcp = (
       await owner
         .post(`/workspaces/${ws}/monitors`)
-        .send({ name: 'Port', kind: 'tcp', host: '127.0.0.1', port, confirmations: 1 })
+        .send({ name: 'Port', kind: 'tcp', host: '127.0.0.1', port })
         .expect(201)
     ).body as MonitorView;
     expect(
@@ -138,7 +141,7 @@ describe('Uptime monitors (e2e)', () => {
     const code = (
       await owner
         .post(`/workspaces/${ws}/monitors`)
-        .send({ name: 'Gone', kind: 'status', url, expectedStatus: 404 })
+        .send({ name: 'Gone', kind: 'status', url, expectedStatuses: [404] })
         .expect(201)
     ).body as MonitorView;
     expect(
@@ -156,7 +159,7 @@ describe('Uptime monitors (e2e)', () => {
       .patch(`/workspaces/${ws}/monitors/${created.id}`)
       .send({ paused: true })
       .expect(200);
-    expect(await app.get(MonitorsService).runDue()).toBe(0);
+    expect(await app.get(MonitorExecutor).runDue()).toBe(0);
 
     const other = await loginAs(app, 'other@monitors.test');
     const otherWs = (await createWorkspace(other, 'Other')).id;

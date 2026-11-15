@@ -1,8 +1,9 @@
 "use client"
 
+import * as React from "react"
 import Link from "next/link"
 import {
-  Badge,
+  Chip,
   Spinner,
   Table,
   TableBody,
@@ -13,72 +14,91 @@ import {
 } from "@/components/ui"
 import { ROUTES } from "@/lib/constants/routes"
 import { formatRelativeTime } from "@/lib/format/relative-time"
-import { EVENT_LABEL } from "../constants"
+import { DELIVERY_STATES, EVENT_LABEL } from "../constants"
 import { useDeliveries } from "../hooks"
+import { DeliveryDetail } from "./delivery-detail"
+import { DeliveryStateBadge } from "./delivery-state-badge"
 
 interface DeliveriesPanelProps {
   workspaceId: string
 }
 
 export function DeliveriesPanel({ workspaceId }: DeliveriesPanelProps) {
-  const deliveries = useDeliveries(workspaceId)
-
-  if (deliveries.isPending) return <Spinner />
-
+  const [state, setState] = React.useState<string | undefined>(undefined)
+  const deliveries = useDeliveries(workspaceId, { state })
   const items = deliveries.data ?? []
 
-  if (items.length === 0) {
-    return (
-      <p className="border border-dashed border-line p-8 text-center text-sm text-muted-foreground">
-        Nothing has been sent yet.
-      </p>
-    )
-  }
-
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Sent</TableHead>
-          <TableHead>Channel</TableHead>
-          <TableHead>About</TableHead>
-          <TableHead>Incident</TableHead>
-          <TableHead>Result</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {items.map((item) => (
-          <TableRow key={item.id}>
-            <TableCell className="text-muted-foreground">
-              {formatRelativeTime(item.createdAt)}
-            </TableCell>
-            <TableCell>{item.channelName}</TableCell>
-            <TableCell>{EVENT_LABEL[item.eventType] ?? item.eventType}</TableCell>
-            <TableCell>
-              {item.incidentId ? (
-                <Link href={ROUTES.incidentDetail(item.incidentId)} className="hover:text-brand">
-                  Open
-                </Link>
-              ) : (
-                <span className="text-muted-foreground">-</span>
-              )}
-            </TableCell>
-            <TableCell>
-              <span className="flex flex-wrap items-center gap-2">
-                <Badge variant={item.status === "sent" ? "success" : "destructive"}>
-                  {item.status}
-                </Badge>
-                {item.error && <span className="text-[0.75rem] text-danger">{item.error}</span>}
-                {item.attempts > 1 && (
-                  <span className="text-[0.75rem] text-muted-foreground">
-                    {item.attempts} tries
-                  </span>
-                )}
-              </span>
-            </TableCell>
-          </TableRow>
+    <div className="grid gap-4">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by state">
+        <Chip selected={!state} onClick={() => setState(undefined)}>
+          All
+        </Chip>
+        {DELIVERY_STATES.map((item) => (
+          <Chip
+            key={item.value}
+            selected={state === item.value}
+            onClick={() => setState(item.value)}
+          >
+            {item.label}
+          </Chip>
         ))}
-      </TableBody>
-    </Table>
+      </div>
+      {deliveries.isPending ? (
+        <Spinner />
+      ) : items.length === 0 ? (
+        <p className="border border-dashed border-line p-8 text-center text-sm text-muted-foreground">
+          {state ? "No deliveries in this state." : "Nothing has been sent yet."}
+        </p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Queued</TableHead>
+              <TableHead>To</TableHead>
+              <TableHead>About</TableHead>
+              <TableHead>State</TableHead>
+              <TableHead>Detail</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.map((item) => (
+              <TableRow key={item.id}>
+                <TableCell className="text-muted-foreground">
+                  {formatRelativeTime(item.createdAt)}
+                </TableCell>
+                <TableCell>
+                  <span className="grid">
+                    <span>{item.recipientName ?? item.channelName ?? item.address}</span>
+                    <span className="font-mono text-[0.75rem] text-muted-foreground">
+                      {item.channel} · {item.address}
+                    </span>
+                  </span>
+                </TableCell>
+                <TableCell>
+                  {item.incidentId ? (
+                    <Link
+                      href={ROUTES.incidentDetail(item.incidentId)}
+                      className="hover:text-brand"
+                    >
+                      {EVENT_LABEL[item.eventType] ??
+                        (item.eventType === "escalation" ? "Escalation" : item.eventType)}
+                    </Link>
+                  ) : (
+                    <span className="text-muted-foreground">Test message</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <DeliveryStateBadge state={item.state} />
+                </TableCell>
+                <TableCell>
+                  <DeliveryDetail delivery={item} />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </div>
   )
 }

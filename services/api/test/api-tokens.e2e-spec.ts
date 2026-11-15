@@ -22,8 +22,9 @@ describe('Personal API tokens (e2e)', () => {
   it('lets a script call the API with a token until it is revoked or expires', async () => {
     const owner = await loginAs(app, 'owner@pat.test');
     const ws = (await createWorkspace(owner, 'Pat')).id;
-    const created = (await owner.post('/auth/api-tokens').send({ name: 'CI script' }).expect(201))
-      .body as ApiTokenWithSecret;
+    const created = (
+      await owner.post('/auth/api-tokens').send({ name: 'CI script', workspaceId: ws }).expect(201)
+    ).body as ApiTokenWithSecret;
     expect(created.token).toMatch(/^ape_pat_[a-f0-9]{48}$/);
 
     const listed = (await owner.get('/auth/api-tokens').expect(200)).body as ApiTokenView[];
@@ -39,8 +40,12 @@ describe('Personal API tokens (e2e)', () => {
     await request(app.getHttpServer())
       .post('/auth/api-tokens')
       .set('Authorization', `Bearer ${created.token}`)
-      .send({ name: 'nested' })
-      .expect(401);
+      .send({ name: 'nested', workspaceId: ws })
+      .expect(403);
+    await request(app.getHttpServer())
+      .get(`/api/v1/workspaces/${ws}/incidents`)
+      .set('Authorization', `Bearer ${created.token}`)
+      .expect(200);
 
     await db.update(apiTokens).set({ expiresAt: new Date(Date.now() - 1000) });
     await call(created.token).expect(401);
@@ -55,9 +60,31 @@ describe('Personal API tokens (e2e)', () => {
   it('keeps tokens private to their owner', async () => {
     const a = await loginAs(app, 'a@pat.test');
     const b = await loginAs(app, 'b@pat.test');
-    const token = (await a.post('/auth/api-tokens').send({ name: 'A' }).expect(201))
-      .body as ApiTokenWithSecret;
+    const wsA = (await createWorkspace(a, 'Team A')).id;
+    const wsB = (await createWorkspace(b, 'Team B')).id;
+    const token = (
+      await a.post('/auth/api-tokens').send({ name: 'A', workspaceId: wsA }).expect(201)
+    ).body as ApiTokenWithSecret;
+    await a.post('/auth/api-tokens').send({ name: 'X', workspaceId: wsB }).expect(404);
     expect((await b.get('/auth/api-tokens').expect(200)).body).toEqual([]);
     await b.delete(`/auth/api-tokens/${token.id}`).expect(404);
+  });
+
+  it('enforces workspace and scope on every request', async () => {
+    const owner = await loginAs(app, 'scope@pat.test');
+    const ws = (await createWorkspace(owner, 'Scoped')).id;
+    const other = (await createWorkspace(owner, 'Other')).id;
+    const readOnly = (
+      await owner
+        .post('/auth/api-tokens')
+        .send({ name: 'reader', workspaceId: ws, scopes: ['read'] })
+        .expect(201)
+    ).body as ApiTokenWithSecret;
+    expect(readOnly.scopes).toEqual(['read']);
+    const as = (method: 'get' | 'post', url: string) =>
+      request(app.getHttpServer())[method](url).set('Authorization', `Bearer ${readOnly.token}`);
+    await as('get', `/api/v1/workspaces/${ws}/monitors`).expect(200);
+    await as('get', `/api/v1/workspaces/${other}/monitors`).expect(404);
+    await as('post', `/api/v1/workspaces/${ws}/oncall/schedules`).send({}).expect(403);
   });
 });

@@ -6,6 +6,7 @@ import {
   HttpCode,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -15,6 +16,9 @@ import {
   createRumAppSchema,
   rumRangeSchema,
   sessionQuerySchema,
+  updateRumAppSchema,
+  type RumVitalsReport,
+  type UpdateRumAppInput,
   type CreateFunnelInput,
   type CreateRumAppInput,
   type FunnelResult,
@@ -32,6 +36,7 @@ import type { ActorContext } from '../../core/common/request-context';
 import { ZodValidationPipe } from '../../core/common/zod-validation.pipe';
 import { MinRole } from '../workspaces/min-role.decorator';
 import { WorkspaceAccessGuard } from '../workspaces/workspace-access.guard';
+import { RumFunnelsService } from './application/rum-funnels.service';
 import { RumService } from './application/rum.service';
 
 type Range = ReturnType<typeof rumRangeSchema.parse>;
@@ -40,7 +45,10 @@ const range = () => new ZodValidationPipe(rumRangeSchema);
 @Controller('workspaces/:workspaceId/rum')
 @UseGuards(WorkspaceAccessGuard)
 export class RumController {
-  constructor(private readonly rum: RumService) {}
+  constructor(
+    private readonly rum: RumService,
+    private readonly funnelsService: RumFunnelsService,
+  ) {}
 
   @Get('apps')
   apps(@Actor() actor: ActorContext): Promise<RumAppView[]> {
@@ -54,6 +62,21 @@ export class RumController {
     @Body(new ZodValidationPipe(createRumAppSchema)) body: CreateRumAppInput,
   ): Promise<RumAppView> {
     return this.rum.createApp(actor, body);
+  }
+
+  @Patch('apps/:appId')
+  @MinRole('admin')
+  updateApp(
+    @Actor() actor: ActorContext,
+    @Param('appId', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(updateRumAppSchema)) body: UpdateRumAppInput,
+  ): Promise<RumAppView> {
+    return this.rum.updateApp(actor, id, body);
+  }
+
+  @Get('vitals')
+  vitals(@Actor() actor: ActorContext, @Query(range()) q: Range): Promise<RumVitalsReport> {
+    return this.rum.vitals(actor, q);
   }
 
   @Delete('apps/:appId')
@@ -108,7 +131,7 @@ export class RumController {
 
   @Get('funnels')
   funnels(@Actor() actor: ActorContext): Promise<FunnelView[]> {
-    return this.rum.listFunnels(actor);
+    return this.funnelsService.list(actor);
   }
 
   @Post('funnels')
@@ -117,7 +140,7 @@ export class RumController {
     @Actor() actor: ActorContext,
     @Body(new ZodValidationPipe(createFunnelSchema)) body: CreateFunnelInput,
   ): Promise<FunnelView> {
-    return this.rum.createFunnel(actor, body);
+    return this.funnelsService.create(actor, body);
   }
 
   @Get('funnels/:funnelId/result')
@@ -126,7 +149,7 @@ export class RumController {
     @Param('funnelId', ParseUUIDPipe) id: string,
     @Query(range()) q: Range,
   ): Promise<FunnelResult> {
-    return this.rum.funnelResult(actor, id, q.minutes);
+    return this.funnelsService.result(actor, id, q.minutes);
   }
 
   @Delete('funnels/:funnelId')
@@ -136,6 +159,6 @@ export class RumController {
     @Actor() actor: ActorContext,
     @Param('funnelId', ParseUUIDPipe) id: string,
   ): Promise<void> {
-    return this.rum.removeFunnel(actor, id);
+    return this.funnelsService.remove(actor, id);
   }
 }

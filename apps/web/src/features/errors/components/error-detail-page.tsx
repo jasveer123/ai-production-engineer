@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Video } from "lucide-react"
 import { Badge, Button, CodeBlock, Eyebrow, Spinner } from "@/components/ui"
 import { useCurrentWorkspace } from "@/features/auth"
 import { ACTOR_ROLES } from "@/lib/constants/roles"
@@ -12,6 +12,10 @@ import { STATUS_VARIANT } from "../constants"
 import { useMembers } from "@/features/settings"
 import { Chip } from "@/components/ui"
 import { useError, useUpdateError } from "../hooks"
+import { BreadcrumbsList } from "./breadcrumbs-list"
+import { EventFacts } from "./event-facts"
+import { ExceptionChain } from "./exception-chain"
+import { SnoozeActions } from "./snooze-actions"
 
 export function ErrorDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -57,9 +61,12 @@ export function ErrorDetailPage() {
         </div>
         <h1 className="font-heading text-xl font-semibold tracking-tight">{data.title}</h1>
         <p className="text-[0.8125rem] text-muted-foreground">
-          {data.count.toLocaleString()} events · first seen {formatRelativeTime(data.firstSeenAt)} ·
-          last seen {formatRelativeTime(data.lastSeenAt)}
+          {data.count.toLocaleString()} events · {data.usersAffected.toLocaleString()} users · first
+          seen {formatRelativeTime(data.firstSeenAt)} · last seen{" "}
+          {formatRelativeTime(data.lastSeenAt)}
           {data.route ? ` · ${data.route}` : ""}
+          {data.snoozeUntil ? ` · snoozed until ${formatDateTime(data.snoozeUntil)}` : ""}
+          {data.snoozeRemaining ? ` · snoozed for ${data.snoozeRemaining} more events` : ""}
         </p>
         <div className="flex flex-wrap gap-2">
           {canAct && data.status !== "resolved" && (
@@ -81,6 +88,12 @@ export function ErrorDetailPage() {
               Ignore
             </Button>
           )}
+          {canAct && data.status !== "snoozed" && (
+            <SnoozeActions
+              disabled={setStatus.isPending}
+              onSnooze={(body) => setStatus.mutate(body)}
+            />
+          )}
           {canAct && data.status !== "unresolved" && (
             <Button
               size="sm"
@@ -89,6 +102,15 @@ export function ErrorDetailPage() {
               onClick={() => setStatus.mutate({ status: "unresolved" })}
             >
               Reopen
+            </Button>
+          )}
+          {data.rumSessionId && (
+            <Button
+              size="sm"
+              variant="outline"
+              render={<Link href={ROUTES.rumSession(data.rumSessionId)} />}
+            >
+              <Video /> Watch session replay
             </Button>
           )}
           {data.incidentId && (
@@ -143,7 +165,12 @@ export function ErrorDetailPage() {
           </div>
         </section>
       )}
-      {data.stack.length > 0 && (
+      {data.latest && data.latest.exceptions.length > 0 && (
+        <ExceptionChain exceptions={data.latest.exceptions} />
+      )}
+      {data.latest && <BreadcrumbsList items={data.latest.breadcrumbs} />}
+      <EventFacts data={data} />
+      {!data.latest?.exceptions.length && data.stack.length > 0 && (
         <section className="grid gap-2">
           <Eyebrow>
             {data.symbolicated ? "Stack trace (from your source maps)" : "Stack trace"}

@@ -1,11 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { METRICS_POLL_MS } from "../constants"
 import { metricsService } from "../services"
-import type { Widget } from "../schemas"
+import type { DashboardBody, Widget } from "../schemas"
+
+export const metricsKeys = {
+  all: (workspaceId: string) => ["metrics", workspaceId] as const,
+  part: (workspaceId: string, part: string) => ["metrics", workspaceId, part] as const,
+}
 
 export function useMetricNames(workspaceId: string | undefined) {
   return useQuery({
-    queryKey: ["metrics", workspaceId ?? "", "names"],
+    queryKey: metricsKeys.part(workspaceId ?? "", "names"),
     queryFn: () => metricsService.names(workspaceId!),
     enabled: Boolean(workspaceId),
     refetchInterval: METRICS_POLL_MS,
@@ -19,9 +24,7 @@ export function useMetricSeries(
 ) {
   return useQuery({
     queryKey: [
-      "metrics",
-      workspaceId,
-      "series",
+      ...metricsKeys.part(workspaceId, "series"),
       widget.metric,
       widget.agg,
       widget.service,
@@ -44,7 +47,7 @@ export function useMetricSeries(
 
 export function useMetricLabels(workspaceId: string, name: string) {
   return useQuery({
-    queryKey: ["metrics", workspaceId, "labels", name],
+    queryKey: [...metricsKeys.part(workspaceId, "labels"), name],
     queryFn: () => metricsService.labels(workspaceId, name),
     enabled: Boolean(name),
   })
@@ -52,31 +55,43 @@ export function useMetricLabels(workspaceId: string, name: string) {
 
 export function useDashboards(workspaceId: string | undefined) {
   return useQuery({
-    queryKey: ["metrics", workspaceId ?? "", "dashboards"],
+    queryKey: metricsKeys.part(workspaceId ?? "", "dashboards"),
     queryFn: () => metricsService.dashboards(workspaceId!),
     enabled: Boolean(workspaceId),
   })
 }
 
+export function useDashboardTemplates(workspaceId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: metricsKeys.part(workspaceId, "templates"),
+    queryFn: () => metricsService.templates(workspaceId),
+    enabled,
+    staleTime: Infinity,
+  })
+}
+
 function useRefresh(workspaceId: string) {
   const queryClient = useQueryClient()
-  return () => queryClient.invalidateQueries({ queryKey: ["metrics", workspaceId, "dashboards"] })
+  return () =>
+    queryClient.invalidateQueries({ queryKey: metricsKeys.part(workspaceId, "dashboards") })
 }
 
 export function useCreateDashboard(workspaceId: string) {
   const refresh = useRefresh(workspaceId)
   return useMutation({
     meta: { successMessage: "Dashboard created" },
-    mutationFn: (name: string) => metricsService.createDashboard(workspaceId, { name }),
+    mutationFn: (body: Partial<DashboardBody> & { name: string }) =>
+      metricsService.createDashboard(workspaceId, body),
     onSuccess: refresh,
   })
 }
 
-export function useSaveWidgets(workspaceId: string, id: string) {
+export function useSaveDashboard(workspaceId: string, id: string) {
   const refresh = useRefresh(workspaceId)
   return useMutation({
     meta: { successMessage: "Dashboard saved" },
-    mutationFn: (widgets: Widget[]) => metricsService.updateDashboard(workspaceId, id, { widgets }),
+    mutationFn: (body: Partial<DashboardBody>) =>
+      metricsService.updateDashboard(workspaceId, id, body),
     onSuccess: refresh,
   })
 }

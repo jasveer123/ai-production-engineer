@@ -23,8 +23,7 @@ export function HeartbeatsPage() {
 
   const beats = (sources.data ?? []).filter((item) => item.kind === "heartbeat")
   const missed = beats.filter(
-    (item) =>
-      item.heartbeat?.state && item.heartbeat.state !== "up" && item.heartbeat.state !== "waiting"
+    (item) => item.heartbeat?.state === "late" || item.heartbeat?.state === "down"
   )
 
   return (

@@ -3,6 +3,7 @@ import type { Role } from '@ape/api-contracts';
 export interface AuthContext {
   userId: string;
   sessionId: string;
+  token?: { id: string; workspaceId: string | null; scopes: string[]; areas: string[] };
 }
 
 export interface MembershipContext {
