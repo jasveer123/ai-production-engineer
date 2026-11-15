@@ -32,7 +32,9 @@ class FakeProvider:
         self.text = text
         self.user = ""
 
-    async def structured(self, *, system: str, user: str, schema: dict, purpose: str) -> ModelCall:
+    async def structured(
+        self, *, system: str, user: str, schema: dict[str, object], purpose: str
+    ) -> ModelCall:
         self.user = user
         return ModelCall(
             text=self.text,
