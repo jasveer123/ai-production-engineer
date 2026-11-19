@@ -123,7 +123,7 @@ export class AuthController {
       const profile = await this.oauth.flow(provider).exchangeCode(code);
       const userId = await this.auth.upsertUser(profile);
       this.signIn(res, await this.sessions.create(userId, req.correlationId, provider));
-      res.redirect(this.env.WEB_URL);
+      res.redirect(`${this.env.WEB_URL}/dashboard`);
     } catch (err) {
       await this.auth.recordLoginFailure(
         req.correlationId,
