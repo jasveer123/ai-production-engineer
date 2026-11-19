@@ -11,4 +11,5 @@ export const AUTH_ENDPOINTS = {
   VERIFY_EMAIL: "/auth/verify-email",
   GITHUB: "/auth/github",
   SLACK: "/auth/slack",
+  WORKSPACES: "/workspaces",
 } as const

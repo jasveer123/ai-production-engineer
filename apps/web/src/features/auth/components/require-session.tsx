@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Spinner } from "@/components/ui"
 import { ROUTES } from "@/lib/constants/routes"
 import { useSession } from "../hooks"
+import { CreateWorkspaceForm } from "./create-workspace-form"
 
 interface RequireSessionProps {
   children: React.ReactNode
@@ -25,6 +26,8 @@ export function RequireSession({ children }: RequireSessionProps) {
       </div>
     )
   }
+
+  if (data.workspaces.length === 0) return <CreateWorkspaceForm email={data.user.email} />
 
   return children
 }
