@@ -23,7 +23,8 @@
 		}
 	}
 
-	# The marketing site is a static export built with basePath /site.
+	# The marketing site is a static export built with basePath /site; the bare domain shows it.
+	redir / /site/ 302
 	redir /site /site/ 308
 	handle /site/* {
 		uri strip_prefix /site
