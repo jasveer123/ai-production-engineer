@@ -32,6 +32,8 @@ locals {
     "GITHUB_WEBHOOK_SECRET",
     "GITHUB_OAUTH_CLIENT_ID",
     "GITHUB_OAUTH_CLIENT_SECRET",
+    "SLACK_OAUTH_CLIENT_ID",
+    "SLACK_OAUTH_CLIENT_SECRET",
     "RESEND_API_KEY",
   ]
 }
@@ -63,4 +65,11 @@ resource "aws_ssm_parameter" "ghcr_user" {
   name  = "/ape/prod/GHCR_USER"
   type  = "String"
   value = split("/", var.github_repo)[0]
+}
+
+# Created by hand before Terraform could run; adopt them instead of failing on "already exists".
+import {
+  for_each = toset(["SLACK_OAUTH_CLIENT_ID", "SLACK_OAUTH_CLIENT_SECRET"])
+  to       = aws_ssm_parameter.manual[each.value]
+  id       = "/ape/prod/${each.value}"
 }
