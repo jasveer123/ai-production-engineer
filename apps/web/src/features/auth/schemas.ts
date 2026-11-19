@@ -17,6 +17,15 @@ export const signUpSchema = z.object({
 })
 export type SignUpValues = z.infer<typeof signUpSchema>
 
+export const createWorkspaceSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, "Give your workspace a name.")
+    .max(80, "Keep it under 80 characters."),
+})
+export type CreateWorkspaceValues = z.infer<typeof createWorkspaceSchema>
+
 export const sessionSchema = z.object({
   user: z.object({
     id: z.string(),

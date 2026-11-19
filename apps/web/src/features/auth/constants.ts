@@ -17,4 +17,5 @@ export const AUTH_TOAST = {
   EMAIL_CONFIRMED: "Email confirmed",
   VERIFICATION_SENT: "Verification link sent",
   SIGNED_UP: "Check your email",
+  WORKSPACE_CREATED: "Workspace created",
 } as const

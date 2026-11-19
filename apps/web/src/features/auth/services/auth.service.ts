@@ -2,6 +2,7 @@ import { AUTH_ENDPOINTS, http } from "@/lib/api"
 import {
   providersSchema,
   sessionSchema,
+  type CreateWorkspaceValues,
   type ForgotPasswordValues,
   type Providers,
   type Session,
@@ -30,6 +31,9 @@ export const authService = {
   logout: () => http.post<void>(AUTH_ENDPOINTS.LOGOUT, undefined, { skipAuthRedirect: true }),
 
   me: () => http.get<Session>(AUTH_ENDPOINTS.ME, { schema: sessionSchema }),
+
+  createWorkspace: (body: CreateWorkspaceValues) =>
+    http.post<void>(AUTH_ENDPOINTS.WORKSPACES, body),
 
   forgotPassword: (body: ForgotPasswordValues) =>
     http.post<void>(AUTH_ENDPOINTS.FORGOT_PASSWORD, body, PUBLIC_REQUEST),
