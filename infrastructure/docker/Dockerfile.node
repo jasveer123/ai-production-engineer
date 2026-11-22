@@ -53,7 +53,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --frozen-lo
 ENV NEXT_TELEMETRY_DISABLED=1 NEXT_PUBLIC_BASE_PATH=/site NEXT_PUBLIC_APP_URL=
 RUN pnpm --filter @ape/site build
 
-FROM caddy:2.11.7 AS site
+FROM caddy:2.11.9 AS site
 COPY infrastructure/docker/site.Caddyfile /etc/caddy/Caddyfile
 COPY --from=site-build /repo/apps/site/out /srv/site
 EXPOSE 8080
